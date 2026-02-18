@@ -1,0 +1,43 @@
+sequenceDiagram
+    autonumber
+    actor Scheduler as Scheduler/Cron
+    participant DWH as CoreDWH
+    participant FE as FeatureEngineering
+    participant Train as ForecastTrainer
+    participant Eval as ModelEvaluator
+    participant Reg as ModelRegistry
+    participant Infer as InferenceService
+    participant API as DashboardAPI
+    participant UI as DashboardUI
+
+    rect rgb(245,245,245)
+    Note over Scheduler,Reg: Nightly training pipeline
+    Scheduler->>DWH: request training window(exchange, asset)
+    DWH-->>Scheduler: historical tick + KPI dataset
+    Scheduler->>FE: build_features(dataset)
+    FE-->>Scheduler: train/valid feature sets
+    Scheduler->>Train: train classical models (Ridge, etc.)
+    Train-->>Scheduler: candidate models + predictions
+    Scheduler->>Train: train foundation models (Chronos/TimesFM/MOIRAI)
+    Train-->>Scheduler: candidate models + predictions
+    Scheduler->>Eval: compare models(MAE, RMSE, MAPE)
+    Eval-->>Scheduler: best model per exchange+asset
+    Scheduler->>Reg: register(best_model, metrics, version)
+    Reg-->>Scheduler: model_id + artifact_uri
+    end
+
+    rect rgb(245,245,245)
+    Note over Scheduler,Infer: Scheduled forecast generation
+    Scheduler->>Reg: load active model(exchange, asset)
+    Reg-->>Scheduler: model artifact + metadata
+    Scheduler->>Infer: run forecast(horizon, latest features)
+    Infer->>DWH: read latest context window
+    DWH-->>Infer: current series
+    Infer-->>Scheduler: forecast values + confidence
+    Scheduler->>DWH: write forecast results
+    end
+
+    UI->>API: request forecast dashboard(asset, exchange, horizon)
+    API->>DWH: query latest forecast + actuals
+    DWH-->>API: timeseries payload
+    API-->>UI: forecast chart + error metrics

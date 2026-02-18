@@ -1,0 +1,52 @@
+sequenceDiagram
+    autonumber
+    actor Scheduler as Scheduler/Cron
+    participant CCXT as CCXTAdapter
+    participant Mapper as SymbolMapper
+    participant Ingest as IngestionService
+    participant RawDB as RawSQLite
+    participant Stage as StagingExporter
+    participant StageDB as StagingDB
+    participant Clean as CleansingJob
+    participant Core as CoreModelBuilder
+    participant DWH as CoreDWH
+    participant Mart as MartBuilder
+    participant API as DashboardAPI
+    participant UI as DashboardUI
+
+    loop Realtime Polling (seconds)
+        Scheduler->>CCXT: fetch_ticker(exchange, symbol)
+        CCXT-->>Scheduler: ticker + exchange timestamp
+        Scheduler->>Mapper: normalize_symbol(raw_symbol)
+        Mapper-->>Scheduler: canonical_symbol
+        Scheduler->>Ingest: collect_realtime_tick(canonical_symbol, ticker)
+        Ingest->>Ingest: add_ingest_timestamp(now_utc)
+        Ingest->>RawDB: insert raw tick + metadata
+        RawDB-->>Ingest: ack
+    end
+
+    rect rgb(245,245,245)
+    Note over Scheduler,StageDB: Daily batch export (last 24h)
+    Scheduler->>Stage: export_last_24h_per_exchange()
+    Stage->>RawDB: read last 24h raw data
+    RawDB-->>Stage: raw dataset
+    Stage->>StageDB: write staging dataset
+    end
+
+    rect rgb(245,245,245)
+    Note over Clean,DWH: Nightly transformation
+    Scheduler->>Clean: run cleansing
+    Clean->>StageDB: read staged data
+    StageDB-->>Clean: staged dataset
+    Clean->>Core: deliver cleaned dataset
+    Core->>DWH: write dims/facts + daily KPI
+    end
+
+    Scheduler->>Mart: build marts
+    Mart->>DWH: read core facts
+    Mart->>DWH: write mart tables/views
+
+    UI->>API: request selected asset dashboard
+    API->>DWH: query 24h price + KPI marts
+    DWH-->>API: result set
+    API-->>UI: chart series + KPI payload

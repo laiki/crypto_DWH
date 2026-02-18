@@ -58,22 +58,3 @@ Naechste Schritte:
 3. Ingestion-Prototyp mit CCXT
 4. Erstes Dashboard-Layout
 
-## Auf GitHub ablegen
-Voraussetzung: Du hast auf GitHub bereits ein leeres Repository angelegt (z. B. `projektarbeit`).
-
-Im Projektordner ausfuehren:
-```powershell
-git init
-git add .
-git commit -m "Initial commit: AGENTS und README"
-git branch -M main
-git remote add origin https://github.com/<DEIN_USER>/<DEIN_REPO>.git
-git push -u origin main
-```
-
-Falls das Repo schon lokal ein Git-Repo ist:
-```powershell
-git add .
-git commit -m "Add README and project guidelines"
-git push
-```

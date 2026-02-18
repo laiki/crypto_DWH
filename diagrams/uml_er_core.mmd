@@ -1,0 +1,95 @@
+erDiagram
+    DIM_EXCHANGE {
+        int exchange_id PK
+        string exchange_code
+        string exchange_name
+        string region
+        datetime created_at
+    }
+
+    DIM_ASSET {
+        int asset_id PK
+        string canonical_symbol
+        string base_currency
+        string quote_currency
+        datetime created_at
+    }
+
+    FACT_MARKET_TICK {
+        bigint tick_id PK
+        int exchange_id FK
+        int asset_id FK
+        datetime event_ts_utc
+        datetime ingest_ts_utc
+        float last_price
+        float bid_price
+        float ask_price
+        float volume
+        int latency_ms
+    }
+
+    FACT_CONNECTION_EVENT {
+        bigint event_id PK
+        int exchange_id FK
+        datetime event_ts_utc
+        string event_type
+        string reason
+    }
+
+    FACT_KPI_DAILY {
+        bigint kpi_id PK
+        int exchange_id FK
+        int asset_id FK
+        date kpi_date
+        float avg_latency_ms
+        float min_latency_ms
+        float max_latency_ms
+        float update_frequency_hz
+        int disconnect_count
+    }
+
+    MART_PRICE_COMPARISON {
+        bigint mart_row_id PK
+        int asset_id FK
+        datetime aligned_ts_utc
+        float max_price_diff_abs
+        float max_price_diff_pct
+        string max_diff_exchange_pair
+    }
+
+    MART_PLATFORM_QUALITY {
+        bigint mart_row_id PK
+        int exchange_id FK
+        date kpi_date
+        float min_latency_ms
+        float max_latency_ms
+        int disconnect_count
+        float update_frequency_hz
+    }
+
+    FORECAST_RESULT {
+        bigint forecast_id PK
+        int exchange_id FK
+        int asset_id FK
+        string model_name
+        datetime train_end_ts_utc
+        datetime forecast_ts_utc
+        float yhat
+        float mae
+        float rmse
+        float mape
+    }
+
+    DIM_EXCHANGE ||--o{ FACT_MARKET_TICK : has
+    DIM_ASSET ||--o{ FACT_MARKET_TICK : has
+
+    DIM_EXCHANGE ||--o{ FACT_CONNECTION_EVENT : has
+
+    DIM_EXCHANGE ||--o{ FACT_KPI_DAILY : has
+    DIM_ASSET ||--o{ FACT_KPI_DAILY : has
+
+    DIM_ASSET ||--o{ MART_PRICE_COMPARISON : has
+    DIM_EXCHANGE ||--o{ MART_PLATFORM_QUALITY : has
+
+    DIM_EXCHANGE ||--o{ FORECAST_RESULT : has
+    DIM_ASSET ||--o{ FORECAST_RESULT : has

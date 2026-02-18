@@ -1,0 +1,146 @@
+classDiagram
+direction LR
+
+class ExchangeAPI {
+  <<external>>
+  +name: str
+  +symbolFormat: str
+}
+
+class CCXTAdapter {
+  <<ingestion>>
+  +load_markets()
+  +fetch_ticker()
+  +fetch_order_book()
+}
+
+class IngestionService {
+  <<service>>
+  +collect_realtime_ticks()
+  +add_ingest_timestamp()
+}
+
+class RawSQLite {
+  <<database>>
+  +raw_ticks
+  +connection_events
+}
+
+class StagingExporter {
+  <<batch>>
+  +export_last_24h_per_exchange()
+}
+
+class StagingDB {
+  <<database>>
+  +staging_ticks
+}
+
+class CleansingJob {
+  <<batch>>
+  +fill_missing_points()
+  +flag_outliers()
+}
+
+class CoreModelBuilder {
+  <<batch>>
+  +compute_update_frequency()
+  +compute_latency()
+  +compute_disconnects_per_day()
+}
+
+class CoreDWH {
+  <<database>>
+  +dim_exchange
+  +dim_asset
+  +fact_market_tick
+  +fact_kpi_daily
+}
+
+class MartBuilder {
+  <<batch>>
+  +build_price_comparison_mart()
+  +build_platform_quality_mart()
+}
+
+class MartPriceComparison {
+  <<mart>>
+  +max_price_diff_by_asset
+  +price_spread_timeseries
+}
+
+class MartPlatformQuality {
+  <<mart>>
+  +latency_min_max_by_exchange
+  +disconnects_by_exchange
+}
+
+class ForecastTrainer {
+  <<ml>>
+  +train_sklearn_models()
+  +train_foundation_models()
+  +evaluate_mae_rmse_mape()
+}
+
+class ModelRegistry {
+  <<artifact>>
+  +model_name
+  +exchange
+  +asset
+  +version
+  +metrics
+}
+
+class DashboardAPI {
+  <<service>>
+  +get_last_24h_price()
+  +get_max_price_diff()
+  +get_latency_kpis()
+  +get_forecast()
+}
+
+class DashboardUI {
+  <<ui>>
+  +select_asset()
+  +render_24h_chart()
+  +render_kpi_panels()
+}
+
+class SchedulerCron {
+  <<scheduler>>
+  +daily_staging_export()
+  +nightly_core_marts_refresh()
+  +forecast_retraining()
+}
+
+class SymbolMapper {
+  <<shared>>
+  +normalize_symbol(exchangeSymbol)
+  +map_to_canonical_asset()
+}
+
+ExchangeAPI --> CCXTAdapter : market data
+CCXTAdapter --> SymbolMapper : raw symbols
+SymbolMapper --> IngestionService : canonical symbol
+CCXTAdapter --> IngestionService : ticker stream
+IngestionService --> RawSQLite : write raw ticks
+
+SchedulerCron --> StagingExporter : trigger daily
+RawSQLite --> StagingExporter : read last 24h
+StagingExporter --> StagingDB : write staging
+
+StagingDB --> CleansingJob : input
+CleansingJob --> CoreModelBuilder : cleaned data
+CoreModelBuilder --> CoreDWH : write facts/dims
+
+CoreDWH --> MartBuilder : source
+MartBuilder --> MartPriceComparison : publish
+MartBuilder --> MartPlatformQuality : publish
+
+CoreDWH --> ForecastTrainer : train data
+ForecastTrainer --> ModelRegistry : register models
+
+MartPriceComparison --> DashboardAPI : read
+MartPlatformQuality --> DashboardAPI : read
+ModelRegistry --> DashboardAPI : forecast read
+DashboardAPI --> DashboardUI : charts + kpis
