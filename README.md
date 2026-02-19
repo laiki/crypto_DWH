@@ -45,20 +45,20 @@ Focus:
 Architecture diagrams are maintained as `.mmd` files.
 
 Stage structure:
-- `diagrams/overview/`
-- `diagrams/ingestion/`
-- `diagrams/staging/`
-- `diagrams/cleansing/`
-- `diagrams/core/`
-- `diagrams/marts/`
-- `diagrams/forecasting/`
+- `diagrams/0_overview/`
+- `diagrams/1_ingestion/`
+- `diagrams/2_staging/`
+- `diagrams/3_cleansing/`
+- `diagrams/4_core/`
+- `diagrams/5_marts/`
+- `diagrams/6_forecasting/`
 
 If `mermaid-cli` is installed:
 ```powershell
-mmdc -i diagrams/overview/uml_architecture.mmd -o diagrams/overview/uml_architecture.svg
-mmdc -i diagrams/ingestion/uml_sequence_ingestion.mmd -o diagrams/ingestion/uml_sequence_ingestion.svg
-mmdc -i diagrams/core/uml_er_core.mmd -o diagrams/core/uml_er_core.svg
-mmdc -i diagrams/forecasting/uml_forecasting_pipeline.mmd -o diagrams/forecasting/uml_forecasting_pipeline.svg
+mmdc -i diagrams/0_overview/uml_architecture.mmd -o diagrams/0_overview/uml_architecture.svg
+mmdc -i diagrams/1_ingestion/uml_sequence_ingestion.mmd -o diagrams/1_ingestion/uml_sequence_ingestion.svg
+mmdc -i diagrams/4_core/uml_er_core.mmd -o diagrams/4_core/uml_er_core.svg
+mmdc -i diagrams/6_forecasting/uml_forecasting_pipeline.mmd -o diagrams/6_forecasting/uml_forecasting_pipeline.svg
 ```
 
 ## Project Status
