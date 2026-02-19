@@ -1,0 +1,66 @@
+flowchart LR
+    classDef proc fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef db fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+    classDef ext fill:#fff3e0,stroke:#ef6c00,stroke-width:1px,color:#4a2a00
+    classDef q fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px,color:#2a1038
+
+    subgraph EXT[External]
+        EX[(CCXT Pro Exchanges)]
+    end
+    class EX ext
+
+    subgraph CTRL[Control Plane]
+        ORCH[Orchestrator Process]
+        PROBE[Capability Probe]
+        SHARD[Shard Planner]
+    end
+    class ORCH,PROBE,SHARD proc
+
+    subgraph ING[Ingestion Plane]
+        W1[Worker Process 1\nasyncio + ws tasks]
+        W2[Worker Process 2\nasyncio + ws tasks]
+        WN[Worker Process N\nasyncio + ws tasks]
+
+        Q1[[In-Memory Queue]]
+        Q2[[In-Memory Queue]]
+        QN[[In-Memory Queue]]
+
+        DB1[(worker_1_raw.db)]
+        DB2[(worker_2_raw.db)]
+        DBN[(worker_n_raw.db)]
+    end
+    class W1,W2,WN proc
+    class Q1,Q2,QN q
+    class DB1,DB2,DBN db
+
+    subgraph CONS[Consolidation Plane]
+        MERGE[Incremental Merger Job]
+        RAW[(raw_ingestion.db)]
+        STATE[(merge_state.db)]
+    end
+    class MERGE proc
+    class RAW,STATE db
+
+    ORCH --> PROBE
+    PROBE --> SHARD
+    SHARD --> W1
+    SHARD --> W2
+    SHARD --> WN
+
+    EX --> W1
+    EX --> W2
+    EX --> WN
+
+    W1 --> Q1 --> DB1
+    W2 --> Q2 --> DB2
+    WN --> QN --> DBN
+
+    DB1 --> MERGE
+    DB2 --> MERGE
+    DBN --> MERGE
+    STATE --> MERGE
+    MERGE --> RAW
+
+    ORCH -. restart policy .-> W1
+    ORCH -. restart policy .-> W2
+    ORCH -. restart policy .-> WN

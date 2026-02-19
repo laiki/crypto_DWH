@@ -1,60 +1,71 @@
-# Crypto Data Engineering Projektarbeit
+# Crypto Data Engineering Project
 
-## Ziel
-Diese Projektarbeit baut ein Data Warehouse fuer Kryptowaehrungen und ein Dashboard zur Visualisierung zentraler KPIs auf.
+## Goal
+This project builds a data warehouse for cryptocurrencies and a dashboard to visualize key KPIs.
 
-Fokus:
-- Preisvergleich gleicher Coins ueber mehrere Exchanges
-- Latenz und Update-Frequenz von Echtzeitdaten
-- Verbindungsabbrueche pro Plattform
-- Forecasts pro Waehrung und Exchange
+Focus:
+- Price comparison of the same coins across multiple exchanges
+- Latency and update frequency of real-time data
+- Connection interruptions per platform
+- Forecasts per currency and exchange
 
-## Tech-Stack (geplant)
+## Tech Stack (planned)
 - Python
-- CCXT (Datenaufnahme von Exchanges)
-- SQLite (Rohdaten / Zwischenstufen)
-- Scikit-learn + weitere Zeitreihenmodelle (Forecasting)
-- Mermaid fuer Architekturdiagramme
+- CCXT (exchange data ingestion)
+- SQLite (raw data / intermediate stages)
+- Scikit-learn + additional time-series models (forecasting)
+- Mermaid for architecture diagrams
 
-## Zielarchitektur
+## Target Architecture
 1. ETL/Ingestion:
-- Server-Prozess sammelt Marktdaten via CCXT
-- Empfangszeitpunkt wird pro Datensatz gespeichert
+- Service process collects market data via CCXT
+- Reception timestamp is stored per record
 
 2. Staging:
-- Taeglicher Export der letzten 24h je Exchange in separate Staging-Datenbank
+- Daily export of the last 24h per exchange into a separate staging database
 
 3. Cleansing:
-- Datenluecken behandeln
-- Ausreisser identifizieren/markieren
+- Handle data gaps
+- Identify/flag outliers
 
 4. Core:
-- Berechnung von KPIs (Update-Frequenz, Latenz, Abbrueche/Tag)
+- Compute KPIs (update frequency, latency, disconnects/day)
 
 5. Marts:
-- Preisvergleich gleicher Waehrung ueber Exchanges zum gleichen Zeitpunkt
-- KPI-Auswertung fuer Dashboard
+- Compare the same currency across exchanges at aligned timestamps
+- KPI analysis for dashboard consumption
 
 ## Dashboard (MVP)
-- Auswahl einer Kryptowaehrung
-- Kursverlauf der letzten 24h (zunaechst Binance)
-- Maximale Preisdifferenzen zwischen Exchanges
-- Min/Max-Latenz pro Plattform
+- User selects a cryptocurrency
+- Price chart for the last 24h (starting with Binance)
+- Maximum price differences between exchanges
+- Min/Max latency per platform
 
-## Mermaid Diagramme
-Architekturdiagramme werden als `.mmd` Dateien gepflegt.
+## Mermaid Diagrams
+Architecture diagrams are maintained as `.mmd` files.
 
-Wenn `mermaid-cli` installiert ist:
+Stage structure:
+- `diagrams/overview/`
+- `diagrams/ingestion/`
+- `diagrams/staging/`
+- `diagrams/cleansing/`
+- `diagrams/core/`
+- `diagrams/marts/`
+- `diagrams/forecasting/`
+
+If `mermaid-cli` is installed:
 ```powershell
-mmdc -i architecture.mmd -o architecture.svg
+mmdc -i diagrams/overview/uml_architecture.mmd -o diagrams/overview/uml_architecture.svg
+mmdc -i diagrams/ingestion/uml_sequence_ingestion.mmd -o diagrams/ingestion/uml_sequence_ingestion.svg
+mmdc -i diagrams/core/uml_er_core.mmd -o diagrams/core/uml_er_core.svg
+mmdc -i diagrams/forecasting/uml_forecasting_pipeline.mmd -o diagrams/forecasting/uml_forecasting_pipeline.svg
 ```
 
-## Projektstatus
-Aktuell: Konzeption und Architekturdefinition.
+## Project Status
+Current: concept and architecture definition.
 
-Naechste Schritte:
-1. Detailliertes Datenmodell (Staging/Core/Marts)
-2. Definition der KPI-Formeln
-3. Ingestion-Prototyp mit CCXT
-4. Erstes Dashboard-Layout
-
+Next steps:
+1. Detailed data model (staging/core/marts)
+2. Definition of KPI formulas
+3. Ingestion prototype with CCXT
+4. First dashboard layout

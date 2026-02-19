@@ -1,0 +1,9 @@
+data/*.csv
+data/*.html
+data/*.db-shm
+data/*.db-wal
+data/*.db
+*.svg
+*.png
+
+scripts/__pycache__/

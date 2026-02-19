@@ -12,6 +12,7 @@
 - Aenderungen und Entscheidungen klar begruenden und in kleine, nachvollziehbare Schritte aufteilen.
 - Architekturdiagramme standardmaessig als Mermaid-Dateien (`.mmd`) erstellen.
 - Falls `mermaid-cli` verfuegbar ist, Diagramme zusaetzlich als SVG/PNG/PDF rendern.
+- In Skripten alle Kommentare, Hilfetexte, Parameterbeschreibungen, Log-/Debug-/Info-Ausgaben und sonstige dokumentierende Texte auf Englisch verfassen.
 
 ## Fachliche Ziele
 - Vergleich gleicher Kryptowaehrungen ueber verschiedene Exchanges.
