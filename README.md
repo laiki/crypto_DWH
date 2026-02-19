@@ -64,6 +64,10 @@ mmdc -i diagrams/6_forecasting/uml_forecasting_pipeline.mmd -o diagrams/6_foreca
 ## Project Status
 Current: concept and architecture definition.
 
+## Script Documentation
+Detailed English documentation for all ingestion/orchestration scripts is available at:
+- `scripts/README.md`
+
 Next steps:
 1. Detailed data model (staging/core/marts)
 2. Definition of KPI formulas

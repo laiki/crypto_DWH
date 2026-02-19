@@ -23,7 +23,7 @@ import time
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 try:
     import ccxt.pro as ccxtpro
@@ -32,32 +32,20 @@ except ImportError as exc:
         "ccxt.pro is not installed. Please install it (e.g. pip install ccxtpro)."
     ) from exc
 
-try:
-    from ccxt.base.errors import AuthenticationError as CcxtAuthenticationError
-except Exception:  # noqa: BLE001
-    CcxtAuthenticationError = None
+from ingestion_common import (
+    DEFAULT_EXCLUDED_EXCHANGES,
+    configure_logging_with_file,
+    is_terminal_exclusion_error,
+    iter_tickers,
+    parse_exchange_list,
+    resolve_excluded_exchanges,
+    select_symbols,
+    supports_ws_flag,
+    terminal_error_reason,
+)
 
 
 LOGGER = logging.getLogger("crypto_ws_ingestion")
-
-DEFAULT_EXCLUDED_EXCHANGES = {
-    "alpaca",
-    "arkham",
-    "bequant",
-    "bitfinex",
-    "bitmex",
-    "bitopro",
-    "blockchaincom",
-    "oxfun",
-    "probit",
-}
-
-TERMINAL_EXCLUSION_ERROR_NAMES = {
-    "authenticationerror",
-    "exchangenotavailable",
-    "requesttimeout",
-    "exchangeerror",
-}
 
 
 def utc_now_iso() -> str:
@@ -72,21 +60,6 @@ def ms_to_utc_iso(ms: Any) -> str | None:
 
 def json_dumps_safe(payload: Any) -> str:
     return json.dumps(payload, ensure_ascii=True, default=str, separators=(",", ":"))
-
-
-def iter_tickers(payload: Any) -> Iterable[dict[str, Any]]:
-    if isinstance(payload, dict):
-        if "symbol" in payload:
-            yield payload
-            return
-        for value in payload.values():
-            if isinstance(value, dict) and value.get("symbol"):
-                yield value
-        return
-    if isinstance(payload, list):
-        for value in payload:
-            if isinstance(value, dict) and value.get("symbol"):
-                yield value
 
 
 class SQLiteWriter:
@@ -269,61 +242,6 @@ async def put_tick(
         "raw_json": json_dumps_safe(ticker),
     }
     await queue.put(("tick", payload))
-
-
-def select_symbols(
-    markets: dict[str, dict[str, Any]],
-    only_spot: bool,
-    max_symbols: int | None,
-) -> list[str]:
-    symbols: list[str] = []
-    for symbol, market in markets.items():
-        if not isinstance(market, dict):
-            continue
-        if market.get("active") is False:
-            continue
-        if only_spot and not market.get("spot", False):
-            continue
-        symbols.append(symbol)
-    symbols = sorted(set(symbols))
-    if max_symbols is not None and max_symbols > 0:
-        symbols = symbols[:max_symbols]
-    return symbols
-
-
-def supports_ws_flag(flag_value: Any) -> bool:
-    return flag_value is True
-
-
-def error_class_name(exc: Exception) -> str:
-    return exc.__class__.__name__
-
-
-def is_auth_error(exc: Exception) -> bool:
-    if CcxtAuthenticationError is not None and isinstance(exc, CcxtAuthenticationError):
-        return True
-    error_name = error_class_name(exc).lower()
-    if "authenticationerror" in error_name:
-        return True
-    message = str(exc).lower()
-    auth_markers = (
-        'requires "apikey" credential',
-        "api key",
-        "not authenticated",
-        "authentication failed",
-        "invalid api",
-    )
-    return any(marker in message for marker in auth_markers)
-
-
-def is_terminal_exclusion_error(exc: Exception) -> bool:
-    if is_auth_error(exc):
-        return True
-    return error_class_name(exc).lower() in TERMINAL_EXCLUSION_ERROR_NAMES
-
-
-def terminal_error_reason(exc: Exception) -> str:
-    return error_class_name(exc)
 
 
 async def watch_tickers_loop(
@@ -648,29 +566,6 @@ async def run_exchange(
             await put_event(queue, exchange_id, "connection_closed")
 
 
-def parse_exchange_list(exchange_arg: str | None) -> list[str]:
-    all_exchanges = list(getattr(ccxtpro, "exchanges", []))
-    if not exchange_arg:
-        return all_exchanges
-    selected = [item.strip().lower() for item in exchange_arg.split(",") if item.strip()]
-    filtered = [ex for ex in selected if ex in all_exchanges]
-    return list(dict.fromkeys(filtered))
-
-
-def parse_explicit_exchange_list(exchange_arg: str | None) -> list[str]:
-    all_exchanges = list(getattr(ccxtpro, "exchanges", []))
-    if not exchange_arg:
-        return []
-    selected = [item.strip().lower() for item in exchange_arg.split(",") if item.strip()]
-    filtered = [ex for ex in selected if ex in all_exchanges]
-    return list(dict.fromkeys(filtered))
-
-
-def resolve_excluded_exchanges(explicit_exclude_arg: str | None) -> set[str]:
-    explicit_excluded = set(parse_explicit_exchange_list(explicit_exclude_arg))
-    return set(DEFAULT_EXCLUDED_EXCHANGES) | explicit_excluded
-
-
 def choose_stream_mode(watch_tickers_supported: bool, watch_ticker_supported: bool) -> str:
     if watch_tickers_supported:
         return "watch_tickers"
@@ -882,6 +777,7 @@ def install_signal_handlers(stop_event: asyncio.Event) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    default_excluded_csv = ", ".join(sorted(DEFAULT_EXCLUDED_EXCHANGES))
     parser = argparse.ArgumentParser(
         description="Ingest ticker data from all ccxt.pro exchanges via WebSocket into SQLite."
     )
@@ -896,7 +792,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Comma-separated list of exchange IDs to additionally exclude. "
-            "Default excluded: alpaca, arkham, bequant, bitfinex, bitmex, bitopro, blockchaincom, oxfun, probit."
+            f"Default excluded: {default_excluded_csv}."
         ),
     )
     parser.add_argument(
@@ -937,6 +833,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reconnect-base-s", type=float, default=1.0, help="Initial reconnect backoff.")
     parser.add_argument("--reconnect-max-s", type=float, default=30.0, help="Maximum reconnect backoff.")
     parser.add_argument(
+        "--log-file",
+        default=None,
+        help="Optional log file path. Default: <db-path with .log extension>.",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -974,14 +875,19 @@ def parse_args() -> argparse.Namespace:
 
 
 async def async_main(args: argparse.Namespace) -> None:
-    logging.basicConfig(
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    default_log_path = Path(args.db_path).with_suffix(".log")
+    log_file_path = Path(args.log_file) if args.log_file else default_log_path
+    configure_logging_with_file(args.log_level, log_file_path)
+    LOGGER.info("File logging enabled: %s", log_file_path)
 
-    requested_exchanges = parse_exchange_list(args.exchanges)
+    available_exchanges = list(getattr(ccxtpro, "exchanges", []))
+    requested_exchanges = parse_exchange_list(args.exchanges, available_exchanges)
     selected_exchanges = list(requested_exchanges)
-    excluded_exchanges = resolve_excluded_exchanges(args.exchanges_exclude)
+    excluded_exchanges = resolve_excluded_exchanges(
+        args.exchanges_exclude,
+        available_exchanges,
+        DEFAULT_EXCLUDED_EXCHANGES,
+    )
     if excluded_exchanges:
         selected_exchanges = [exchange_id for exchange_id in selected_exchanges if exchange_id not in excluded_exchanges]
     excluded_from_selection = sorted(set(requested_exchanges) - set(selected_exchanges))

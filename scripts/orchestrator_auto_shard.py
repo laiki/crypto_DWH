@@ -15,7 +15,6 @@ import argparse
 import asyncio
 import json
 import logging
-import math
 import os
 import signal
 import subprocess
@@ -32,12 +31,13 @@ except ImportError as exc:
         "ccxt.pro is not installed. Please install it (e.g. pip install ccxtpro)."
     ) from exc
 
-from ingest_all_exchanges_ws import (
+from ingestion_common import (
     DEFAULT_EXCLUDED_EXCHANGES,
+    configure_logging_with_file,
     is_terminal_exclusion_error,
     iter_tickers,
     parse_exchange_list,
-    parse_explicit_exchange_list,
+    resolve_excluded_exchanges,
     select_symbols,
     supports_ws_flag,
     terminal_error_reason,
@@ -229,12 +229,12 @@ def parse_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Orchestrator log level.",
     )
+    parser.add_argument(
+        "--log-file",
+        default="logs/orchestrator_auto_shard.log",
+        help="Orchestrator log file path.",
+    )
     return parser.parse_args()
-
-
-def resolve_excluded_exchanges(explicit_exclude_arg: str | None) -> set[str]:
-    explicit_excluded = set(parse_explicit_exchange_list(explicit_exclude_arg))
-    return set(DEFAULT_EXCLUDED_EXCHANGES) | explicit_excluded
 
 
 def limit_symbols(symbols: list[str], profile_symbol_limit: int) -> list[str]:
@@ -706,13 +706,16 @@ def supervise_workers(worker_plans: list[WorkerPlan], args: argparse.Namespace) 
 
 def main() -> None:
     args = parse_args()
-    logging.basicConfig(
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    configure_logging_with_file(args.log_level, Path(args.log_file))
+    LOGGER.info("File logging enabled: %s", args.log_file)
 
-    requested_exchanges = parse_exchange_list(args.exchanges)
-    excluded_exchanges = resolve_excluded_exchanges(args.exchanges_exclude)
+    available_exchanges = list(getattr(ccxtpro, "exchanges", []))
+    requested_exchanges = parse_exchange_list(args.exchanges, available_exchanges)
+    excluded_exchanges = resolve_excluded_exchanges(
+        args.exchanges_exclude,
+        available_exchanges,
+        DEFAULT_EXCLUDED_EXCHANGES,
+    )
     selected_exchanges = [exchange_id for exchange_id in requested_exchanges if exchange_id not in excluded_exchanges]
     excluded_from_selection = sorted(set(requested_exchanges) - set(selected_exchanges))
 

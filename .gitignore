@@ -7,3 +7,4 @@ data/*.db
 *.png
 
 scripts/__pycache__/
+scripts/logs/
