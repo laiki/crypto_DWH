@@ -102,6 +102,14 @@ def parse_args() -> argparse.Namespace:
         description="Profile exchange traffic, auto-shard exchanges, and spawn ingestion worker processes."
     )
     parser.add_argument(
+        "--plan-input",
+        default=None,
+        help=(
+            "Path to an existing orchestrator plan JSON. "
+            "If set, profiling/sharding is skipped and worker commands are loaded from this plan."
+        ),
+    )
+    parser.add_argument(
         "--exchanges",
         default=None,
         help="Comma-separated list of exchange IDs. Default: all ccxt.pro exchanges.",
@@ -605,6 +613,67 @@ def write_plan_json(
     output_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
 
 
+def load_plan_json(input_path: Path, logs_dir: Path) -> list[WorkerPlan]:
+    if not input_path.exists():
+        raise SystemExit(f"Plan input file not found: {input_path}")
+
+    try:
+        payload = json.loads(input_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        raise SystemExit(f"Failed to read plan input JSON: {input_path} | error={exc!r}") from exc
+
+    raw_workers = payload.get("workers")
+    if not isinstance(raw_workers, list) or not raw_workers:
+        raise SystemExit(f"Plan input has no worker entries: {input_path}")
+
+    worker_plans: list[WorkerPlan] = []
+    for index, item in enumerate(raw_workers):
+        if not isinstance(item, dict):
+            raise SystemExit(f"Invalid worker entry at index {index}: expected object.")
+
+        worker_id = item.get("worker_id", index)
+        if not isinstance(worker_id, int):
+            raise SystemExit(f"Invalid worker_id at index {index}: expected integer.")
+
+        exchanges = item.get("exchanges", [])
+        if not isinstance(exchanges, list) or not all(isinstance(exchange_id, str) for exchange_id in exchanges):
+            raise SystemExit(f"Invalid exchanges list for worker {worker_id}.")
+
+        score_total_raw = item.get("score_total", 0.0)
+        try:
+            score_total = float(score_total_raw)
+        except (TypeError, ValueError) as exc:
+            raise SystemExit(f"Invalid score_total for worker {worker_id}: {score_total_raw!r}") from exc
+
+        db_path_raw = item.get("db_path", "")
+        if not isinstance(db_path_raw, str):
+            raise SystemExit(f"Invalid db_path for worker {worker_id}: expected string.")
+
+        command = item.get("command")
+        if not isinstance(command, list) or not command or not all(isinstance(part, str) for part in command):
+            raise SystemExit(f"Invalid command for worker {worker_id}: expected non-empty list of strings.")
+
+        log_path_raw = item.get("log_path")
+        if isinstance(log_path_raw, str) and log_path_raw.strip():
+            log_path = log_path_raw
+        else:
+            log_path = str(logs_dir / f"worker_{worker_id}.log")
+
+        worker_plans.append(
+            WorkerPlan(
+                worker_id=worker_id,
+                exchanges=exchanges,
+                score_total=score_total,
+                db_path=db_path_raw,
+                command=command,
+                log_path=log_path,
+            )
+        )
+
+    worker_plans_sorted = sorted(worker_plans, key=lambda item: item.worker_id)
+    return worker_plans_sorted
+
+
 def terminate_process(process: subprocess.Popen[Any], timeout_s: float = 10.0) -> None:
     if process.poll() is not None:
         return
@@ -708,6 +777,27 @@ def main() -> None:
     args = parse_args()
     configure_logging_with_file(args.log_level, Path(args.log_file))
     LOGGER.info("File logging enabled: %s", args.log_file)
+
+    if args.plan_input:
+        plan_input_path = Path(args.plan_input)
+        worker_plans_sorted = load_plan_json(plan_input_path, Path(args.logs_dir))
+        LOGGER.info(
+            "Loaded %s worker plans from %s. Profiling and auto-sharding are skipped.",
+            len(worker_plans_sorted),
+            plan_input_path,
+        )
+        for plan in worker_plans_sorted:
+            LOGGER.info(
+                "Worker %s plan (loaded) | exchanges=%s | score_total=%.1f",
+                plan.worker_id,
+                len(plan.exchanges),
+                plan.score_total,
+            )
+        if args.dry_run:
+            LOGGER.info("Dry-run mode active with --plan-input. No workers spawned.")
+            return
+        supervise_workers(worker_plans_sorted, args)
+        return
 
     available_exchanges = list(getattr(ccxtpro, "exchanges", []))
     requested_exchanges = parse_exchange_list(args.exchanges, available_exchanges)

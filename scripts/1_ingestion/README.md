@@ -209,6 +209,12 @@ Run with explicit worker count and faster profiling:
 python scripts/1_ingestion/orchestrator_auto_shard.py --workers 4 --profile-seconds 20
 ```
 
+Reuse an existing plan (skip profiling and sharding):
+
+```powershell
+python scripts/1_ingestion/orchestrator_auto_shard.py --plan-input data/orchestrator_plan.json
+```
+
 ## `ingestion_common.py`
 
 Shared helpers and constants:
