@@ -1,87 +1,88 @@
 # AGENTS.md
 
-## Projektkontext
-- Projektart: Projektarbeit im Bereich Data Engineering.
-- Domaene: Analyse von Kryptowaehrungen ueber mehrere Handelsplattformen.
-- Programmiersprache: Python.
-- Fokus: Aufbau eines Data Warehouses und eines Dashboards zur Visualisierung der Ergebnisse.
+## Project Context
+- Project type: Data Engineering project thesis.
+- Domain: Analysis of cryptocurrencies across multiple exchanges.
+- Programming language: Python.
+- Focus: Build a data warehouse and a dashboard to visualize results.
 
-## Kollaborationsregeln
-- Antworte standardmaessig auf Deutsch.
-- Ohne explizite Aufforderung zuerst konzeptionell arbeiten (Architektur, Datenmodell, KPIs, Vorgehen), nicht direkt implementieren.
-- Aenderungen und Entscheidungen klar begruenden und in kleine, nachvollziehbare Schritte aufteilen.
-- Architekturdiagramme standardmaessig als Mermaid-Dateien (`.mmd`) erstellen.
-- Falls `mermaid-cli` verfuegbar ist, Diagramme zusaetzlich als SVG/PNG/PDF rendern.
-- In Skripten alle Kommentare, Hilfetexte, Parameterbeschreibungen, Log-/Debug-/Info-Ausgaben und sonstige dokumentierende Texte auf Englisch verfassen.
+## Collaboration Rules
+- Default response language: German.
+- Unless explicitly requested otherwise, start with conceptual work first (architecture, data model, KPIs, approach), not direct implementation.
+- Explain changes and decisions clearly, in small and traceable steps.
+- Create architecture diagrams as Mermaid files (`.mmd`) by default.
+- If `mermaid-cli` is available, also render diagrams as SVG/PNG/PDF.
+- In scripts, write all comments, help texts, parameter descriptions, log/debug/info output, and other documentation text in English.
+- Maintain Python dependencies centrally in `requirements.txt` at the project root and automatically extend it whenever a script needs additional external packages.
 
-## Fachliche Ziele
-- Vergleich gleicher Kryptowaehrungen ueber verschiedene Exchanges.
-- Analyse von:
-  - Preisunterschieden zum gleichen Zeitpunkt.
-  - Latenz der Echtzeitdaten.
-  - Frequenz/Update-Rate der Echtzeitdaten.
-  - Verbindungsabbruechen pro Plattform.
-- Forecasts pro Waehrung und Exchange mit klassischen ML-Ansaetzen und modernen AI-Zeitreihenmodellen.
+## Domain Goals
+- Compare the same cryptocurrencies across different exchanges.
+- Analyze:
+  - Price differences at the same timestamp.
+  - Real-time data latency.
+  - Real-time update frequency/rate.
+  - Connection drops per platform.
+- Build forecasts per currency and exchange using classical ML and modern AI time-series models.
 
-## Zielarchitektur (DWH-Pipeline)
+## Target Architecture (DWH Pipeline)
 
 ### 1) ETL / Ingestion
-- Datenquelle: `ccxt` (CryptoCurrency eXchange Trading Library), Echtzeit-/Marktdaten von Exchanges.
-- Prozess: Server-Prozess schreibt kontinuierlich in SQLite.
-- Pflichtfeld: Empfangszeitpunkt (ingestion timestamp) pro Datensatz.
-- Zu pruefen:
-  - Vereinheitlichung von Coin-/Symbolnamen durch CCXT ueber Exchanges hinweg.
-  - Ob und wie CCXT die Update-Frequenz einzelner Boersen liefert.
+- Data source: `ccxt` (CryptoCurrency eXchange Trading Library), real-time/market data from exchanges.
+- Process: A server process continuously writes into SQLite.
+- Required field: Ingestion timestamp per record.
+- To verify:
+  - Cross-exchange normalization of coin/symbol names via CCXT.
+  - Whether and how CCXT exposes per-exchange update frequency.
 
 ### 2) Staging Area
-- Taeglicher Export-Job (Cron): Daten der letzten 24h je Plattform in eine separate Datenbank/Zone.
-- Ziel: Entkopplung von Rohdatenaufnahme und nachgelagerter Aufbereitung.
+- Daily export job (cron): Last 24h of data per platform into a separate database/zone.
+- Goal: Decouple raw ingestion from downstream transformations.
 
 ### 3) Cleansing Area
-- Datenluecken identifizieren und behandeln.
-- Ausreisser erkennen und markieren (oder bereinigen, je nach definierter Regel).
+- Identify and handle data gaps.
+- Detect and mark outliers (or clean them, depending on defined rules).
 
 ### 4) Core Layer
-- Berechnung zentraler Meta-Informationen/KPIs:
-  - Update-Frequenz.
-  - Verbindungsabbrueche pro Tag.
-  - Latenz.
+- Compute central meta information/KPIs:
+  - Update frequency.
+  - Connection drops per day.
+  - Latency.
 
 ### 5) Marts / Analytics
-- Vergleich derselben Kryptowaehrung ueber verschiedene Handelsplattformen.
-- Preisvergleich auf identischen Zeitpunkten (zeitliche Ausrichtung erforderlich).
-- KPI-Fokus:
-  - Maximale Preisunterschiede pro Kryptowaehrung (als Graph).
-  - Latenz pro Handelsplattform.
-  - Anzahl Verbindungsabbrueche pro Handelsplattform.
+- Compare the same cryptocurrency across different exchanges.
+- Compare prices at aligned timestamps (time alignment required).
+- KPI focus:
+  - Maximum price differences per cryptocurrency (as graph).
+  - Latency per exchange.
+  - Number of connection drops per exchange.
 
-## Forecasting-Rahmen
-- Pro Waehrung und Exchange.
-- Modellfamilien:
-  - Scikit-learn lineare Modelle (z. B. `Ridge`; weitere geeignete Regressoren evaluieren).
-  - AI-Modelle aus externer Referenzliste:
+## Forecasting Framework
+- Per currency and exchange.
+- Model families:
+  - Scikit-learn linear models (e.g. `Ridge`; evaluate additional suitable regressors).
+  - AI models from external reference list:
     - Chronos-2
     - TimesFM-2.5
     - MOIRAI-2
-- Wichtiger Hinweis: Modellwahl und Metriken (z. B. MAE/RMSE/MAPE) vorab pro Use Case festlegen.
+- Important note: Define model choice and metrics (e.g. MAE/RMSE/MAPE) up front per use case.
 
-## Dashboard-Anforderungen
-- Auswahl einer Kryptowaehrung durch den Nutzer.
-- Visualisierung:
-  - Kursverlauf der letzten 24h (zunaechst Binance als Startpunkt).
-  - Maximale Preisdifferenzen zwischen Exchanges.
-  - Min/Max-Latenz je Plattform.
-- Ziel: schnelle Vergleichbarkeit zwischen Plattformqualitaet und Preisabweichung.
+## Dashboard Requirements
+- User can select a cryptocurrency.
+- Visualizations:
+  - Price curve of the last 24h (start with Binance first).
+  - Maximum price differences between exchanges.
+  - Min/Max latency per platform.
+- Goal: Fast comparison of platform quality and price deviations.
 
-## Offene Pruef- und Designfragen
-- Kanonisches Symbol-Mapping fuer Coins/Trading-Pairs exchange-uebergreifend.
-- Einheitliche Zeitsynchronisation (UTC) und Resampling-Strategie fuer "gleicher Zeitpunkt".
-- Definition von "Verbindungsabbruch" und messbarer Latenzformel.
-- Umgang mit fehlenden Ticks und extremen Ausreissern.
-- Trennung von Online-Ingestion und Batch-Transformation (Betriebsstabilitaet).
+## Open Validation and Design Questions
+- Canonical symbol mapping for coins/trading pairs across exchanges.
+- Consistent time synchronization (UTC) and resampling strategy for "same timestamp".
+- Definition of "connection drop" and measurable latency formula.
+- Handling of missing ticks and extreme outliers.
+- Separation of online ingestion and batch transformation (operational stability).
 
-## Erwartete Ergebnisse der Projektarbeit
-- Nachvollziehbare DWH-Architektur mit dokumentierten Datenfluessen.
-- KPI-basierte Analyse der Boersenqualitaet und Preisabweichungen.
-- Vergleich klassischer und moderner Forecasting-Ansaetze.
-- Ein Dashboard, das die wichtigsten Erkenntnisse klar visualisiert.
+## Expected Project Outcomes
+- Traceable DWH architecture with documented data flows.
+- KPI-based analysis of exchange quality and price deviations.
+- Comparison of classical and modern forecasting approaches.
+- A dashboard that clearly visualizes key insights.
