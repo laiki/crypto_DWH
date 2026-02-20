@@ -66,7 +66,7 @@ Current: concept and architecture definition.
 
 ## Script Documentation
 Detailed English documentation for all ingestion/orchestration scripts is available at:
-- `scripts/README.md`
+- `scripts/1_ingestion/README.md`
 
 Next steps:
 1. Detailed data model (staging/core/marts)

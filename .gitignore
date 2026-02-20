@@ -3,8 +3,8 @@ data/*.html
 data/*.db-shm
 data/*.db-wal
 data/*.db
-*.svg
+data/*.log
 *.png
-
-scripts/__pycache__/
-scripts/logs/
+scripts/**/__pycache__/
+scripts/**/logs/
+*.json

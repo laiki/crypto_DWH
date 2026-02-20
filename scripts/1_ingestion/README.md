@@ -1,6 +1,6 @@
 # Scripts README
 
-This document describes all Python scripts in `scripts/` and explains the profiling and auto-sharding logic in detail.
+This document describes all Python scripts in `scripts/1_ingestion/` and explains the profiling and auto-sharding logic in detail.
 
 ## Script Overview
 
@@ -59,25 +59,25 @@ Continuously ingests ticker data via websocket from selected exchanges and store
 Run ingestion:
 
 ```powershell
-python scripts/ingest_all_exchanges_ws.py --db-path data/crypto_ws_ticks.db
+python scripts/1_ingestion/ingest_all_exchanges_ws.py --db-path data/crypto_ws_ticks.db
 ```
 
 List capabilities to HTML:
 
 ```powershell
-python scripts/ingest_all_exchanges_ws.py --list-capabilities --list-format html
+python scripts/1_ingestion/ingest_all_exchanges_ws.py --list-capabilities --list-format html
 ```
 
 Only exchanges with `watchTickers`:
 
 ```powershell
-python scripts/ingest_all_exchanges_ws.py --only-watch-tickers
+python scripts/1_ingestion/ingest_all_exchanges_ws.py --only-watch-tickers
 ```
 
 Custom log file:
 
 ```powershell
-python scripts/ingest_all_exchanges_ws.py --log-file logs/ingestion.log
+python scripts/1_ingestion/ingest_all_exchanges_ws.py --log-file logs/ingestion.log
 ```
 
 ## `orchestrator_auto_shard.py`
@@ -194,19 +194,19 @@ This is a practical approximation of load balancing (Longest Processing Time sty
 Plan only (no worker processes):
 
 ```powershell
-python scripts/orchestrator_auto_shard.py --dry-run
+python scripts/1_ingestion/orchestrator_auto_shard.py --dry-run
 ```
 
 Run with auto worker count:
 
 ```powershell
-python scripts/orchestrator_auto_shard.py
+python scripts/1_ingestion/orchestrator_auto_shard.py
 ```
 
 Run with explicit worker count and faster profiling:
 
 ```powershell
-python scripts/orchestrator_auto_shard.py --workers 4 --profile-seconds 20
+python scripts/1_ingestion/orchestrator_auto_shard.py --workers 4 --profile-seconds 20
 ```
 
 ## `ingestion_common.py`
