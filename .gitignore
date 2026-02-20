@@ -8,3 +8,5 @@ data/*.log
 scripts/**/__pycache__/
 scripts/**/logs/
 *.json
+*.svg
+*.png
