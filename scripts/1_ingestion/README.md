@@ -21,13 +21,13 @@ This document describes all Python scripts in `scripts/1_ingestion/` and explain
 ## Prerequisites
 
 - Python 3.10+ (recommended).
-- `ccxt.pro` installed in the same environment used to run the scripts.
+- `ccxt` installed in the same environment used to run the scripts.
 - Write access to the project directories (`data/`, `logs/`).
 
 Install example:
 
 ```powershell
-python -m pip install ccxtpro
+python -m pip install ccxt
 ```
 
 ## `ingest_all_exchanges_ws.py`

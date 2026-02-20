@@ -29,7 +29,7 @@ try:
     import ccxt.pro as ccxtpro
 except ImportError as exc:
     raise SystemExit(
-        "ccxt.pro is not installed. Please install it (e.g. pip install ccxtpro)."
+        "ccxt.pro is not installed. Please install it (e.g. pip install ccxt)."
     ) from exc
 
 from ingestion_common import (
