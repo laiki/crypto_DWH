@@ -298,3 +298,6 @@ Next steps:
 2. Definition of KPI formulas
 3. Ingestion prototype with CCXT
 4. First dashboard layout
+
+Session task backlog:
+- `docs/next_session_tasks.md`
