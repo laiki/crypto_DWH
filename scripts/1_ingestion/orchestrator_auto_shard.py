@@ -99,7 +99,8 @@ class TerminalProfileError(Exception):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Profile exchange traffic, auto-shard exchanges, and spawn ingestion worker processes."
+        description="Profile exchange traffic, auto-shard exchanges, and spawn ingestion worker processes.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--plan-input",

@@ -779,7 +779,8 @@ def install_signal_handlers(stop_event: asyncio.Event) -> None:
 def parse_args() -> argparse.Namespace:
     default_excluded_csv = ", ".join(sorted(DEFAULT_EXCLUDED_EXCHANGES))
     parser = argparse.ArgumentParser(
-        description="Ingest ticker data from all ccxt.pro exchanges via WebSocket into SQLite."
+        description="Ingest ticker data from all ccxt.pro exchanges via WebSocket into SQLite.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--db-path", default="data/crypto_ws_ticks.db", help="SQLite DB file.")
     parser.add_argument(

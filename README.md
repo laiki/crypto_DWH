@@ -68,6 +68,9 @@ Current: concept and architecture definition.
 Detailed English documentation for all ingestion/orchestration scripts is available at:
 - `scripts/1_ingestion/README.md`
 
+Operational insights are tracked at:
+- `docs/insights.md`
+
 Next steps:
 1. Detailed data model (staging/core/marts)
 2. Definition of KPI formulas
