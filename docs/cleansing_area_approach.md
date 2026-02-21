@@ -61,7 +61,8 @@ The cleansing output database contains:
   - Run-level parameters and totals for traceability.
 
 Default output DB location:
-- `<input_db_dir>/cleansing/cleaned_<input_name>_<bin_seconds>s.db`
+- If input DB is under `.../staging/...`: `<staging_parent>/cleansing/cleaned_<input_name>_<bin_seconds>s.db`
+- Otherwise: `<input_db_dir>/cleansing/cleaned_<input_name>_<bin_seconds>s.db`
 
 In addition, a process JSON file is written next to the output DB:
 - `<output_db_name>.json` (for example `cleaned_xxx.db.json`)

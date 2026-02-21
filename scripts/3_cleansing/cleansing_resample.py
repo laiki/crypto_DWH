@@ -79,7 +79,9 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Path to output cleansing SQLite database. "
-            "If omitted, uses <input_db_dir>/cleansing/cleaned_<input_name>_<bin_seconds>s.db."
+            "If omitted and input is under a directory named staging, uses "
+            "<staging_parent>/cleansing/cleaned_<input_name>_<bin_seconds>s.db. "
+            "Otherwise uses <input_db_dir>/cleansing/cleaned_<input_name>_<bin_seconds>s.db."
         ),
     )
     parser.add_argument(
@@ -205,7 +207,15 @@ def floor_epoch(epoch_s: int, bin_seconds: int) -> int:
 def default_output_path(input_db_path: Path, bin_seconds: int) -> Path:
     suffix = input_db_path.suffix if input_db_path.suffix else ".db"
     filename = f"cleaned_{input_db_path.stem}_{bin_seconds}s{suffix}"
-    return input_db_path.parent / "cleansing" / filename
+    staging_ancestor = next(
+        (parent for parent in [input_db_path.parent, *input_db_path.parent.parents] if parent.name.lower() == "staging"),
+        None,
+    )
+    if staging_ancestor is not None:
+        output_dir = staging_ancestor.parent / "cleansing"
+    else:
+        output_dir = input_db_path.parent / "cleansing"
+    return output_dir / filename
 
 
 def default_json_path(output_db_path: Path) -> Path:

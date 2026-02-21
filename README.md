@@ -179,7 +179,8 @@ Process JSON export:
   - `cleansing_dq_run_summary`
 
 Default output path:
-- `<input_db_dir>/cleansing/cleaned_<input_name>_<bin_seconds>s.db`
+- If input DB is under `.../staging/...`: `<staging_parent>/cleansing/cleaned_<input_name>_<bin_seconds>s.db`
+- Otherwise: `<input_db_dir>/cleansing/cleaned_<input_name>_<bin_seconds>s.db`
 
 Default log path:
 - `<output_db_name>.log` (derived from `<output_db_name>.json`)
