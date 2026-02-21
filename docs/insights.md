@@ -1,4 +1,4 @@
-# Findings
+# Insights
 
 ## Ingestion Volume
 
@@ -14,3 +14,13 @@
   - Expected data volume: around `90 GB` per day
 - Note:
   - This is an initial estimate and should be validated with a longer measurement period.
+
+## Staging Exporter Performance
+
+### 2026-02-21 - Unique List Runtime
+- Context:
+  - Staging exporter in list mode (`--list-only`) to generate unique exchanges and assets.
+- Observation:
+  - Listing unique exchanges and assets currently takes around `20 minutes`.
+- Impact:
+  - Discovery/list-only runs are currently too slow for quick operational checks.

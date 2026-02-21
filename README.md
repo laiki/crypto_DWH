@@ -68,6 +68,40 @@ Current: concept and architecture definition.
 Detailed English documentation for all ingestion/orchestration scripts is available at:
 - `scripts/1_ingestion/README.md`
 
+## Staging Exporter
+The staging exporter creates a bounded staging snapshot from worker ingestion databases.
+
+Script:
+- `scripts/2_staging/staging_exporter.py`
+
+Key behavior:
+- Exports the last `N` hours from `worker_*.db` files.
+- Supports output formats: `sqlite` (default), `csv`, `json`.
+- Supports filters for exchanges and assets.
+- Prints unique exchange and asset lists from all selected source DBs.
+- Writes run metadata as JSON for traceability.
+
+Examples:
+```bash
+python scripts/2_staging/staging_exporter.py --hours 24
+python scripts/2_staging/staging_exporter.py --hours 24 --output-format csv
+python scripts/2_staging/staging_exporter.py --hours 12 --exchanges binance,kraken --assets BTC,ETH
+python scripts/2_staging/staging_exporter.py --hours 6 --list-only
+```
+
+Default input pattern:
+- `data/worker_*_crypto_ws_ticks.db`
+
+Default output location:
+- `data/staging/`
+
+Output naming:
+- `<prefix>_<YYYYMMDD_HHMMSS>_last_<hours>h...`
+- Includes UTC timestamp and export window hours.
+
+Run metadata contract:
+- `docs/staging_run_contract.md`
+
 Operational insights are tracked at:
 - `docs/insights.md`
 

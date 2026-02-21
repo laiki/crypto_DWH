@@ -48,6 +48,9 @@ CONNECTION_EVENT_COLUMNS = [
     "details_json",
 ]
 
+STAGING_METADATA_CONTRACT_NAME = "staging_export_run_metadata"
+STAGING_METADATA_CONTRACT_VERSION = "1.0.0"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -157,14 +160,17 @@ def hours_label(hours: float) -> str:
     return text.replace(".", "p")
 
 
-def output_base_name(output_prefix: str, hours: float) -> str:
-    now_utc = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+def utc_iso(timestamp: datetime) -> str:
+    return timestamp.astimezone(timezone.utc).isoformat(timespec="milliseconds")
+
+def output_base_name(output_prefix: str, hours: float, run_started_utc: datetime) -> str:
+    now_utc = run_started_utc.astimezone(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return f"{output_prefix}_{now_utc}_last_{hours_label(hours)}h"
 
 
-def cutoff_iso(hours: float) -> str:
-    timestamp = datetime.now(timezone.utc) - timedelta(hours=hours)
-    return timestamp.isoformat(timespec="milliseconds")
+def window_start_iso(window_end_utc: datetime, hours: float) -> str:
+    timestamp = window_end_utc - timedelta(hours=hours)
+    return utc_iso(timestamp)
 
 
 def sqlite_asset_expr(column_name: str) -> str:
@@ -601,14 +607,17 @@ def main() -> None:
     if not db_paths:
         raise SystemExit(f"No worker DB files found for input glob: {args.input_glob}")
 
-    cutoff = cutoff_iso(args.hours)
-    market_where, market_params = build_market_where_clause(cutoff, exchanges_filter, assets_filter)
-    event_where, event_params = build_event_where_clause(cutoff, exchanges_filter, assets_filter)
+    run_started_utc = datetime.now(timezone.utc)
+    window_end_utc = run_started_utc
+    window_start_utc = window_start_iso(window_end_utc, args.hours)
+    market_where, market_params = build_market_where_clause(window_start_utc, exchanges_filter, assets_filter)
+    event_where, event_params = build_event_where_clause(window_start_utc, exchanges_filter, assets_filter)
 
     source_exchanges, source_assets = collect_source_uniques(db_paths, market_where, market_params)
 
     print(f"Worker DB files used: {len(db_paths)}")
-    print(f"Window start UTC: {cutoff}")
+    print(f"Window start UTC: {window_start_utc}")
+    print(f"Window end UTC: {utc_iso(window_end_utc)}")
     if exchanges_filter:
         print(f"Exchange filter: {', '.join(exchanges_filter)}")
     if assets_filter:
@@ -623,8 +632,9 @@ def main() -> None:
         return
 
     output_dir = Path(args.output_dir)
-    base_name = output_base_name(args.output_prefix, args.hours)
+    base_name = output_base_name(args.output_prefix, args.hours, run_started_utc)
     output_base = output_dir / base_name
+    run_id = base_name
 
     include_events = not args.skip_connection_events
     output_files: list[Path]
@@ -657,26 +667,47 @@ def main() -> None:
             chunk_size=args.chunk_size,
         )
 
+    run_finished_utc = datetime.now(timezone.utc)
     metadata = {
-        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "window_hours": args.hours,
-        "window_start_utc": cutoff,
-        "input_glob": args.input_glob,
-        "worker_db_files": [str(path) for path in db_paths],
-        "output_format": args.output_format,
-        "output_files": [str(path) for path in output_files],
+        "contract_name": STAGING_METADATA_CONTRACT_NAME,
+        "contract_version": STAGING_METADATA_CONTRACT_VERSION,
+        "run_id": run_id,
+        "run_started_utc": utc_iso(run_started_utc),
+        "run_finished_utc": utc_iso(run_finished_utc),
+        "window": {
+            "hours": args.hours,
+            "start_utc": window_start_utc,
+            "end_utc": utc_iso(window_end_utc),
+        },
+        "source": {
+            "input_glob": args.input_glob,
+            "worker_db_count": len(db_paths),
+            "worker_db_files": [str(path) for path in db_paths],
+        },
+        "options": {
+            "output_format": args.output_format,
+            "include_connection_events": include_events,
+            "chunk_size": args.chunk_size,
+        },
         "filters": {
             "exchanges": exchanges_filter,
             "assets": assets_filter,
         },
-        "source_unique_exchanges": source_exchanges,
-        "source_unique_assets": source_assets,
-        "exported_unique_exchanges": exported_exchanges,
-        "exported_unique_assets": exported_assets,
+        "uniques": {
+            "source": {
+                "exchanges": source_exchanges,
+                "assets": source_assets,
+            },
+            "exported": {
+                "exchanges": exported_exchanges,
+                "assets": exported_assets,
+            },
+        },
         "row_counts": {
             "market_ticks": market_count,
             "connection_events": event_count,
         },
+        "output_files": [str(path) for path in output_files],
     }
     metadata_path = output_base.with_name(f"{output_base.name}_metadata.json")
     write_metadata(metadata_path, metadata)
