@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import csv
 import glob
+import hashlib
 import json
 import sqlite3
 import sys
@@ -50,6 +51,8 @@ CONNECTION_EVENT_COLUMNS = [
 
 STAGING_METADATA_CONTRACT_NAME = "staging_export_run_metadata"
 STAGING_METADATA_CONTRACT_VERSION = "1.0.0"
+STAGING_STATE_CONTRACT_NAME = "staging_export_state"
+STAGING_STATE_CONTRACT_VERSION = "1.0.0"
 
 
 def parse_args() -> argparse.Namespace:
@@ -101,6 +104,27 @@ def parse_args() -> argparse.Namespace:
         "--skip-connection-events",
         action="store_true",
         help="Skip exporting connection_events.",
+    )
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Enable incremental export mode based on persisted per-table watermark state.",
+    )
+    parser.add_argument(
+        "--state-path",
+        default="data/staging/staging_export_state.json",
+        help="Path to incremental watermark state JSON file.",
+    )
+    parser.add_argument(
+        "--state-key",
+        default=None,
+        help="Optional custom key for state profile. Default: hash derived from source glob and filters.",
+    )
+    parser.add_argument(
+        "--update-state",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Persist updated watermark state after successful incremental export.",
     )
     parser.add_argument(
         "--list-only",
@@ -183,9 +207,30 @@ def sqlite_asset_expr(column_name: str) -> str:
     )
 
 
-def build_market_where_clause(cutoff: str, exchanges: list[str], assets: list[str]) -> tuple[str, list[Any]]:
-    conditions = ["ingestion_ts_utc >= ?"]
-    params: list[Any] = [cutoff]
+def max_iso_value(left: str | None, right: str | None) -> str | None:
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return max(left, right)
+
+
+def build_market_where_clause(
+    lower_bound_utc: str | None,
+    upper_bound_utc: str | None,
+    lower_inclusive: bool,
+    exchanges: list[str],
+    assets: list[str],
+) -> tuple[str, list[Any]]:
+    conditions: list[str] = []
+    params: list[Any] = []
+    if lower_bound_utc is not None:
+        lower_op = ">=" if lower_inclusive else ">"
+        conditions.append(f"ingestion_ts_utc {lower_op} ?")
+        params.append(lower_bound_utc)
+    if upper_bound_utc is not None:
+        conditions.append("ingestion_ts_utc <= ?")
+        params.append(upper_bound_utc)
     if exchanges:
         placeholders = ",".join("?" for _ in exchanges)
         conditions.append(f"lower(exchange_id) IN ({placeholders})")
@@ -194,12 +239,27 @@ def build_market_where_clause(cutoff: str, exchanges: list[str], assets: list[st
         placeholders = ",".join("?" for _ in assets)
         conditions.append(f"{sqlite_asset_expr('symbol')} IN ({placeholders})")
         params.extend(assets)
+    if not conditions:
+        conditions.append("1=1")
     return " AND ".join(conditions), params
 
 
-def build_event_where_clause(cutoff: str, exchanges: list[str], assets: list[str]) -> tuple[str, list[Any]]:
-    conditions = ["event_ts_utc >= ?"]
-    params: list[Any] = [cutoff]
+def build_event_where_clause(
+    lower_bound_utc: str | None,
+    upper_bound_utc: str | None,
+    lower_inclusive: bool,
+    exchanges: list[str],
+    assets: list[str],
+) -> tuple[str, list[Any]]:
+    conditions: list[str] = []
+    params: list[Any] = []
+    if lower_bound_utc is not None:
+        lower_op = ">=" if lower_inclusive else ">"
+        conditions.append(f"event_ts_utc {lower_op} ?")
+        params.append(lower_bound_utc)
+    if upper_bound_utc is not None:
+        conditions.append("event_ts_utc <= ?")
+        params.append(upper_bound_utc)
     if exchanges:
         placeholders = ",".join("?" for _ in exchanges)
         conditions.append(f"lower(exchange_id) IN ({placeholders})")
@@ -208,7 +268,58 @@ def build_event_where_clause(cutoff: str, exchanges: list[str], assets: list[str
         placeholders = ",".join("?" for _ in assets)
         conditions.append(f"{sqlite_asset_expr('symbol')} IN ({placeholders})")
         params.extend(assets)
+    if not conditions:
+        conditions.append("1=1")
     return " AND ".join(conditions), params
+
+
+def state_profile_key(
+    custom_key: str | None,
+    input_glob: str,
+    exchanges_filter: list[str],
+    assets_filter: list[str],
+) -> str:
+    if custom_key is not None and custom_key.strip():
+        return custom_key.strip()
+
+    descriptor = {
+        "input_glob": input_glob,
+        "exchanges": exchanges_filter,
+        "assets": assets_filter,
+    }
+    digest = hashlib.sha256(
+        json.dumps(descriptor, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    ).hexdigest()[:16]
+    return f"default_{digest}"
+
+
+def load_state_document(state_path: Path) -> dict[str, Any]:
+    if not state_path.exists():
+        return {
+            "contract_name": STAGING_STATE_CONTRACT_NAME,
+            "contract_version": STAGING_STATE_CONTRACT_VERSION,
+            "profiles": {},
+        }
+    try:
+        raw = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        raise SystemExit(f"Failed to read state file: {state_path} | error={exc!r}") from exc
+
+    if not isinstance(raw, dict):
+        raise SystemExit(f"Invalid state file format: {state_path} (expected JSON object).")
+
+    profiles = raw.get("profiles")
+    if not isinstance(profiles, dict):
+        raw["profiles"] = {}
+
+    raw["contract_name"] = STAGING_STATE_CONTRACT_NAME
+    raw["contract_version"] = STAGING_STATE_CONTRACT_VERSION
+    return raw
+
+
+def write_state_document(state_path: Path, payload: dict[str, Any]) -> None:
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
 
 
 def table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
@@ -467,7 +578,7 @@ def write_csv_or_json_exports(
     event_params: list[Any],
     include_connection_events: bool,
     chunk_size: int,
-) -> tuple[int, int, list[Path], list[str], list[str]]:
+) -> tuple[int, int, list[Path], list[str], list[str], str | None, str | None]:
     output_base.parent.mkdir(parents=True, exist_ok=True)
 
     output_files: list[Path] = []
@@ -475,6 +586,8 @@ def write_csv_or_json_exports(
     exported_assets: set[str] = set()
     market_count = 0
     event_count = 0
+    max_market_ts_utc: str | None = None
+    max_event_ts_utc: str | None = None
 
     market_fields = ["source_db", "source_row_id"] + MARKET_TICK_COLUMNS
     event_fields = ["source_db", "source_row_id"] + CONNECTION_EVENT_COLUMNS
@@ -518,6 +631,9 @@ def write_csv_or_json_exports(
                 else:
                     market_writer_obj.write(payload)
                 market_count += 1
+                tick_ts = payload.get("ingestion_ts_utc")
+                if isinstance(tick_ts, str) and tick_ts:
+                    max_market_ts_utc = max_iso_value(max_market_ts_utc, tick_ts)
                 exchange_id = payload.get("exchange_id")
                 if isinstance(exchange_id, str) and exchange_id.strip():
                     exported_exchanges.add(exchange_id.strip())
@@ -539,6 +655,9 @@ def write_csv_or_json_exports(
                 else:
                     event_writer_obj.write(payload)
                 event_count += 1
+                event_ts = payload.get("event_ts_utc")
+                if isinstance(event_ts, str) and event_ts:
+                    max_event_ts_utc = max_iso_value(max_event_ts_utc, event_ts)
                 exchange_id = payload.get("exchange_id")
                 if isinstance(exchange_id, str) and exchange_id.strip():
                     exported_exchanges.add(exchange_id.strip())
@@ -559,10 +678,15 @@ def write_csv_or_json_exports(
         output_files,
         sorted(exported_exchanges),
         sorted(exported_assets),
+        max_market_ts_utc,
+        max_event_ts_utc,
     )
 
 
-def collect_exported_uniques_from_sqlite(output_db_path: Path) -> tuple[list[str], list[str]]:
+def collect_exported_summary_from_sqlite(
+    output_db_path: Path,
+    include_connection_events: bool,
+) -> tuple[list[str], list[str], str | None, str | None]:
     connection = sqlite3.connect(str(output_db_path))
     try:
         exchanges = [
@@ -574,7 +698,15 @@ def collect_exported_uniques_from_sqlite(output_db_path: Path) -> tuple[list[str
             asset = source_asset(symbol)
             if asset:
                 assets_set.add(asset)
-        return exchanges, sorted(assets_set)
+        market_max_row = connection.execute("SELECT MAX(ingestion_ts_utc) FROM market_ticks").fetchone()
+        max_market_ts_utc = market_max_row[0] if market_max_row is not None else None
+
+        max_event_ts_utc: str | None = None
+        if include_connection_events:
+            event_max_row = connection.execute("SELECT MAX(event_ts_utc) FROM connection_events").fetchone()
+            max_event_ts_utc = event_max_row[0] if event_max_row is not None else None
+
+        return exchanges, sorted(assets_set), max_market_ts_utc, max_event_ts_utc
     finally:
         connection.close()
 
@@ -609,15 +741,74 @@ def main() -> None:
 
     run_started_utc = datetime.now(timezone.utc)
     window_end_utc = run_started_utc
-    window_start_utc = window_start_iso(window_end_utc, args.hours)
-    market_where, market_params = build_market_where_clause(window_start_utc, exchanges_filter, assets_filter)
-    event_where, event_params = build_event_where_clause(window_start_utc, exchanges_filter, assets_filter)
+    window_end_utc_iso = utc_iso(window_end_utc)
+    window_start_default_utc = window_start_iso(window_end_utc, args.hours)
+    incremental_enabled = bool(args.incremental)
+    include_events = not args.skip_connection_events
+    state_path = Path(args.state_path)
+    state_key = state_profile_key(
+        custom_key=args.state_key,
+        input_glob=args.input_glob,
+        exchanges_filter=exchanges_filter,
+        assets_filter=assets_filter,
+    )
+
+    state_document: dict[str, Any] | None = None
+    previous_market_watermark_utc: str | None = None
+    previous_event_watermark_utc: str | None = None
+    if incremental_enabled:
+        state_document = load_state_document(state_path)
+        profiles = state_document.get("profiles", {})
+        profile_raw = profiles.get(state_key, {})
+        if isinstance(profile_raw, dict):
+            watermark_raw = profile_raw.get("watermark", {})
+            if isinstance(watermark_raw, dict):
+                market_wm_raw = watermark_raw.get("market_ticks_ingestion_ts_utc")
+                event_wm_raw = watermark_raw.get("connection_events_event_ts_utc")
+                if isinstance(market_wm_raw, str) and market_wm_raw:
+                    previous_market_watermark_utc = market_wm_raw
+                if isinstance(event_wm_raw, str) and event_wm_raw:
+                    previous_event_watermark_utc = event_wm_raw
+
+    market_lower_bound_utc = previous_market_watermark_utc or window_start_default_utc
+    event_lower_bound_utc = previous_event_watermark_utc or window_start_default_utc
+    market_lower_inclusive = not (incremental_enabled and previous_market_watermark_utc is not None)
+    event_lower_inclusive = not (incremental_enabled and previous_event_watermark_utc is not None)
+
+    market_where, market_params = build_market_where_clause(
+        lower_bound_utc=market_lower_bound_utc,
+        upper_bound_utc=window_end_utc_iso,
+        lower_inclusive=market_lower_inclusive,
+        exchanges=exchanges_filter,
+        assets=assets_filter,
+    )
+    event_where, event_params = build_event_where_clause(
+        lower_bound_utc=event_lower_bound_utc,
+        upper_bound_utc=window_end_utc_iso,
+        lower_inclusive=event_lower_inclusive,
+        exchanges=exchanges_filter,
+        assets=assets_filter,
+    )
 
     source_exchanges, source_assets = collect_source_uniques(db_paths, market_where, market_params)
 
     print(f"Worker DB files used: {len(db_paths)}")
-    print(f"Window start UTC: {window_start_utc}")
-    print(f"Window end UTC: {utc_iso(window_end_utc)}")
+    print(f"Export mode: {'incremental' if incremental_enabled else 'window'}")
+    print(f"Window default start UTC: {window_start_default_utc}")
+    print(f"Window end UTC: {window_end_utc_iso}")
+    print(
+        "Market ticks query bounds: "
+        f"{'>=' if market_lower_inclusive else '>'} {market_lower_bound_utc} and <= {window_end_utc_iso}"
+    )
+    print(
+        "Connection events query bounds: "
+        f"{'>=' if event_lower_inclusive else '>'} {event_lower_bound_utc} and <= {window_end_utc_iso}"
+    )
+    if incremental_enabled:
+        print(f"State file: {state_path}")
+        print(f"State key: {state_key}")
+        print(f"Previous market watermark: {previous_market_watermark_utc or '-'}")
+        print(f"Previous event watermark: {previous_event_watermark_utc or '-'}")
     if exchanges_filter:
         print(f"Exchange filter: {', '.join(exchanges_filter)}")
     if assets_filter:
@@ -636,10 +827,11 @@ def main() -> None:
     output_base = output_dir / base_name
     run_id = base_name
 
-    include_events = not args.skip_connection_events
     output_files: list[Path]
     exported_exchanges: list[str]
     exported_assets: list[str]
+    exported_market_max_ts_utc: str | None = None
+    exported_event_max_ts_utc: str | None = None
 
     if args.output_format == "sqlite":
         output_db_path = output_base.with_suffix(".db")
@@ -652,10 +844,26 @@ def main() -> None:
             event_params=event_params,
             include_connection_events=include_events,
         )
-        exported_exchanges, exported_assets = collect_exported_uniques_from_sqlite(output_db_path)
+        (
+            exported_exchanges,
+            exported_assets,
+            exported_market_max_ts_utc,
+            exported_event_max_ts_utc,
+        ) = collect_exported_summary_from_sqlite(
+            output_db_path=output_db_path,
+            include_connection_events=include_events,
+        )
         output_files = [output_db_path]
     else:
-        market_count, event_count, output_files, exported_exchanges, exported_assets = write_csv_or_json_exports(
+        (
+            market_count,
+            event_count,
+            output_files,
+            exported_exchanges,
+            exported_assets,
+            exported_market_max_ts_utc,
+            exported_event_max_ts_utc,
+        ) = write_csv_or_json_exports(
             db_paths=db_paths,
             output_base=output_base,
             output_format=args.output_format,
@@ -667,6 +875,39 @@ def main() -> None:
             chunk_size=args.chunk_size,
         )
 
+    new_market_watermark_utc: str | None = None
+    new_event_watermark_utc: str | None = None
+    state_updated = False
+    if incremental_enabled:
+        new_market_watermark_utc = max_iso_value(previous_market_watermark_utc, exported_market_max_ts_utc)
+        new_market_watermark_utc = max_iso_value(new_market_watermark_utc, window_end_utc_iso)
+        if include_events:
+            new_event_watermark_utc = max_iso_value(previous_event_watermark_utc, exported_event_max_ts_utc)
+            new_event_watermark_utc = max_iso_value(new_event_watermark_utc, window_end_utc_iso)
+        else:
+            new_event_watermark_utc = previous_event_watermark_utc
+
+        if args.update_state:
+            if state_document is None:
+                raise SystemExit("Internal error: incremental mode expected loaded state document.")
+            profiles = state_document.setdefault("profiles", {})
+            profiles[state_key] = {
+                "updated_utc": utc_iso(datetime.now(timezone.utc)),
+                "source": {
+                    "input_glob": args.input_glob,
+                },
+                "filters": {
+                    "exchanges": exchanges_filter,
+                    "assets": assets_filter,
+                },
+                "watermark": {
+                    "market_ticks_ingestion_ts_utc": new_market_watermark_utc,
+                    "connection_events_event_ts_utc": new_event_watermark_utc,
+                },
+            }
+            write_state_document(state_path, state_document)
+            state_updated = True
+
     run_finished_utc = datetime.now(timezone.utc)
     metadata = {
         "contract_name": STAGING_METADATA_CONTRACT_NAME,
@@ -674,10 +915,26 @@ def main() -> None:
         "run_id": run_id,
         "run_started_utc": utc_iso(run_started_utc),
         "run_finished_utc": utc_iso(run_finished_utc),
+        "mode": {
+            "incremental": incremental_enabled,
+        },
         "window": {
             "hours": args.hours,
-            "start_utc": window_start_utc,
-            "end_utc": utc_iso(window_end_utc),
+            "default_start_utc": window_start_default_utc,
+            "end_utc": window_end_utc_iso,
+        },
+        "query_bounds": {
+            "market_ticks": {
+                "lower_utc": market_lower_bound_utc,
+                "lower_inclusive": market_lower_inclusive,
+                "upper_utc": window_end_utc_iso,
+            },
+            "connection_events": {
+                "lower_utc": event_lower_bound_utc,
+                "lower_inclusive": event_lower_inclusive,
+                "upper_utc": window_end_utc_iso,
+                "included": include_events,
+            },
         },
         "source": {
             "input_glob": args.input_glob,
@@ -703,6 +960,26 @@ def main() -> None:
                 "assets": exported_assets,
             },
         },
+        "watermarks": {
+            "previous": {
+                "market_ticks_ingestion_ts_utc": previous_market_watermark_utc,
+                "connection_events_event_ts_utc": previous_event_watermark_utc,
+            },
+            "exported_max": {
+                "market_ticks_ingestion_ts_utc": exported_market_max_ts_utc,
+                "connection_events_event_ts_utc": exported_event_max_ts_utc,
+            },
+            "new": {
+                "market_ticks_ingestion_ts_utc": new_market_watermark_utc,
+                "connection_events_event_ts_utc": new_event_watermark_utc,
+            },
+        },
+        "state": {
+            "path": str(state_path),
+            "key": state_key,
+            "update_requested": args.update_state,
+            "updated": state_updated,
+        },
         "row_counts": {
             "market_ticks": market_count,
             "connection_events": event_count,
@@ -717,6 +994,10 @@ def main() -> None:
     print(f"Exported connection_events rows: {event_count}")
     print_list("Unique exchanges exported", exported_exchanges)
     print_list("Unique assets exported", exported_assets)
+    if incremental_enabled:
+        print(f"New market watermark: {new_market_watermark_utc or '-'}")
+        print(f"New event watermark: {new_event_watermark_utc or '-'}")
+        print(f"State updated: {'yes' if state_updated else 'no'}")
     print("Created files:")
     for output_path in output_files + [metadata_path]:
         print(f"  - {output_path}")

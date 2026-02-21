@@ -80,6 +80,7 @@ Key behavior:
 - Supports filters for exchanges and assets.
 - Prints unique exchange and asset lists from all selected source DBs.
 - Writes run metadata as JSON for traceability.
+- Supports incremental export mode with persisted watermark state.
 
 Examples:
 ```bash
@@ -87,6 +88,8 @@ python scripts/2_staging/staging_exporter.py --hours 24
 python scripts/2_staging/staging_exporter.py --hours 24 --output-format csv
 python scripts/2_staging/staging_exporter.py --hours 12 --exchanges binance,kraken --assets BTC,ETH
 python scripts/2_staging/staging_exporter.py --hours 6 --list-only
+python scripts/2_staging/staging_exporter.py --hours 1 --incremental
+python scripts/2_staging/staging_exporter.py --hours 1 --incremental --state-path data/staging/custom_state.json
 ```
 
 Default input pattern:
@@ -101,6 +104,11 @@ Output naming:
 
 Run metadata contract:
 - `docs/staging_run_contract.md`
+
+Incremental state file:
+- Default: `data/staging/staging_export_state.json`
+- The state is keyed by source scope (input glob + filters) unless `--state-key` is set.
+- Contract: `docs/staging_state_contract.md`
 
 Operational insights are tracked at:
 - `docs/insights.md`
