@@ -1,0 +1,40 @@
+flowchart TB
+    classDef node fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef data fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+    classDef file fill:#f1f8e9,stroke:#558b2f,stroke-width:1px,color:#1b3a0f
+
+    subgraph HOST[Execution Host]
+        CLI[Operator CLI]:::node
+        MAIN[Python Process\ncleansing_resample.py]:::node
+        W1[Worker Process 1]:::node
+        W2[Worker Process 2]:::node
+        WN[Worker Process N]:::node
+        Q[[Interprocess Queue]]:::node
+        WR[Single Writer Thread/Loop]:::node
+    end
+
+    subgraph STORAGE[Filesystem / Data Volume]
+        STG[(staging_export_*.db)]:::data
+        CLN[(cleaned_*.db)]:::data
+        JSON[[cleaned_*.db.json]]:::file
+        LOG[[cleaned_*.db.log]]:::file
+    end
+
+    CLI --> MAIN
+    MAIN --> W1
+    MAIN --> W2
+    MAIN --> WN
+
+    STG --> W1
+    STG --> W2
+    STG --> WN
+
+    W1 --> Q
+    W2 --> Q
+    WN --> Q
+    Q --> WR
+    WR --> CLN
+
+    MAIN --> JSON
+    MAIN --> LOG
+    CLN --> JSON

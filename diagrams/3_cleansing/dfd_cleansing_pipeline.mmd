@@ -1,0 +1,52 @@
+flowchart LR
+    classDef ext fill:#fff3e0,stroke:#ef6c00,stroke-width:1px,color:#4a2a00
+    classDef proc fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef store fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+    classDef file fill:#f1f8e9,stroke:#558b2f,stroke-width:1px,color:#1b3a0f
+
+    OP[Operator]:::ext
+    STG[(Staging DB\nmarket_ticks)]:::store
+
+    CFG[Runtime Config\nworkers, bin_seconds,\nfill_method, dq flags]:::proc
+    RES[Resampling Engine]:::proc
+    FILL[Fill Strategy Engine\nobserved/ffill/interp/missing]:::proc
+    DQ[Data Quality Engine]:::proc
+    WR[Single Writer]:::proc
+    META[Run Metadata Builder]:::proc
+    JSONX[Run JSON Exporter]:::proc
+
+    CLN[(Cleansing DB)]:::store
+    T1[(cleansed_market)]:::store
+    T2[(cleansing_pair_summary)]:::store
+    T3[(cleansing_run_metadata)]:::store
+    T4[(cleansing_dq_summary)]:::store
+    T5[(cleansing_dq_run_summary)]:::store
+    JF[[<output_db_name>.json]]:::file
+    LF[[<output_db_name>.log]]:::file
+
+    OP --> CFG
+    OP --> RES
+    STG --> RES
+    CFG --> RES
+    RES --> FILL
+    FILL --> WR
+    WR --> CLN
+    CLN --> T1
+
+    RES --> META
+    META --> CLN
+    CLN --> T2
+    CLN --> T3
+
+    STG --> DQ
+    T1 --> DQ
+    CFG --> DQ
+    DQ --> CLN
+    CLN --> T4
+    CLN --> T5
+
+    CLN --> JSONX
+    JSONX --> JF
+    CFG --> LF
+    RES --> LF
+    DQ --> LF

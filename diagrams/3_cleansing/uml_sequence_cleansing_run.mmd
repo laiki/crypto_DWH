@@ -1,0 +1,53 @@
+sequenceDiagram
+    autonumber
+    actor U as Operator/CLI
+    participant C as cleansing_resample.py
+    participant L as Pair Loader
+    participant W as Worker Pool
+    participant Q as Result Queue
+    participant S as Single Writer
+    participant DQ as DQ Engine
+    participant DB as cleaned_*.db
+    participant J as JSON Exporter
+    participant LG as Log File
+
+    U->>C: Start run with args
+    C->>LG: Initialize logging
+    C->>L: Load pair profiles from staging DB
+    L-->>C: Pair list
+
+    alt workers == 1
+        loop each pair
+            C->>C: Resample + fill method
+            C->>S: Emit row chunk
+            S->>DB: Insert into cleansed_market
+        end
+    else workers > 1
+        C->>W: Spawn worker processes
+        loop each pair
+            C->>W: Dispatch pair task
+        end
+        par worker streams
+            W->>Q: rows chunk
+            W->>Q: pair summary
+        end
+        loop queue consume
+            C->>Q: Read next message
+            Q-->>C: rows or summary
+            C->>S: Forward rows
+            S->>DB: Insert into cleansed_market
+        end
+    end
+
+    C->>DB: Insert cleansing_pair_summary
+    alt DQ enabled
+        C->>DQ: Run source and observed-bin checks
+        DQ->>DB: Insert cleansing_dq_summary
+        DQ->>DB: Insert cleansing_dq_run_summary
+    end
+    C->>DB: Insert cleansing_run_metadata
+    C->>J: Export run JSON payload
+    J->>DB: Read run tables
+    J-->>C: Write <output_db_name>.json
+    C->>LG: Final run summary
+    C-->>U: Exit

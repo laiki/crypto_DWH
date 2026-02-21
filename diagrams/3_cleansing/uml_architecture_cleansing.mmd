@@ -1,0 +1,103 @@
+flowchart LR
+    classDef proc fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef db fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+    classDef cfg fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px,color:#2a1038
+    classDef q fill:#fff3e0,stroke:#ef6c00,stroke-width:1px,color:#4a2a00
+    classDef file fill:#f1f8e9,stroke:#558b2f,stroke-width:1px,color:#1b3a0f
+
+    subgraph IN[Input]
+        STGDB[(staging_export_*.db)]
+    end
+    class STGDB db
+
+    subgraph CFG[Runtime Configuration]
+        P0[--workers]
+        P1[--bin-seconds]
+        P2[--max-forward-fill-s]
+        P3[--fill-method]
+        P4[--enable-dq]
+        P5[--dq-outlier-threshold-pct]
+    end
+    class P0,P1,P2,P3,P4,P5 cfg
+
+    subgraph ORCH[Cleansing Orchestration]
+        MAIN[cleansing_resample.py]
+        SPLIT[Pair Splitter\nexchange_id + symbol]
+        W1[Worker Process 1]
+        W2[Worker Process 2]
+        WN[Worker Process N]
+        RQ[[Result Queue]]
+        WRITER[Single Writer]
+    end
+    class MAIN,SPLIT,W1,W2,WN,WRITER proc
+    class RQ q
+
+    subgraph RULES[Cleansing Rules]
+        OBS[observed]
+        FF[forward_fill]
+        INTP[interpolation]
+        MISS[missing]
+    end
+    class OBS,FF,INTP,MISS proc
+
+    subgraph DQ[Data Quality Checks]
+        DQ1[NULL checks]
+        DQ2[Negative value checks]
+        DQ3[bid > ask checks]
+        DQ4[Duplicate tick checks]
+        DQ5[Outlier return checks]
+    end
+    class DQ1,DQ2,DQ3,DQ4,DQ5 proc
+
+    subgraph OUT[Output]
+        CLNDB[(cleaned_*.db)]
+        T1[(cleansed_market)]
+        T2[(cleansing_pair_summary)]
+        T3[(cleansing_run_metadata)]
+        T4[(cleansing_dq_summary)]
+        T5[(cleansing_dq_run_summary)]
+        JSON[[cleaned_*.db.json]]
+        LOG[[cleaned_*.db.log]]
+    end
+    class CLNDB,T1,T2,T3,T4,T5 db
+    class JSON,LOG file
+
+    STGDB --> MAIN
+    P0 --> MAIN
+    P1 --> MAIN
+    P2 --> MAIN
+    P3 --> MAIN
+    P4 --> MAIN
+    P5 --> MAIN
+
+    MAIN --> SPLIT
+    SPLIT --> W1
+    SPLIT --> W2
+    SPLIT --> WN
+
+    W1 --> OBS
+    W1 --> FF
+    W1 --> INTP
+    W1 --> MISS
+    W2 --> OBS
+    WN --> OBS
+
+    W1 --> RQ
+    W2 --> RQ
+    WN --> RQ
+    RQ --> WRITER
+
+    MAIN --> DQ1
+    MAIN --> DQ2
+    MAIN --> DQ3
+    MAIN --> DQ4
+    MAIN --> DQ5
+
+    WRITER --> CLNDB
+    CLNDB --> T1
+    CLNDB --> T2
+    CLNDB --> T3
+    CLNDB --> T4
+    CLNDB --> T5
+    CLNDB --> JSON
+    CLNDB --> LOG

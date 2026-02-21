@@ -1,0 +1,27 @@
+stateDiagram-v2
+    [*] --> StartBucket
+    StartBucket --> Observed: tick_count_in_bin > 0
+    StartBucket --> EmptyBin: tick_count_in_bin == 0
+
+    Observed --> EmitObserved: use last value in bin
+    EmitObserved --> EndBucket
+
+    EmptyBin --> InterpolationCandidate: fill_method = interpolation
+    EmptyBin --> ForwardFillCandidate: fill_method = forward_fill
+
+    InterpolationCandidate --> EmitInterpolation: prev and next within max_forward_fill_s
+    InterpolationCandidate --> ForwardFillCandidate: next value too far away
+
+    ForwardFillCandidate --> EmitForwardFill: prev available and age <= max_forward_fill_s
+    ForwardFillCandidate --> EmitMissing: no eligible previous value
+
+    EmitInterpolation --> StaleCheck
+    EmitForwardFill --> StaleCheck
+    EmitMissing --> EndBucket
+
+    StaleCheck --> MarkStale: age_seconds > stale_after_s
+    StaleCheck --> MarkFresh: age_seconds <= stale_after_s
+    MarkStale --> EndBucket
+    MarkFresh --> EndBucket
+
+    EndBucket --> [*]

@@ -114,22 +114,60 @@ Incremental state file:
 The cleansing step creates a comparable 1-minute time grid per `(exchange_id, symbol)`.
 
 Script:
-- `scripts/3_cleansing/cleansing_resample_1m.py`
+- `scripts/3_cleansing/cleansing_resample.py`
 
 Cleansing rules:
 - `observed`: bucket contains one or more ticks, use last tick in bucket.
 - `forward_fill`: bucket has no tick, reuse last known value within `max_forward_fill_s`.
+- `interpolation` (optional): bucket has no tick, use linear interpolation between previous and next value when both sides are within `max_forward_fill_s`; otherwise fallback to `forward_fill` behavior.
 - `missing`: bucket has no eligible value for fill.
 
+Execution model:
+- Supports parallel pair processing with `--workers`.
+- Uses a single-writer output model (worker queue -> one writer) to avoid SQLite write contention.
+
+Data quality checks (`--enable-dq`, default enabled):
+- `NULL` ingestion timestamp and `NULL` effective price checks.
+- Invalid timestamp parse checks.
+- Non-positive price checks (`<= 0`).
+- Negative numeric value checks (`price`, `bid`, `ask`, `last`, `base_volume`, `quote_volume`).
+- `bid > ask` consistency checks.
+- Duplicate tick checks (same pair + timestamp + effective price).
+- Outlier return checks on observed bins (`--dq-outlier-threshold-pct`).
+
 Output tables:
-- `cleansed_market_1m`
+- `cleansed_market`
 - `cleansing_pair_summary`
 - `cleansing_run_metadata`
+- `cleansing_dq_summary`
+- `cleansing_dq_run_summary`
+
+`cleansed_market` also stores run parameters per row:
+- `bin_seconds`
+- `max_forward_fill_s`
+- `fill_method_mode`
+
+Process JSON export:
+- For each run, a JSON file is created next to the output DB with name `<output_db_name>.json` (for example `cleaned_xxx.db.json`).
+- It contains all run data from:
+  - `cleansing_run_metadata`
+  - `cleansing_pair_summary`
+  - `cleansed_market`
+  - `cleansing_dq_summary`
+  - `cleansing_dq_run_summary`
+
+Default output path:
+- `<input_db_dir>/cleansing/cleaned_<input_name>_<bin_seconds>s.db`
+
+Default log path:
+- `<output_db_name>.log` (derived from `<output_db_name>.json`)
 
 Examples:
 ```bash
-python scripts/3_cleansing/cleansing_resample_1m.py --input-db data/staging/staging_export_20260221_120000_last_24h.db
-python scripts/3_cleansing/cleansing_resample_1m.py --input-db data/staging/staging_export_20260221_120000_last_24h.db --exchanges binance,kraken --symbols BTC/USDT,ETH/USDT
+python scripts/3_cleansing/cleansing_resample.py --input-db data/staging/staging_export_20260221_120000_last_24h.db
+python scripts/3_cleansing/cleansing_resample.py --input-db data/staging/staging_export_20260221_120000_last_24h.db --exchanges binance,kraken --symbols BTC/USDT,ETH/USDT
+python scripts/3_cleansing/cleansing_resample.py --input-db data/staging/staging_export_20260221_120000_last_24h.db --fill-method interpolation
+python scripts/3_cleansing/cleansing_resample.py --input-db data/staging/staging_export_20260221_120000_last_24h.db --workers 4 --enable-dq --dq-outlier-threshold-pct 0.15
 ```
 
 Approach documentation:

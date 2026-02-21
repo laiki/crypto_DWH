@@ -1,0 +1,28 @@
+flowchart TD
+    classDef step fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef check fill:#fff3e0,stroke:#ef6c00,stroke-width:1px,color:#4a2a00
+    classDef out fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+    classDef err fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#4a0000
+
+    S([Manual Start]) --> A[Pre-check input staging DB path]:::step
+    A --> B{DB exists and market_ticks present?}:::check
+    B -- No --> E1[Stop and fix input path/schema]:::err
+    B -- Yes --> C[Select run parameters\nworkers/bin/fill/dq]:::step
+    C --> D[Run cleansing_resample.py]:::step
+
+    D --> F{Process healthy?}:::check
+    F -- No --> G[Inspect log file\n<output_db_name>.log]:::step
+    G --> H{Recoverable issue?}:::check
+    H -- Yes --> I[Adjust params and rerun]:::step
+    H -- No --> E2[Escalate and keep artifacts]:::err
+    I --> D
+
+    F -- Yes --> J[Validate outputs]:::step
+    J --> K{All expected artifacts exist?}:::check
+    K -- No --> E3[Investigate missing DB/JSON/log]:::err
+    K -- Yes --> L[Review DQ summaries\nand run metadata]:::step
+    L --> M{Quality acceptable?}:::check
+    M -- No --> N[Tune filters/fill/DQ threshold\nand rerun]:::step
+    N --> D
+    M -- Yes --> O[Publish cleansed dataset\nfor core layer]:::out
+    O --> P([End])
