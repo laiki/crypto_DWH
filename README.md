@@ -53,10 +53,32 @@ Stage structure:
 - `diagrams/5_marts/`
 - `diagrams/6_forecasting/`
 
+Selected ETL/Staging use-case diagrams:
+- `diagrams/1_ingestion/uml_sequence_ingestion_failure_recovery.mmd`
+- `diagrams/1_ingestion/uml_sequence_orchestrator_worker_sharding.mmd`
+- `diagrams/1_ingestion/uml_activity_symbol_normalization.mmd`
+- `diagrams/1_ingestion/uml_activity_compute_exchange_score.mmd`
+- `diagrams/1_ingestion/uml_activity_compute_exchange_score_swimlanes.mmd`
+- `diagrams/1_ingestion/uml_sequence_runtime_supervision_restart_policy.mmd`
+- `diagrams/1_ingestion/uml_activity_runtime_supervision_loop.mmd`
+- `diagrams/1_ingestion/uml_state_worker_runtime_supervision.mmd`
+- `diagrams/2_staging/uml_sequence_staging_incremental_export.mmd`
+- `diagrams/2_staging/uml_usecase_ad_hoc_analysis.mmd`
+
 If `mermaid-cli` is installed:
 ```powershell
 mmdc -i diagrams/0_overview/uml_architecture.mmd -o diagrams/0_overview/uml_architecture.svg
 mmdc -i diagrams/1_ingestion/uml_sequence_ingestion.mmd -o diagrams/1_ingestion/uml_sequence_ingestion.svg
+mmdc -i diagrams/1_ingestion/uml_sequence_ingestion_failure_recovery.mmd -o diagrams/1_ingestion/uml_sequence_ingestion_failure_recovery.svg
+mmdc -i diagrams/1_ingestion/uml_sequence_orchestrator_worker_sharding.mmd -o diagrams/1_ingestion/uml_sequence_orchestrator_worker_sharding.svg
+mmdc -i diagrams/1_ingestion/uml_activity_symbol_normalization.mmd -o diagrams/1_ingestion/uml_activity_symbol_normalization.svg
+mmdc -i diagrams/1_ingestion/uml_activity_compute_exchange_score.mmd -o diagrams/1_ingestion/uml_activity_compute_exchange_score.svg
+mmdc -i diagrams/1_ingestion/uml_activity_compute_exchange_score_swimlanes.mmd -o diagrams/1_ingestion/uml_activity_compute_exchange_score_swimlanes.svg
+mmdc -i diagrams/1_ingestion/uml_sequence_runtime_supervision_restart_policy.mmd -o diagrams/1_ingestion/uml_sequence_runtime_supervision_restart_policy.svg
+mmdc -i diagrams/1_ingestion/uml_activity_runtime_supervision_loop.mmd -o diagrams/1_ingestion/uml_activity_runtime_supervision_loop.svg
+mmdc -i diagrams/1_ingestion/uml_state_worker_runtime_supervision.mmd -o diagrams/1_ingestion/uml_state_worker_runtime_supervision.svg
+mmdc -i diagrams/2_staging/uml_sequence_staging_incremental_export.mmd -o diagrams/2_staging/uml_sequence_staging_incremental_export.svg
+mmdc -i diagrams/2_staging/uml_usecase_ad_hoc_analysis.mmd -o diagrams/2_staging/uml_usecase_ad_hoc_analysis.svg
 mmdc -i diagrams/4_core/uml_er_core.mmd -o diagrams/4_core/uml_er_core.svg
 mmdc -i diagrams/6_forecasting/uml_forecasting_pipeline.mmd -o diagrams/6_forecasting/uml_forecasting_pipeline.svg
 ```

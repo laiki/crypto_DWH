@@ -1,0 +1,21 @@
+flowchart TD
+    A([Start per exchange]) --> B[Input profiling metrics and status]
+    B --> C{Profiling supported?}
+    C -- No --> C1[Set score = 0.0]
+    C1 --> C2[Mark exchange as excluded\nreason = unsupported]
+    C2 --> Z([Persist result and end])
+
+    C -- Yes --> D{Profiling error present?}
+    D -- Yes --> D1[Set score = 0.0]
+    D1 --> D2[Mark exchange as excluded\nreason = profiling_error]
+    D2 --> Z
+
+    D -- No --> E[Compute duration_s]
+    E --> F["Compute ticks_per_sec = ticks / duration_s"]
+    F --> G["Compute bytes_per_sec = bytes_total / duration_s"]
+    G --> H["Compute reconnects_per_min = reconnects * 60 / duration_s"]
+    H --> I["Compute raw_score = bytes_per_sec + 2000 * reconnects_per_min"]
+    I --> J["Apply lower bound: if raw_score < 1.0 then score = 1.0 else score = raw_score"]
+    J --> K[Mark exchange as runnable]
+    K --> L[Emit score record for sharding planner]
+    L --> Z

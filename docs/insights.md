@@ -37,6 +37,19 @@
   - It is operationally preferable to run ingestion on a hosted server to reduce household ISP-related disruptions.
   - The observed bandwidth demand may be problematic in private home environments.
 
+### 2026-02-21 - Ingestion Isolation for Unbiased Latency KPIs (Hypothesis)
+- Context:
+  - Latency and disconnect KPIs are derived from ingestion websocket traffic.
+- Hypothesis:
+  - Concurrent local workloads (for example staging export and cleansing jobs) can compete for CPU, disk I/O, and network resources and may bias websocket latency/disconnect measurements.
+- Impact:
+  - KPI interpretation may be skewed if ingestion is not resource-isolated.
+- Validation plan:
+  - Measure baseline ingestion-only latency/disconnect KPIs.
+  - Repeat with concurrent staging/cleansing load on the same host.
+  - Compare `p50/p95/p99 latency`, disconnect count, reconnect delay, and message rate.
+  - If deviation exceeds an agreed threshold, enforce workload isolation (dedicated host/VM/container limits or scheduled non-overlap).
+
 ## Staging Exporter Performance
 
 ### 2026-02-21 - Unique List Runtime

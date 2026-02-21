@@ -1,0 +1,40 @@
+flowchart LR
+    classDef actor fill:#fff3e0,stroke:#ef6c00,stroke-width:1px,color:#4a2a00
+    classDef usecase fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef data fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+
+    A[Analyst]:::actor
+    B[Data Engineer]:::actor
+
+    U1((Export last X hours)):::usecase
+    U2((Filter by exchange)):::usecase
+    U3((Filter by asset/symbol)):::usecase
+    U4((List unique exchanges/assets)):::usecase
+    U5((Generate staging snapshot\nsqlite/csv/json)):::usecase
+    U6((Run SQL KPI snippets)):::usecase
+    U7((Inspect latency/disconnect intervals)):::usecase
+    U8((Prepare dataset for cleansing/core)):::usecase
+
+    D1[(worker_*.db)]:::data
+    D2[(staging_export_*.db)]:::data
+    D3[(metadata/state json)]:::data
+
+    A --> U1
+    A --> U2
+    A --> U3
+    A --> U4
+    A --> U6
+    A --> U7
+    B --> U5
+    B --> U8
+
+    U1 --> U5
+    U2 --> U5
+    U3 --> U5
+    U4 --> U5
+    U5 --> D2
+    U5 --> D3
+    D1 --> U5
+    D2 --> U6
+    D2 --> U7
+    D2 --> U8

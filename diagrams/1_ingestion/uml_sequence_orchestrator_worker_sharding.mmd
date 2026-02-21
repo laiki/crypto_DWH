@@ -1,0 +1,52 @@
+sequenceDiagram
+    autonumber
+    actor OP as Operator
+    participant ORCH as orchestrator_auto_shard.py
+    participant CCXT as ccxt.pro
+    participant PLAN as orchestrator_plan.json
+    participant W1 as Worker 1 Process
+    participant W2 as Worker 2 Process
+    participant WN as Worker N Process
+    participant DB1 as worker_1_crypto_ws_ticks.db
+    participant DB2 as worker_2_crypto_ws_ticks.db
+    participant DBN as worker_N_crypto_ws_ticks.db
+
+    OP->>ORCH: Start orchestrator
+    ORCH->>ORCH: Build exchange candidate set\n(apply include/exclude flags)
+
+    loop For each candidate exchange
+        ORCH->>CCXT: load_markets() + short profiling session
+        CCXT-->>ORCH: ticks, bytes, reconnect/error counters
+        ORCH->>ORCH: Compute exchange score\n(bytes_per_sec + reconnect penalty)
+    end
+
+    ORCH->>ORCH: Sort exchanges by score (desc)
+    ORCH->>ORCH: Greedy bin-packing to workers\n(assign next exchange to lightest worker)
+    ORCH->>PLAN: Persist worker->exchange mapping and scores
+
+    par Spawn worker 1
+        ORCH->>W1: Start ingest_all_exchanges_ws.py --exchanges shard_1
+        W1->>DB1: Write market_ticks + connection_events
+    and Spawn worker 2
+        ORCH->>W2: Start ingest_all_exchanges_ws.py --exchanges shard_2
+        W2->>DB2: Write market_ticks + connection_events
+    and Spawn worker N
+        ORCH->>WN: Start ingest_all_exchanges_ws.py --exchanges shard_N
+        WN->>DBN: Write market_ticks + connection_events
+    end
+
+    loop Runtime supervision
+        ORCH->>W1: Health check (process alive)
+        ORCH->>W2: Health check (process alive)
+        ORCH->>WN: Health check (process alive)
+        alt Worker exits/crashes
+            ORCH->>ORCH: Compute restart backoff
+            ORCH->>W1: Restart failed worker with same shard
+        end
+    end
+
+    OP->>ORCH: Ctrl+C / stop
+    ORCH->>W1: Terminate
+    ORCH->>W2: Terminate
+    ORCH->>WN: Terminate
+    ORCH-->>OP: Graceful shutdown completed

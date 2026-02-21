@@ -1,0 +1,28 @@
+flowchart TD
+    A([Start supervision tick]) --> B[Read worker process status]
+    B --> C{Process alive?}
+    C -- Yes --> D[Record healthy heartbeat]
+    D --> E{Stable window reached?}
+    E -- Yes --> F[Reset restart attempt counter]
+    E -- No --> G[Keep current restart attempt]
+    F --> Z([End tick])
+    G --> Z
+
+    C -- No --> H[Read exit reason and classify error]
+    H --> I{Terminal exclusion error?}
+    I -- Yes --> J[Mark worker shard as excluded]
+    J --> K[Write exclusion event]
+    K --> Z
+
+    I -- No --> L[Increment restart attempt]
+    L --> M["Compute backoff: min(max_s, base_s * 2^attempt)"]
+    M --> N[Sleep for backoff duration]
+    N --> O[Spawn replacement worker with same shard]
+    O --> P{Spawn/startup successful?}
+    P -- Yes --> Q[Write restart_success and new pid]
+    Q --> Z
+    P -- No --> R{Retry budget exhausted?}
+    R -- No --> S[Keep worker in crash-retry state]
+    S --> Z
+    R -- Yes --> T[Write worker_failed_permanently event]
+    T --> Z

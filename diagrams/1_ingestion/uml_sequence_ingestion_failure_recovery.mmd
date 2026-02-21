@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    actor OP as Operator
+    participant ORCH as Orchestrator
+    participant W as Worker Process
+    participant EX as Exchange WS API
+    participant DB as worker_i_crypto_ws_ticks.db
+    participant LOG as Worker Log
+
+    OP->>ORCH: Start ingestion
+    ORCH->>W: Spawn worker with exchange shard
+    W->>EX: Subscribe ticker stream
+    EX-->>W: ticker updates
+    W->>DB: Insert market_ticks + connection_events
+
+    EX-xW: Disconnect / timeout
+    W->>LOG: disconnect event
+    W->>DB: Write disconnect + reconnect_wait
+    W->>W: Exponential backoff
+    W->>EX: Reconnect
+
+    alt reconnect succeeds
+        EX-->>W: ticker updates resume
+        W->>DB: Write reconnected event
+    else terminal error (auth/exchange unavailable)
+        EX-->>W: terminal error
+        W->>DB: terminal_error_excluded + exchange_removed_from_polling
+        W-->>ORCH: Worker exits / exchange removed
+        ORCH->>ORCH: Restart policy with backoff
+        ORCH->>W: Restart worker process
+    end
+
+    OP->>ORCH: Ctrl+C / stop
+    ORCH->>W: Terminate workers
+    W->>DB: Flush queue and close connections
+    ORCH-->>OP: Graceful shutdown complete

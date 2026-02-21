@@ -1,0 +1,35 @@
+sequenceDiagram
+    autonumber
+    actor OP as Operator
+    participant ORCH as Orchestrator
+    participant W as Worker Process
+    participant LOG as Worker Log
+
+    OP->>ORCH: Start orchestration
+    ORCH->>W: Spawn worker with assigned exchange shard
+    W-->>ORCH: pid + startup ok
+
+    loop Supervision cycle
+        ORCH->>W: Health check (alive + exit code)
+        alt Worker healthy
+            ORCH->>ORCH: Keep running and reset crash streak on stable window
+        else Worker crashed/exited unexpectedly
+            ORCH->>ORCH: Increment restart_attempt
+            ORCH->>ORCH: Compute backoff = min(max_s, base_s * 2^attempt)
+            ORCH->>LOG: Write crash + restart scheduling event
+            ORCH->>ORCH: Sleep backoff duration
+            ORCH->>W: Restart worker with same exchange shard
+            alt Restart successful
+                W-->>ORCH: pid + startup ok
+                ORCH->>LOG: Write restart_success event
+            else Restart failed
+                ORCH->>LOG: Write restart_failed event
+            end
+        end
+    end
+
+    OP->>ORCH: Ctrl+C / stop
+    ORCH->>W: Terminate gracefully
+    W-->>ORCH: process exit acknowledged
+    ORCH->>LOG: Write shutdown_complete
+    ORCH-->>OP: Supervision stopped

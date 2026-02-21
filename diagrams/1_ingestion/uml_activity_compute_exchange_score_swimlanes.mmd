@@ -1,0 +1,27 @@
+flowchart LR
+    subgraph L1[Orchestrator]
+        A([Start per exchange])
+        B[Build profiling request]
+        Z([Persist score result])
+    end
+
+    subgraph L2[Profiler]
+        C{Profiling supported?}
+        C1[Return score = 0.0\nstatus = excluded_unsupported]
+        D{Profiling error present?}
+        D1[Return score = 0.0\nstatus = excluded_error]
+        E[Compute duration and rate metrics]
+        F[Compute raw_score = bytes_per_sec + 2000 * reconnects_per_min]
+        G[Apply lower bound: score >= 1.0]
+    end
+
+    subgraph L3[Shard Planner]
+        H[Mark exchange runnable]
+        I[Emit score record for greedy bin-packing]
+    end
+
+    A --> B --> C
+    C -- No --> C1 --> Z
+    C -- Yes --> D
+    D -- Yes --> D1 --> Z
+    D -- No --> E --> F --> G --> H --> I --> Z

@@ -1,0 +1,17 @@
+flowchart TD
+    A([Start ticker payload]) --> B[Read exchange_id + raw symbol]
+    B --> C{Symbol field present?}
+    C -- No --> C1[Write connection event: missing_symbol] --> Z([End])
+    C -- Yes --> D["Apply normalization rules<br/>(split pair, uppercase, trim)"]
+    D --> E{Mapped to canonical pair?}
+    E -- Yes --> F["Attach canonical symbol<br/>and base/quote"]
+    E -- No --> G["Mark unmapped symbol<br/>for review"]
+    G --> H{Fallback accepted?}
+    H -- Yes --> F
+    H -- No --> I["Write event: symbol_unmapped<br/>skip market tick insert"] --> Z
+
+    F --> J["Run sanity checks<br/>(base/quote not empty)"]
+    J --> K{Valid canonical symbol?}
+    K -- No --> L[Write event: symbol_invalid] --> Z
+    K -- Yes --> M[Insert market tick with canonical symbol]
+    M --> N([End])

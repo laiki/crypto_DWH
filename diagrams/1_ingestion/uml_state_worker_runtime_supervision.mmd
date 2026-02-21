@@ -1,0 +1,21 @@
+stateDiagram-v2
+    [*] --> Starting
+    Starting --> Running: startup ok
+    Starting --> BackoffWait: startup failed
+
+    Running --> Running: health check ok
+    Running --> Crashed: unexpected exit
+    Running --> Stopping: Ctrl+C / stop requested
+
+    Crashed --> Excluded: terminal exclusion error
+    Crashed --> BackoffWait: restartable error
+
+    BackoffWait --> Restarting: backoff elapsed
+    Restarting --> Running: restart successful
+    Restarting --> BackoffWait: restart failed and retries left
+    Restarting --> Failed: retry budget exhausted
+
+    Excluded --> Stopped: orchestration shutdown
+    Failed --> Stopped: orchestration shutdown
+    Stopping --> Stopped: graceful termination complete
+    Stopped --> [*]

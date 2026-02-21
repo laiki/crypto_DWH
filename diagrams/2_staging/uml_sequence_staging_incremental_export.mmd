@@ -1,0 +1,25 @@
+sequenceDiagram
+    autonumber
+    actor OP as Operator
+    participant EXP as staging_exporter.py
+    participant ST as staging_export_state.json
+    participant SRC as worker_*.db
+    participant OUT as staging_export_*.db/csv/json
+    participant META as staging_export_*_metadata.json
+
+    OP->>EXP: Run with --incremental --hours X
+    EXP->>ST: Load state profile (state-key)
+    ST-->>EXP: previous watermarks (market/events)
+    EXP->>EXP: Compute query bounds\nlower from watermark/default\nupper from run start
+
+    loop each worker source DB
+        EXP->>SRC: Query rows in bounds (+filters exchanges/assets)
+        SRC-->>EXP: market_ticks + connection_events
+    end
+
+    EXP->>EXP: Build unique exchanges/assets
+    EXP->>OUT: Write export payload (sqlite/csv/json)
+    EXP->>EXP: Compute exported max timestamps
+    EXP->>ST: Update watermarks (if --update-state)
+    EXP->>META: Write run metadata (bounds, filters, rows, uniques, state info)
+    EXP-->>OP: Print summary + output paths
