@@ -110,8 +110,127 @@ Incremental state file:
 - The state is keyed by source scope (input glob + filters) unless `--state-key` is set.
 - Contract: `docs/staging_state_contract.md`
 
+## Cleansing Resampling
+The cleansing step creates a comparable 1-minute time grid per `(exchange_id, symbol)`.
+
+Script:
+- `scripts/3_cleansing/cleansing_resample_1m.py`
+
+Cleansing rules:
+- `observed`: bucket contains one or more ticks, use last tick in bucket.
+- `forward_fill`: bucket has no tick, reuse last known value within `max_forward_fill_s`.
+- `missing`: bucket has no eligible value for fill.
+
+Output tables:
+- `cleansed_market_1m`
+- `cleansing_pair_summary`
+- `cleansing_run_metadata`
+
+Examples:
+```bash
+python scripts/3_cleansing/cleansing_resample_1m.py --input-db data/staging/staging_export_20260221_120000_last_24h.db
+python scripts/3_cleansing/cleansing_resample_1m.py --input-db data/staging/staging_export_20260221_120000_last_24h.db --exchanges binance,kraken --symbols BTC/USDT,ETH/USDT
+```
+
+Approach documentation:
+- `docs/cleansing_area_approach.md`
+
 Operational insights are tracked at:
 - `docs/insights.md`
+
+## SQL Snippets
+Connection drop statistics grouped by exchange and sorted by frequency:
+
+```sql
+SELECT
+  exchange_id,
+  COUNT(*) AS disconnect_count
+FROM connection_events
+WHERE event_type = 'disconnect'
+GROUP BY exchange_id
+ORDER BY disconnect_count DESC, exchange_id ASC;
+```
+
+Update interval statistics per symbol and exchange (min/avg/max in seconds):
+
+```sql
+WITH ordered_ticks AS (
+  SELECT
+    exchange_id,
+    symbol,
+    ingestion_ts_utc,
+    LAG(ingestion_ts_utc) OVER (
+      PARTITION BY exchange_id, symbol
+      ORDER BY ingestion_ts_utc
+    ) AS prev_ts
+  FROM market_ticks
+),
+intervals AS (
+  SELECT
+    exchange_id,
+    symbol,
+    (julianday(ingestion_ts_utc) - julianday(prev_ts)) * 86400.0 AS interval_s
+  FROM ordered_ticks
+  WHERE prev_ts IS NOT NULL
+)
+SELECT
+  exchange_id,
+  symbol,
+  COUNT(*) AS interval_count,
+  ROUND(MIN(interval_s), 3) AS min_interval_s,
+  ROUND(AVG(interval_s), 3) AS avg_interval_s,
+  ROUND(MAX(interval_s), 3) AS max_interval_s
+FROM intervals
+GROUP BY exchange_id, symbol
+ORDER BY exchange_id, symbol;
+```
+
+Update interval statistics per symbol for a specific exchange (`:exchange_id`):
+
+```sql
+WITH ordered_ticks AS (
+  SELECT
+    exchange_id,
+    symbol,
+    ingestion_ts_utc,
+    LAG(ingestion_ts_utc) OVER (
+      PARTITION BY exchange_id, symbol
+      ORDER BY ingestion_ts_utc
+    ) AS prev_ts
+  FROM market_ticks
+  WHERE exchange_id = :exchange_id
+),
+intervals AS (
+  SELECT
+    exchange_id,
+    symbol,
+    (julianday(ingestion_ts_utc) - julianday(prev_ts)) * 86400.0 AS interval_s
+  FROM ordered_ticks
+  WHERE prev_ts IS NOT NULL
+)
+SELECT
+  exchange_id,
+  symbol,
+  COUNT(*) AS interval_count,
+  ROUND(MIN(interval_s), 3) AS min_interval_s,
+  ROUND(AVG(interval_s), 3) AS avg_interval_s,
+  ROUND(MAX(interval_s), 3) AS max_interval_s
+FROM intervals
+GROUP BY exchange_id, symbol
+ORDER BY symbol;
+```
+
+Using `:exchange_id` in the `sqlite3` shell:
+
+```sql
+.parameter init
+.parameter set :exchange_id 'binance'
+.parameter list
+```
+
+Note:
+- If your local `sqlite3` version does not support `.parameter`, use a literal value directly:
+  - `WHERE exchange_id = 'binance'`
 
 Next steps:
 1. Detailed data model (staging/core/marts)

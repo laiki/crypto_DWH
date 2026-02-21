@@ -1,0 +1,80 @@
+erDiagram
+    SOURCE_WORKER_DB {
+        string source_db PK
+        string source_pattern
+        datetime discovered_at_utc
+    }
+
+    STG_MARKET_TICK {
+        bigint id PK
+        string source_db FK
+        bigint source_row_id
+        datetime ingestion_ts_utc
+        string exchange_id
+        string symbol
+        string market_type
+        float price
+        float bid
+        float ask
+        float last
+        float base_volume
+        float quote_volume
+        bigint exchange_ts_ms
+        datetime exchange_ts_utc
+        string raw_json
+    }
+
+    STG_CONNECTION_EVENT {
+        bigint id PK
+        string source_db FK
+        bigint source_row_id
+        datetime event_ts_utc
+        string exchange_id
+        string symbol
+        string event_type
+        string details_json
+    }
+
+    STG_EXPORT_RUN_METADATA {
+        string run_id PK
+        datetime run_started_utc
+        datetime run_finished_utc
+        float window_hours
+        datetime query_upper_utc
+        string output_format
+        string filters_exchanges_csv
+        string filters_assets_csv
+        int row_count_market_ticks
+        int row_count_connection_events
+    }
+
+    STG_STATE_PROFILE {
+        string state_key PK
+        datetime updated_utc
+        datetime watermark_market_ticks_utc
+        datetime watermark_connection_events_utc
+        string input_glob
+    }
+
+    DIM_EXCHANGE_CANDIDATE {
+        string exchange_id PK
+        string discovered_from
+    }
+
+    DIM_ASSET_CANDIDATE {
+        string asset_symbol PK
+        string derived_from_symbol
+    }
+
+    SOURCE_WORKER_DB ||--o{ STG_MARKET_TICK : contributes
+    SOURCE_WORKER_DB ||--o{ STG_CONNECTION_EVENT : contributes
+
+    STG_EXPORT_RUN_METADATA ||--o{ STG_MARKET_TICK : exports_window
+    STG_EXPORT_RUN_METADATA ||--o{ STG_CONNECTION_EVENT : exports_window
+
+    STG_STATE_PROFILE ||--o{ STG_EXPORT_RUN_METADATA : drives_incremental_runs
+
+    DIM_EXCHANGE_CANDIDATE ||--o{ STG_MARKET_TICK : referenced_by
+    DIM_EXCHANGE_CANDIDATE ||--o{ STG_CONNECTION_EVENT : referenced_by
+    DIM_ASSET_CANDIDATE ||--o{ STG_MARKET_TICK : base_asset_of
+    DIM_ASSET_CANDIDATE ||--o{ STG_CONNECTION_EVENT : optional_symbol_asset

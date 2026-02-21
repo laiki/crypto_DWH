@@ -1,0 +1,73 @@
+flowchart LR
+    classDef proc fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef db fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+    classDef file fill:#fff8e1,stroke:#f9a825,stroke-width:1px,color:#4e3600
+    classDef cfg fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px,color:#2a1038
+    classDef out fill:#e0f2f1,stroke:#00695c,stroke-width:1px,color:#00251a
+
+    subgraph SRC[Raw Ingestion Sources]
+        W0[(worker_0_crypto_ws_ticks.db)]
+        W1[(worker_1_crypto_ws_ticks.db)]
+        WN[(worker_n_crypto_ws_ticks.db)]
+    end
+    class W0,W1,WN db
+
+    subgraph CFG[Runtime Input]
+        CLI[CLI Trigger\nmanual run]
+        P1[hours window\n--hours]
+        P2[scope filter\n--exchanges / --assets]
+        P3[export format\nsqlite / csv / json]
+        P4[incremental mode\n--incremental]
+    end
+    class CLI,P1,P2,P3,P4 cfg
+
+    subgraph STG[Staging Export Process]
+        EXP[staging_exporter.py]
+        WIN[Effective query bounds\nlower and upper UTC bound]
+        UNI[Unique extraction\nexchanges and assets]
+        WM[Watermark handling\nload/update state]
+    end
+    class EXP,WIN,UNI,WM proc
+
+    subgraph OUT[Staging Outputs]
+        STGDB[(staging_export_*.db)]
+        STGCSV[[staging_export_*_market_ticks.csv\nstaging_export_*_connection_events.csv]]
+        STGJSON[[staging_export_*_market_ticks.json\nstaging_export_*_connection_events.json]]
+        META[[staging_export_*_metadata.json]]
+        STATE[[staging_export_state.json]]
+    end
+    class STGDB db
+    class STGCSV,STGJSON,META,STATE file
+
+    subgraph DWH[Downstream Layers]
+        CLN[Cleansing jobs]
+        CORE[Core KPI modeling]
+    end
+    class CLN,CORE out
+
+    CLI --> EXP
+    P1 --> EXP
+    P2 --> EXP
+    P3 --> EXP
+    P4 --> EXP
+
+    W0 --> EXP
+    W1 --> EXP
+    WN --> EXP
+
+    EXP --> WIN
+    EXP --> UNI
+    EXP --> WM
+
+    WIN --> STGDB
+    WIN --> STGCSV
+    WIN --> STGJSON
+    UNI --> META
+    WIN --> META
+    WM --> STATE
+    WM --> META
+
+    STGDB --> CLN
+    STGCSV --> CLN
+    STGJSON --> CLN
+    CLN --> CORE
