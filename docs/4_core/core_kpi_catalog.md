@@ -37,8 +37,9 @@ All timestamps are UTC and must be stored as ISO-8601 text.
   - latency is `>= 0`
 - `grain`:
   - sample: per tick
-  - aggregate: per `(kpi_date_utc, exchange_id, symbol)`
-- `daily aggregates`:
+  - aggregate (daily): per `(kpi_date_utc, exchange_id, symbol)`
+  - aggregate (hourly): per `(kpi_hour_utc, exchange_id, symbol)`
+- `aggregates (daily + hourly)`:
   - `latency_sample_count`
   - `avg_latency_ms`
   - `min_latency_ms`
@@ -60,8 +61,9 @@ All timestamps are UTC and must be stored as ISO-8601 text.
   - `update_interval_s > 0`
 - `grain`:
   - interval: per consecutive tick pair
-  - aggregate: per `(kpi_date_utc, exchange_id, symbol)`
-- `daily aggregates`:
+  - aggregate (daily): per `(kpi_date_utc, exchange_id, symbol)`
+  - aggregate (hourly): per `(kpi_hour_utc, exchange_id, symbol)`
+- `aggregates (daily + hourly)`:
   - `interval_count`
   - `avg_update_interval_s`
   - `min_update_interval_s`
@@ -82,8 +84,9 @@ All timestamps are UTC and must be stored as ISO-8601 text.
   - `event_ts_utc` parseable
   - `event_type = 'disconnect'`
 - `grain`:
-  - aggregate: per `(kpi_date_utc, exchange_id)`
-- `daily aggregates`:
+  - aggregate (daily): per `(kpi_date_utc, exchange_id)`
+  - aggregate (hourly): per `(kpi_hour_utc, exchange_id)`
+- `aggregates (daily + hourly)`:
   - `disconnect_count`
 
 ### KPI 4: Cross-Exchange Price Deviation
@@ -110,8 +113,9 @@ All timestamps are UTC and must be stored as ISO-8601 text.
   - at least two exchanges available in bucket
 - `grain`:
   - aligned point: per `(bucket_start_utc, symbol)`
-  - aggregate: per `(kpi_date_utc, symbol)`
-- `daily aggregates`:
+  - aggregate (daily): per `(kpi_date_utc, symbol)`
+  - aggregate (hourly): per `(kpi_hour_utc, symbol)`
+- `aggregates (daily + hourly)`:
   - `aligned_points_compared`
   - `max_price_diff_abs`
   - `max_price_diff_pct`
@@ -121,8 +125,29 @@ All timestamps are UTC and must be stored as ISO-8601 text.
   - `max_diff_exchange_pair`
 
 ## Aggregation Window
-- default window: one UTC day (`kpi_date_utc = date(<timestamp_utc>)`)
-- all KPI daily views use UTC day boundaries
+- daily window: one UTC day (`kpi_date_utc = date(<timestamp_utc>)`)
+- hourly window: one UTC hour (`kpi_hour_utc = strftime('%Y-%m-%dT%H:00:00Z', <timestamp_utc>)`)
+- both daily and hourly views use UTC boundaries
+
+## KPI Output Views
+- Latency:
+  - `vw_core_kpi_latency_daily`
+  - `vw_core_kpi_latency_hourly`
+- Update frequency:
+  - `vw_core_kpi_update_frequency_daily`
+  - `vw_core_kpi_update_frequency_hourly`
+- Connection drops:
+  - `vw_core_kpi_connection_drops_daily`
+  - `vw_core_kpi_connection_drops_hourly`
+- Price deviation:
+  - `vw_core_kpi_price_deviation_daily`
+  - `vw_core_kpi_price_deviation_hourly`
+- Combined by exchange + symbol:
+  - `vw_core_kpi_daily_exchange_symbol`
+  - `vw_core_kpi_hourly_exchange_symbol`
+- Combined by exchange:
+  - `vw_core_kpi_daily_exchange`
+  - `vw_core_kpi_hourly_exchange`
 
 ## Implementation Mapping
 Core KPI views are implemented in:

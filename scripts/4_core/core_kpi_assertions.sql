@@ -21,6 +21,13 @@ latency_stats AS (
         SUM(CASE WHEN max_latency_ms > (SELECT max_latency_ms_limit FROM thresholds) THEN 1 ELSE 0 END) AS fail_upper_bound
     FROM vw_core_kpi_latency_daily
 ),
+latency_stats_hourly AS (
+    SELECT
+        COUNT(*) AS total_rows,
+        SUM(CASE WHEN min_latency_ms < 0.0 THEN 1 ELSE 0 END) AS fail_non_negative,
+        SUM(CASE WHEN max_latency_ms > (SELECT max_latency_ms_limit FROM thresholds) THEN 1 ELSE 0 END) AS fail_upper_bound
+    FROM vw_core_kpi_latency_hourly
+),
 update_stats AS (
     SELECT
         COUNT(*) AS total_rows,
@@ -34,11 +41,30 @@ update_stats AS (
         ) AS fail_frequency_bounds
     FROM vw_core_kpi_update_frequency_daily
 ),
+update_stats_hourly AS (
+    SELECT
+        COUNT(*) AS total_rows,
+        SUM(CASE WHEN min_update_interval_s <= 0.0 THEN 1 ELSE 0 END) AS fail_interval_positive,
+        SUM(
+            CASE
+                WHEN update_frequency_hz < 0.0
+                  OR update_frequency_hz > (SELECT max_update_frequency_hz_limit FROM thresholds)
+                THEN 1 ELSE 0
+            END
+        ) AS fail_frequency_bounds
+    FROM vw_core_kpi_update_frequency_hourly
+),
 disconnect_stats AS (
     SELECT
         COUNT(*) AS total_rows,
         SUM(CASE WHEN disconnect_count < 0 THEN 1 ELSE 0 END) AS fail_non_negative
     FROM vw_core_kpi_connection_drops_daily
+),
+disconnect_stats_hourly AS (
+    SELECT
+        COUNT(*) AS total_rows,
+        SUM(CASE WHEN disconnect_count < 0 THEN 1 ELSE 0 END) AS fail_non_negative
+    FROM vw_core_kpi_connection_drops_hourly
 ),
 price_stats AS (
     SELECT
@@ -52,6 +78,19 @@ price_stats AS (
             END
         ) AS fail_pct_bounds
     FROM vw_core_kpi_price_deviation_daily
+),
+price_stats_hourly AS (
+    SELECT
+        COUNT(*) AS total_rows,
+        SUM(CASE WHEN max_price_diff_abs < 0.0 THEN 1 ELSE 0 END) AS fail_abs_non_negative,
+        SUM(
+            CASE
+                WHEN max_price_diff_pct < 0.0
+                  OR max_price_diff_pct > (SELECT max_price_diff_pct_limit FROM thresholds)
+                THEN 1 ELSE 0
+            END
+        ) AS fail_pct_bounds
+    FROM vw_core_kpi_price_deviation_hourly
 ),
 assertions AS (
     SELECT
@@ -71,6 +110,26 @@ assertions AS (
         COALESCE(ls.fail_upper_bound, 0) AS failed_rows,
         'max_latency_ms exceeds configured bound (600000 ms)' AS details
     FROM latency_stats AS ls
+
+    UNION ALL
+
+    SELECT
+        'latency_non_negative_hourly' AS assertion_name,
+        'error' AS severity,
+        CASE WHEN COALESCE(lsh.fail_non_negative, 0) > 0 THEN 1 ELSE 0 END AS is_failed,
+        COALESCE(lsh.fail_non_negative, 0) AS failed_rows,
+        'min_latency_ms must be >= 0 (hourly)' AS details
+    FROM latency_stats_hourly AS lsh
+
+    UNION ALL
+
+    SELECT
+        'latency_upper_bound_hourly' AS assertion_name,
+        'error' AS severity,
+        CASE WHEN COALESCE(lsh.fail_upper_bound, 0) > 0 THEN 1 ELSE 0 END AS is_failed,
+        COALESCE(lsh.fail_upper_bound, 0) AS failed_rows,
+        'max_latency_ms exceeds configured bound (600000 ms, hourly)' AS details
+    FROM latency_stats_hourly AS lsh
 
     UNION ALL
 
@@ -95,12 +154,42 @@ assertions AS (
     UNION ALL
 
     SELECT
+        'update_interval_positive_hourly' AS assertion_name,
+        'error' AS severity,
+        CASE WHEN COALESCE(ush.fail_interval_positive, 0) > 0 THEN 1 ELSE 0 END AS is_failed,
+        COALESCE(ush.fail_interval_positive, 0) AS failed_rows,
+        'min_update_interval_s must be > 0 (hourly)' AS details
+    FROM update_stats_hourly AS ush
+
+    UNION ALL
+
+    SELECT
+        'update_frequency_bounds_hourly' AS assertion_name,
+        'error' AS severity,
+        CASE WHEN COALESCE(ush.fail_frequency_bounds, 0) > 0 THEN 1 ELSE 0 END AS is_failed,
+        COALESCE(ush.fail_frequency_bounds, 0) AS failed_rows,
+        'update_frequency_hz must be between 0 and 100 (hourly)' AS details
+    FROM update_stats_hourly AS ush
+
+    UNION ALL
+
+    SELECT
         'disconnect_count_non_negative' AS assertion_name,
         'error' AS severity,
         CASE WHEN COALESCE(ds.fail_non_negative, 0) > 0 THEN 1 ELSE 0 END AS is_failed,
         COALESCE(ds.fail_non_negative, 0) AS failed_rows,
         'disconnect_count must be >= 0' AS details
     FROM disconnect_stats AS ds
+
+    UNION ALL
+
+    SELECT
+        'disconnect_count_non_negative_hourly' AS assertion_name,
+        'error' AS severity,
+        CASE WHEN COALESCE(dsh.fail_non_negative, 0) > 0 THEN 1 ELSE 0 END AS is_failed,
+        COALESCE(dsh.fail_non_negative, 0) AS failed_rows,
+        'disconnect_count must be >= 0 (hourly)' AS details
+    FROM disconnect_stats_hourly AS dsh
 
     UNION ALL
 
@@ -125,12 +214,42 @@ assertions AS (
     UNION ALL
 
     SELECT
+        'price_diff_abs_non_negative_hourly' AS assertion_name,
+        'error' AS severity,
+        CASE WHEN COALESCE(psh.fail_abs_non_negative, 0) > 0 THEN 1 ELSE 0 END AS is_failed,
+        COALESCE(psh.fail_abs_non_negative, 0) AS failed_rows,
+        'max_price_diff_abs must be >= 0 (hourly)' AS details
+    FROM price_stats_hourly AS psh
+
+    UNION ALL
+
+    SELECT
+        'price_diff_pct_bounds_hourly' AS assertion_name,
+        'error' AS severity,
+        CASE WHEN COALESCE(psh.fail_pct_bounds, 0) > 0 THEN 1 ELSE 0 END AS is_failed,
+        COALESCE(psh.fail_pct_bounds, 0) AS failed_rows,
+        'max_price_diff_pct must be between 0 and 200 (hourly)' AS details
+    FROM price_stats_hourly AS psh
+
+    UNION ALL
+
+    SELECT
         'coverage_latency_daily' AS assertion_name,
         'warn' AS severity,
         CASE WHEN COALESCE(ls.total_rows, 0) = 0 THEN 1 ELSE 0 END AS is_failed,
         CASE WHEN COALESCE(ls.total_rows, 0) = 0 THEN 1 ELSE 0 END AS failed_rows,
         'No rows found in vw_core_kpi_latency_daily' AS details
     FROM latency_stats AS ls
+
+    UNION ALL
+
+    SELECT
+        'coverage_latency_hourly' AS assertion_name,
+        'warn' AS severity,
+        CASE WHEN COALESCE(lsh.total_rows, 0) = 0 THEN 1 ELSE 0 END AS is_failed,
+        CASE WHEN COALESCE(lsh.total_rows, 0) = 0 THEN 1 ELSE 0 END AS failed_rows,
+        'No rows found in vw_core_kpi_latency_hourly' AS details
+    FROM latency_stats_hourly AS lsh
 
     UNION ALL
 
@@ -145,12 +264,32 @@ assertions AS (
     UNION ALL
 
     SELECT
+        'coverage_update_frequency_hourly' AS assertion_name,
+        'warn' AS severity,
+        CASE WHEN COALESCE(ush.total_rows, 0) = 0 THEN 1 ELSE 0 END AS is_failed,
+        CASE WHEN COALESCE(ush.total_rows, 0) = 0 THEN 1 ELSE 0 END AS failed_rows,
+        'No rows found in vw_core_kpi_update_frequency_hourly' AS details
+    FROM update_stats_hourly AS ush
+
+    UNION ALL
+
+    SELECT
         'coverage_price_deviation_daily' AS assertion_name,
         'warn' AS severity,
         CASE WHEN COALESCE(ps.total_rows, 0) = 0 THEN 1 ELSE 0 END AS is_failed,
         CASE WHEN COALESCE(ps.total_rows, 0) = 0 THEN 1 ELSE 0 END AS failed_rows,
         'No rows found in vw_core_kpi_price_deviation_daily' AS details
     FROM price_stats AS ps
+
+    UNION ALL
+
+    SELECT
+        'coverage_price_deviation_hourly' AS assertion_name,
+        'warn' AS severity,
+        CASE WHEN COALESCE(psh.total_rows, 0) = 0 THEN 1 ELSE 0 END AS is_failed,
+        CASE WHEN COALESCE(psh.total_rows, 0) = 0 THEN 1 ELSE 0 END AS failed_rows,
+        'No rows found in vw_core_kpi_price_deviation_hourly' AS details
+    FROM price_stats_hourly AS psh
 )
 SELECT
     assertion_name,

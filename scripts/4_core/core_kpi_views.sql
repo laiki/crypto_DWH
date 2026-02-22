@@ -10,12 +10,18 @@
 
 DROP VIEW IF EXISTS vw_core_kpi_daily_exchange;
 DROP VIEW IF EXISTS vw_core_kpi_daily_exchange_symbol;
+DROP VIEW IF EXISTS vw_core_kpi_hourly_exchange;
+DROP VIEW IF EXISTS vw_core_kpi_hourly_exchange_symbol;
 DROP VIEW IF EXISTS vw_core_kpi_price_deviation_daily;
+DROP VIEW IF EXISTS vw_core_kpi_price_deviation_hourly;
 DROP VIEW IF EXISTS vw_core_price_deviation_aligned;
 DROP VIEW IF EXISTS vw_core_kpi_connection_drops_daily;
+DROP VIEW IF EXISTS vw_core_kpi_connection_drops_hourly;
 DROP VIEW IF EXISTS vw_core_kpi_update_frequency_daily;
+DROP VIEW IF EXISTS vw_core_kpi_update_frequency_hourly;
 DROP VIEW IF EXISTS vw_core_update_intervals;
 DROP VIEW IF EXISTS vw_core_kpi_latency_daily;
+DROP VIEW IF EXISTS vw_core_kpi_latency_hourly;
 DROP VIEW IF EXISTS vw_core_latency_samples;
 
 CREATE VIEW vw_core_latency_samples AS
@@ -44,6 +50,18 @@ SELECT
     ROUND(MAX(latency_ms), 3) AS max_latency_ms
 FROM vw_core_latency_samples
 GROUP BY kpi_date_utc, exchange_id, symbol;
+
+CREATE VIEW vw_core_kpi_latency_hourly AS
+SELECT
+    strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc) AS kpi_hour_utc,
+    exchange_id,
+    symbol,
+    COUNT(*) AS latency_sample_count,
+    ROUND(AVG(latency_ms), 3) AS avg_latency_ms,
+    ROUND(MIN(latency_ms), 3) AS min_latency_ms,
+    ROUND(MAX(latency_ms), 3) AS max_latency_ms
+FROM vw_core_latency_samples
+GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc), exchange_id, symbol;
 
 CREATE VIEW vw_core_update_intervals AS
 WITH ordered_ticks AS (
@@ -84,6 +102,19 @@ SELECT
 FROM vw_core_update_intervals
 GROUP BY kpi_date_utc, exchange_id, symbol;
 
+CREATE VIEW vw_core_kpi_update_frequency_hourly AS
+SELECT
+    strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc) AS kpi_hour_utc,
+    exchange_id,
+    symbol,
+    COUNT(*) AS interval_count,
+    ROUND(AVG(update_interval_s), 6) AS avg_update_interval_s,
+    ROUND(MIN(update_interval_s), 6) AS min_update_interval_s,
+    ROUND(MAX(update_interval_s), 6) AS max_update_interval_s,
+    ROUND(CASE WHEN AVG(update_interval_s) > 0.0 THEN 1.0 / AVG(update_interval_s) END, 6) AS update_frequency_hz
+FROM vw_core_update_intervals
+GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc), exchange_id, symbol;
+
 CREATE VIEW vw_core_kpi_connection_drops_daily AS
 SELECT
     date(ce.event_ts_utc) AS kpi_date_utc,
@@ -94,6 +125,17 @@ WHERE ce.event_type = 'disconnect'
   AND ce.event_ts_utc IS NOT NULL
   AND strftime('%s', ce.event_ts_utc) IS NOT NULL
 GROUP BY date(ce.event_ts_utc), ce.exchange_id;
+
+CREATE VIEW vw_core_kpi_connection_drops_hourly AS
+SELECT
+    strftime('%Y-%m-%dT%H:00:00Z', ce.event_ts_utc) AS kpi_hour_utc,
+    ce.exchange_id,
+    COUNT(*) AS disconnect_count
+FROM connection_events AS ce
+WHERE ce.event_type = 'disconnect'
+  AND ce.event_ts_utc IS NOT NULL
+  AND strftime('%s', ce.event_ts_utc) IS NOT NULL
+GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ce.event_ts_utc), ce.exchange_id;
 
 CREATE VIEW vw_core_price_deviation_aligned AS
 WITH filtered AS (
@@ -217,6 +259,49 @@ LEFT JOIN daily_peak AS p
    AND p.symbol = a.symbol
    AND p.rn = 1;
 
+CREATE VIEW vw_core_kpi_price_deviation_hourly AS
+WITH hourly_agg AS (
+    SELECT
+        strftime('%Y-%m-%dT%H:00:00Z', bucket_start_utc) AS kpi_hour_utc,
+        symbol,
+        COUNT(*) AS aligned_points_compared,
+        MAX(price_diff_abs) AS max_price_diff_abs,
+        MAX(price_diff_pct) AS max_price_diff_pct,
+        AVG(price_diff_abs) AS avg_price_diff_abs,
+        AVG(price_diff_pct) AS avg_price_diff_pct
+    FROM vw_core_price_deviation_aligned
+    GROUP BY strftime('%Y-%m-%dT%H:00:00Z', bucket_start_utc), symbol
+),
+hourly_peak AS (
+    SELECT
+        strftime('%Y-%m-%dT%H:00:00Z', bucket_start_utc) AS kpi_hour_utc,
+        symbol,
+        bucket_start_utc,
+        max_diff_exchange_pair,
+        price_diff_abs,
+        bucket_epoch_s,
+        ROW_NUMBER() OVER (
+            PARTITION BY strftime('%Y-%m-%dT%H:00:00Z', bucket_start_utc), symbol
+            ORDER BY price_diff_abs DESC, bucket_epoch_s ASC
+        ) AS rn
+    FROM vw_core_price_deviation_aligned
+)
+SELECT
+    a.kpi_hour_utc,
+    a.symbol,
+    a.aligned_points_compared,
+    ROUND(a.max_price_diff_abs, 12) AS max_price_diff_abs,
+    ROUND(a.max_price_diff_pct, 9) AS max_price_diff_pct,
+    ROUND(a.avg_price_diff_abs, 12) AS avg_price_diff_abs,
+    ROUND(a.avg_price_diff_pct, 9) AS avg_price_diff_pct,
+    p.bucket_start_utc AS max_diff_bucket_start_utc,
+    p.max_diff_exchange_pair
+FROM hourly_agg AS a
+LEFT JOIN hourly_peak AS p
+    ON p.kpi_hour_utc = a.kpi_hour_utc
+   AND p.symbol = a.symbol
+   AND p.rn = 1;
+
 CREATE VIEW vw_core_kpi_daily_exchange_symbol AS
 WITH keys AS (
     SELECT kpi_date_utc, exchange_id, symbol FROM vw_core_kpi_latency_daily
@@ -248,6 +333,39 @@ LEFT JOIN vw_core_kpi_update_frequency_daily AS u
    AND u.symbol = k.symbol
 LEFT JOIN vw_core_kpi_connection_drops_daily AS d
     ON d.kpi_date_utc = k.kpi_date_utc
+   AND d.exchange_id = k.exchange_id;
+
+CREATE VIEW vw_core_kpi_hourly_exchange_symbol AS
+WITH keys AS (
+    SELECT kpi_hour_utc, exchange_id, symbol FROM vw_core_kpi_latency_hourly
+    UNION
+    SELECT kpi_hour_utc, exchange_id, symbol FROM vw_core_kpi_update_frequency_hourly
+)
+SELECT
+    k.kpi_hour_utc,
+    k.exchange_id,
+    k.symbol,
+    l.latency_sample_count,
+    l.avg_latency_ms,
+    l.min_latency_ms,
+    l.max_latency_ms,
+    u.interval_count,
+    u.avg_update_interval_s,
+    u.min_update_interval_s,
+    u.max_update_interval_s,
+    u.update_frequency_hz,
+    d.disconnect_count
+FROM keys AS k
+LEFT JOIN vw_core_kpi_latency_hourly AS l
+    ON l.kpi_hour_utc = k.kpi_hour_utc
+   AND l.exchange_id = k.exchange_id
+   AND l.symbol = k.symbol
+LEFT JOIN vw_core_kpi_update_frequency_hourly AS u
+    ON u.kpi_hour_utc = k.kpi_hour_utc
+   AND u.exchange_id = k.exchange_id
+   AND u.symbol = k.symbol
+LEFT JOIN vw_core_kpi_connection_drops_hourly AS d
+    ON d.kpi_hour_utc = k.kpi_hour_utc
    AND d.exchange_id = k.exchange_id;
 
 CREATE VIEW vw_core_kpi_daily_exchange AS
@@ -303,4 +421,59 @@ LEFT JOIN update_exchange AS u
    AND u.exchange_id = k.exchange_id
 LEFT JOIN vw_core_kpi_connection_drops_daily AS d
     ON d.kpi_date_utc = k.kpi_date_utc
+   AND d.exchange_id = k.exchange_id;
+
+CREATE VIEW vw_core_kpi_hourly_exchange AS
+WITH latency_exchange AS (
+    SELECT
+        strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc) AS kpi_hour_utc,
+        exchange_id,
+        COUNT(*) AS latency_sample_count,
+        ROUND(AVG(latency_ms), 3) AS avg_latency_ms,
+        ROUND(MIN(latency_ms), 3) AS min_latency_ms,
+        ROUND(MAX(latency_ms), 3) AS max_latency_ms
+    FROM vw_core_latency_samples
+    GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc), exchange_id
+),
+update_exchange AS (
+    SELECT
+        strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc) AS kpi_hour_utc,
+        exchange_id,
+        COUNT(*) AS interval_count,
+        ROUND(AVG(update_interval_s), 6) AS avg_update_interval_s,
+        ROUND(MIN(update_interval_s), 6) AS min_update_interval_s,
+        ROUND(MAX(update_interval_s), 6) AS max_update_interval_s,
+        ROUND(CASE WHEN AVG(update_interval_s) > 0.0 THEN 1.0 / AVG(update_interval_s) END, 6) AS update_frequency_hz
+    FROM vw_core_update_intervals
+    GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc), exchange_id
+),
+keys AS (
+    SELECT kpi_hour_utc, exchange_id FROM latency_exchange
+    UNION
+    SELECT kpi_hour_utc, exchange_id FROM update_exchange
+    UNION
+    SELECT kpi_hour_utc, exchange_id FROM vw_core_kpi_connection_drops_hourly
+)
+SELECT
+    k.kpi_hour_utc,
+    k.exchange_id,
+    l.latency_sample_count,
+    l.avg_latency_ms,
+    l.min_latency_ms,
+    l.max_latency_ms,
+    u.interval_count,
+    u.avg_update_interval_s,
+    u.min_update_interval_s,
+    u.max_update_interval_s,
+    u.update_frequency_hz,
+    d.disconnect_count
+FROM keys AS k
+LEFT JOIN latency_exchange AS l
+    ON l.kpi_hour_utc = k.kpi_hour_utc
+   AND l.exchange_id = k.exchange_id
+LEFT JOIN update_exchange AS u
+    ON u.kpi_hour_utc = k.kpi_hour_utc
+   AND u.exchange_id = k.exchange_id
+LEFT JOIN vw_core_kpi_connection_drops_hourly AS d
+    ON d.kpi_hour_utc = k.kpi_hour_utc
    AND d.exchange_id = k.exchange_id;

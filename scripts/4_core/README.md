@@ -39,13 +39,19 @@ Legacy single-DB mode is still available via `--db-path`.
 `core_kpi_views.sql` creates these stable view names:
 - `vw_core_latency_samples`
 - `vw_core_kpi_latency_daily`
+- `vw_core_kpi_latency_hourly`
 - `vw_core_update_intervals`
 - `vw_core_kpi_update_frequency_daily`
+- `vw_core_kpi_update_frequency_hourly`
 - `vw_core_kpi_connection_drops_daily`
+- `vw_core_kpi_connection_drops_hourly`
 - `vw_core_price_deviation_aligned`
 - `vw_core_kpi_price_deviation_daily`
+- `vw_core_kpi_price_deviation_hourly`
 - `vw_core_kpi_daily_exchange_symbol`
 - `vw_core_kpi_daily_exchange`
+- `vw_core_kpi_hourly_exchange_symbol`
+- `vw_core_kpi_hourly_exchange`
 
 ## Example Execution
 Build Core DB artifact:
