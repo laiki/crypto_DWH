@@ -1,0 +1,41 @@
+flowchart TB
+    subgraph HOST["Execution Host (Local or CI Runner)"]
+        subgraph FS["File System"]
+            SMOKE[[smoke_test_core_pipeline.py]]
+            PIPE[[core_pipeline.py]]
+            BUILD[[build_core_db.py]]
+            VALIDATE[[core_validation_runner.py]]
+            VSQL[[core_kpi_views.sql]]
+            ASQL[[core_kpi_assertions.sql]]
+            STAGE[(staging_fixture.db)]
+            CLEAN[(cleansing_fixture.db)]
+            CORE_FAST[(core_fast.db)]
+            CORE_FULL[(core_full.db)]
+            REP_FAST[(reports_fast/*.json, *.md)]
+            REP_FULL[(reports_full/*.json, *.md)]
+            LOG[(stdout or CI log)]
+        end
+
+        subgraph PROC["Process Layer"]
+            CLI[Developer or CI Job]
+            PY[[Python Process]]
+            SQLITE[[SQLite Engine]]
+        end
+    end
+
+    CLI --> PY
+    PY --> SMOKE
+    SMOKE --> PIPE
+    PIPE --> BUILD
+    PIPE --> VALIDATE
+    BUILD --> SQLITE
+    VALIDATE --> SQLITE
+    BUILD --> STAGE
+    BUILD --> CLEAN
+    BUILD --> CORE_FAST
+    BUILD --> CORE_FULL
+    VALIDATE --> VSQL
+    VALIDATE --> ASQL
+    VALIDATE --> REP_FAST
+    VALIDATE --> REP_FULL
+    SMOKE --> LOG

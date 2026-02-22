@@ -1,0 +1,51 @@
+erDiagram
+    market_ticks {
+        TEXT ingestion_ts_utc
+        TEXT exchange_ts_utc
+        TEXT exchange_id
+        TEXT symbol
+    }
+
+    connection_events {
+        TEXT event_ts_utc
+        TEXT exchange_id
+        TEXT event_type
+    }
+
+    cleansed_market {
+        TEXT run_id
+        TEXT bucket_start_utc
+        INTEGER bucket_epoch_s
+        TEXT exchange_id
+        TEXT symbol
+        REAL price
+        INTEGER is_missing
+        INTEGER is_stale
+    }
+
+    core_build_metadata {
+        TEXT build_id
+        TEXT created_utc
+        TEXT input_mode
+        TEXT kpi_date_filter
+        TEXT cleansing_run_id_filter
+        INTEGER row_count_market_ticks
+        INTEGER row_count_connection_events
+        INTEGER row_count_cleansed_market
+        INTEGER created_core_views_count
+    }
+
+    validation_report_json {
+        TEXT run_started_utc
+        TEXT run_finished_utc
+        TEXT kpi_date_filter
+        TEXT cleansing_run_id_filter
+        BOOLEAN view_row_counts_skipped
+        INTEGER error_failed
+        INTEGER warn_failed
+    }
+
+    market_ticks ||--o{ core_build_metadata : contributes_to_row_count
+    connection_events ||--o{ core_build_metadata : contributes_to_row_count
+    cleansed_market ||--o{ core_build_metadata : contributes_to_row_count
+    core_build_metadata ||--o{ validation_report_json : validated_by

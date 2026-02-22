@@ -43,13 +43,12 @@ Last updated: 2026-02-22
    - Scope: in-memory fixture data, contract checks (view names/columns), and daily/hourly semantic checks.
    - Output: repeatable command with clear pass/fail exit code.
 
-## Next Priority 1
-1. Add automated integration smoke test for `core_pipeline.py`.
-   - Scope: fixture DBs + phase runs (`fast`, `full`) + expected exit codes.
-   - Output: repeatable test command/script.
-   - Done when: pipeline regression is detectable in local/CI runs.
+10. Added automated integration smoke test for `core_pipeline.py`.
+    - Artifact: `scripts/4_core/smoke_test_core_pipeline.py`
+    - Scope: file-based fixture DBs, `fast`/`full` phase runs, expected exit codes, and report/metadata checks.
+    - Output: repeatable command with clear pass/fail exit code.
 
-## Next Priority 2
+## Next Priority 1
 1. Define mart-ready KPI extracts for dashboard.
    - Scope: select exact columns and sort/filter defaults for platform quality and price deviation panels.
    - Output: SQL select templates or views for dashboard consumption.

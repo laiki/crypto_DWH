@@ -6,6 +6,8 @@
 - `core_kpi_assertions.sql`: runs validation checks against the KPI views.
 - `core_validation_runner.py`: applies views, executes assertions, and writes JSON/Markdown reports.
 - `core_pipeline.py`: orchestrates build + validate phases (`fast`, `full`, `both`).
+- `smoke_test_core_kpi_views.py`: validates Core KPI view contracts and semantics with in-memory fixtures.
+- `smoke_test_core_pipeline.py`: integration smoke test for fast/full pipeline phases with file-based fixtures.
 
 ## Related Diagrams
 - `diagrams/4_core/uml_sequence_core_validation_runner.mmd`
@@ -25,6 +27,10 @@
 - `diagrams/4_core/uml_activity_core_kpi_views_smoke_test.mmd`
 - `diagrams/4_core/uml_er_core_kpi_views_smoke_test.mmd`
 - `diagrams/4_core/uml_deployment_core_kpi_views_smoke_test.mmd`
+- `diagrams/4_core/uml_sequence_core_pipeline_smoke_test.mmd`
+- `diagrams/4_core/uml_activity_core_pipeline_smoke_test.mmd`
+- `diagrams/4_core/uml_er_core_pipeline_smoke_test.mmd`
+- `diagrams/4_core/uml_deployment_core_pipeline_smoke_test.mmd`
 
 ## Script Boundaries
 - `docs/4_core/core_scripts_responsibilities.md`
@@ -127,6 +133,18 @@ Optional SQL path override:
 ```bash
 python scripts/4_core/smoke_test_core_kpi_views.py \
   --views-sql scripts/4_core/core_kpi_views.sql
+```
+
+Integration smoke test for Core pipeline:
+
+```bash
+python scripts/4_core/smoke_test_core_pipeline.py
+```
+
+Optional (keep generated temp workspace for inspection):
+
+```bash
+python scripts/4_core/smoke_test_core_pipeline.py --keep-work-dir
 ```
 
 Build options:

@@ -1,0 +1,34 @@
+sequenceDiagram
+    autonumber
+    actor Dev as Developer/CI
+    participant Smoke as smoke_test_core_pipeline.py
+    participant StageDB as staging_fixture.db
+    participant CleanDB as cleansing_fixture.db
+    participant Pipe as core_pipeline.py
+    participant Build as build_core_db.py
+    participant Validate as core_validation_runner.py
+    participant RepFast as fast reports
+    participant RepFull as full reports
+
+    Dev->>Smoke: Run integration smoke test
+    Smoke->>StageDB: Create fixture DB + rows
+    Smoke->>CleanDB: Create fixture DB + rows
+
+    Smoke->>Pipe: Execute phase=fast
+    Pipe->>Build: Build scoped Core DB
+    Pipe->>Validate: Validate scoped data (skip counts)
+    Validate-->>RepFast: Write JSON + MD report
+    Pipe-->>Smoke: Exit code 0 expected
+
+    Smoke->>Pipe: Execute phase=full
+    Pipe->>Build: Build unscoped Core DB
+    Pipe->>Validate: Validate full data (with counts)
+    Validate-->>RepFull: Write JSON + MD report
+    Pipe-->>Smoke: Exit code 0 expected
+
+    Smoke->>Smoke: Assert reports + build metadata contracts
+    alt Any mismatch
+        Smoke-->>Dev: FAIL (exit code 1)
+    else All checks pass
+        Smoke-->>Dev: PASS (exit code 0)
+    end

@@ -1,0 +1,18 @@
+flowchart TD
+    A([Start]) --> B[Resolve script and SQL artifact paths]
+    B --> C{Artifacts exist?}
+    C -- No --> Z1[Fail with exit 1] --> Z([End])
+    C -- Yes --> D[Create work directories]
+    D --> E[Create staging and cleansing fixture DB files]
+    E --> F[Run core_pipeline.py with phase fast and scope filters]
+    F --> G{fast exit code == 0?}
+    G -- No --> Z1
+    G -- Yes --> H[Validate fast report payload and build metadata]
+    H --> I[Run core_pipeline.py with phase full]
+    I --> J{full exit code == 0?}
+    J -- No --> Z1
+    J -- Yes --> K[Validate full report payload and build metadata]
+    K --> L[Compare scoped vs unscoped row counts]
+    L --> M{Any contract violation?}
+    M -- Yes --> Z1
+    M -- No --> N[Print PASS summary and exit 0] --> Z
