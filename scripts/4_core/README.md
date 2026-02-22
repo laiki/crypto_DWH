@@ -48,5 +48,21 @@ python scripts/4_core/core_validation_runner.py \
   --cleansing-db data/cleansing/cleaned_staging_export_YYYYMMDD_HHMMSS_last_24h_60s.db
 ```
 
+Performance-oriented execution example:
+
+```bash
+python scripts/4_core/core_validation_runner.py \
+  --staging-db data/staging/staging_export_YYYYMMDD_HHMMSS_last_24h.db \
+  --cleansing-db data/cleansing/cleaned_staging_export_YYYYMMDD_HHMMSS_last_24h_60s.db \
+  --kpi-date 2026-02-21 \
+  --cleansing-run-id cleansing_20260221_164315_60s \
+  --skip-view-row-counts
+```
+
+Runtime options:
+- `--skip-view-row-counts`: skips `COUNT(*)` over all KPI views.
+- `--kpi-date YYYY-MM-DD`: filters source aliases to one UTC date.
+- `--cleansing-run-id <run_id>`: filters cleansing source alias to one run.
+
 Default report output directory:
 - `logs/core_validation/`

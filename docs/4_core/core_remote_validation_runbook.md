@@ -42,6 +42,17 @@ python scripts/4_core/core_validation_runner.py \
   --output-dir logs/core_validation
 ```
 
+Performance-oriented scoped execution:
+
+```bash
+python scripts/4_core/core_validation_runner.py \
+  --staging-db /path/to/staging_export.db \
+  --cleansing-db /path/to/cleaned_staging_export_60s.db \
+  --kpi-date 2026-02-21 \
+  --cleansing-run-id cleansing_20260221_164315_60s \
+  --skip-view-row-counts
+```
+
 ## Outputs
 For each run, two files are written:
 - JSON report:
@@ -50,11 +61,21 @@ For each run, two files are written:
   - `logs/core_validation/core_validation_<UTC_TIMESTAMP>.md`
 
 Report content includes:
-- run metadata (UTC timestamps, host, python version, DB path)
+- run metadata (UTC timestamps, host, python version, input paths, scope options)
 - table presence check
 - assertion results (`error`/`warn`, failed rows)
 - KPI view row counts
 - summary (`error_failed`, `warn_failed`)
+
+Scope options:
+- `--kpi-date YYYY-MM-DD`:
+  - filters `market_ticks` by `date(ingestion_ts_utc)`
+  - filters `connection_events` by `date(event_ts_utc)`
+  - filters `cleansed_market` by `date(bucket_start_utc)`
+- `--cleansing-run-id`:
+  - filters `cleansed_market` by exact `run_id`
+- `--skip-view-row-counts`:
+  - skips expensive `COUNT(*)` queries over all KPI views
 
 ## Exit Codes
 - `0`: validation completed and no failed `error` assertions

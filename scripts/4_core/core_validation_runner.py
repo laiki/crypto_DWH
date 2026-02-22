@@ -20,6 +20,7 @@ import re
 import sqlite3
 import sys
 from dataclasses import asdict, dataclass
+from datetime import date
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -118,6 +119,22 @@ def parse_args() -> argparse.Namespace:
         default=True,
         help="Return exit code 2 when at least one error-level assertion fails.",
     )
+    parser.add_argument(
+        "--skip-view-row-counts",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Skip COUNT(*) queries on KPI views to reduce runtime.",
+    )
+    parser.add_argument(
+        "--kpi-date",
+        default=None,
+        help="Optional UTC date filter in YYYY-MM-DD. Applies to staging and cleansing source aliases.",
+    )
+    parser.add_argument(
+        "--cleansing-run-id",
+        default=None,
+        help="Optional run_id filter for cleansing source alias.",
+    )
     return parser.parse_args()
 
 
@@ -132,6 +149,24 @@ def resolve_input_paths(args: argparse.Namespace) -> tuple[Path, Path, str]:
         raise SystemExit("Provide both --staging-db and --cleansing-db (or use legacy --db-path).")
 
     return Path(args.staging_db), Path(args.cleansing_db), "split_db"
+
+
+def normalize_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None
+
+
+def validate_kpi_date(raw_value: str | None) -> str | None:
+    if raw_value is None:
+        return None
+    normalized = raw_value.strip()
+    try:
+        date.fromisoformat(normalized)
+    except ValueError as exc:
+        raise SystemExit(f"Invalid --kpi-date value: {raw_value!r}. Expected YYYY-MM-DD.") from exc
+    return normalized
 
 
 def existing_table_names(connection: sqlite3.Connection, schema_name: str) -> set[str]:
@@ -156,7 +191,40 @@ def attach_sources(connection: sqlite3.Connection, staging_db_path: Path, cleans
     connection.execute(f"ATTACH DATABASE ? AS {CLEANSING_SCHEMA}", (str(cleansing_db_path),))
 
 
-def create_temp_source_alias_views(connection: sqlite3.Connection) -> None:
+def sql_string_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def build_where_clause(conditions: list[str]) -> str:
+    if not conditions:
+        return ""
+    return " WHERE " + " AND ".join(conditions)
+
+
+def create_temp_source_alias_views(
+    connection: sqlite3.Connection,
+    *,
+    kpi_date: str | None,
+    cleansing_run_id: str | None,
+) -> None:
+    market_conditions: list[str] = []
+    event_conditions: list[str] = []
+    cleansing_conditions: list[str] = []
+
+    if kpi_date is not None:
+        kpi_date_sql = sql_string_literal(kpi_date)
+        market_conditions.append(f"date(ingestion_ts_utc) = {kpi_date_sql}")
+        event_conditions.append(f"date(event_ts_utc) = {kpi_date_sql}")
+        cleansing_conditions.append(f"date(bucket_start_utc) = {kpi_date_sql}")
+
+    if cleansing_run_id is not None:
+        run_id_sql = sql_string_literal(cleansing_run_id)
+        cleansing_conditions.append(f"run_id = {run_id_sql}")
+
+    market_where = build_where_clause(market_conditions)
+    event_where = build_where_clause(event_conditions)
+    cleansing_where = build_where_clause(cleansing_conditions)
+
     connection.executescript(
         f"""
         DROP VIEW IF EXISTS temp.market_ticks;
@@ -164,13 +232,13 @@ def create_temp_source_alias_views(connection: sqlite3.Connection) -> None:
         DROP VIEW IF EXISTS temp.cleansed_market;
 
         CREATE TEMP VIEW market_ticks AS
-        SELECT * FROM {STAGING_SCHEMA}.market_ticks;
+        SELECT * FROM {STAGING_SCHEMA}.market_ticks{market_where};
 
         CREATE TEMP VIEW connection_events AS
-        SELECT * FROM {STAGING_SCHEMA}.connection_events;
+        SELECT * FROM {STAGING_SCHEMA}.connection_events{event_where};
 
         CREATE TEMP VIEW cleansed_market AS
-        SELECT * FROM {CLEANSING_SCHEMA}.cleansed_market;
+        SELECT * FROM {CLEANSING_SCHEMA}.cleansed_market{cleansing_where};
         """
     )
 
@@ -234,6 +302,9 @@ def format_markdown_report(payload: dict[str, Any]) -> str:
     lines.append(f"- Input mode: `{payload['input_mode']}`")
     lines.append(f"- Staging DB path: `{payload['staging_db_path']}`")
     lines.append(f"- Cleansing DB path: `{payload['cleansing_db_path']}`")
+    lines.append(f"- KPI date filter: `{payload['kpi_date_filter'] or '-'}`")
+    lines.append(f"- Cleansing run_id filter: `{payload['cleansing_run_id_filter'] or '-'}`")
+    lines.append(f"- View row counts skipped: `{payload['view_row_counts_skipped']}`")
     lines.append("")
     lines.append("## Table Check")
     lines.append("")
@@ -268,11 +339,15 @@ def format_markdown_report(payload: dict[str, Any]) -> str:
     lines.append("")
     lines.append("## KPI View Row Counts")
     lines.append("")
-    lines.append("| view_name | row_count |")
-    lines.append("|---|---:|")
-    for view_name, count in payload["view_row_counts"].items():
-        lines.append(f"| {view_name} | {count} |")
-    lines.append("")
+    if payload["view_row_counts_skipped"]:
+        lines.append("Skipped by runtime option `--skip-view-row-counts`.")
+        lines.append("")
+    else:
+        lines.append("| view_name | row_count |")
+        lines.append("|---|---:|")
+        for view_name, count in payload["view_row_counts"].items():
+            lines.append(f"| {view_name} | {count} |")
+        lines.append("")
     return "\n".join(lines) + "\n"
 
 
@@ -304,6 +379,9 @@ def main() -> int:
     except SystemExit as exc:
         print(str(exc), file=sys.stderr)
         return 1
+
+    kpi_date_filter = validate_kpi_date(args.kpi_date)
+    cleansing_run_id_filter = normalize_optional_text(args.cleansing_run_id)
 
     views_sql_path = Path(args.views_sql)
     assertions_sql_path = Path(args.assertions_sql)
@@ -349,10 +427,15 @@ def main() -> int:
                 "Missing required source tables: " + ", ".join(missing_tables)
             )
 
-        create_temp_source_alias_views(connection)
+        create_temp_source_alias_views(
+            connection,
+            kpi_date=kpi_date_filter,
+            cleansing_run_id=cleansing_run_id_filter,
+        )
         apply_view_sql(connection, views_sql)
         assertions = load_assertions(connection, assertions_sql)
-        counts = view_row_counts(connection)
+        if not args.skip_view_row_counts:
+            counts = view_row_counts(connection)
     except Exception as exc:  # noqa: BLE001
         error_message = repr(exc)
         exit_code = 1
@@ -378,6 +461,9 @@ def main() -> int:
         "input_mode": input_mode,
         "staging_db_path": str(staging_db_path),
         "cleansing_db_path": str(cleansing_db_path),
+        "kpi_date_filter": kpi_date_filter,
+        "cleansing_run_id_filter": cleansing_run_id_filter,
+        "view_row_counts_skipped": bool(args.skip_view_row_counts),
         "views_sql_path": str(views_sql_path),
         "assertions_sql_path": str(assertions_sql_path),
         "missing_required_tables": missing_tables,

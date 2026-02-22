@@ -16,6 +16,7 @@ Use this checklist after running:
 - [ ] `core_kpi_views.sql` applied successfully.
 - [ ] Expected Core view count is 9.
 - [ ] No SQL runtime error in runner output.
+- [ ] Scope options (`--kpi-date`, `--cleansing-run-id`) are documented when used.
 
 ## C) Assertion Outcome
 - [ ] `error_failed = 0` in report summary.
@@ -33,6 +34,7 @@ Use this checklist after running:
 - [ ] Markdown report file is created and archived.
 - [ ] Report timestamp is UTC and matches the refresh window.
 - [ ] Refresh ticket/log references the report file names.
+- [ ] If `--skip-view-row-counts` is used, reason is documented in refresh notes.
 
 ## F) Release Decision
 - [ ] Dashboard/mart refresh approved (all error assertions passed).
