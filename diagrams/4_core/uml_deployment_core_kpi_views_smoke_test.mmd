@@ -1,0 +1,22 @@
+flowchart TB
+    subgraph HOST["Execution Host (Local or CI Runner)"]
+        subgraph FS["File System"]
+            SMOKE[[smoke_test_core_kpi_views.py]]
+            VSQL[[core_kpi_views.sql]]
+            LOG[(stdout or CI log)]
+        end
+
+        subgraph PROC["Process Layer"]
+            CLI[Developer or CI Job]
+            PY[[Python Process]]
+            SQLITE[[SQLite Engine :memory:]]
+            FX[(Fixture Rows in Memory)]
+        end
+    end
+
+    CLI --> PY
+    PY --> SMOKE
+    SMOKE --> VSQL
+    SMOKE --> SQLITE
+    SQLITE --> FX
+    SMOKE --> LOG

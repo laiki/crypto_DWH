@@ -1,0 +1,98 @@
+erDiagram
+    market_ticks {
+        TEXT ingestion_ts_utc
+        TEXT exchange_ts_utc
+        TEXT exchange_id
+        TEXT symbol
+    }
+
+    connection_events {
+        TEXT event_ts_utc
+        TEXT exchange_id
+        TEXT event_type
+    }
+
+    cleansed_market {
+        TEXT bucket_start_utc
+        INTEGER bucket_epoch_s
+        TEXT exchange_id
+        TEXT symbol
+        REAL price
+        INTEGER is_missing
+        INTEGER is_stale
+    }
+
+    vw_core_kpi_latency_daily {
+        TEXT kpi_date_utc
+        TEXT exchange_id
+        TEXT symbol
+        INTEGER latency_sample_count
+        REAL avg_latency_ms
+        REAL min_latency_ms
+        REAL max_latency_ms
+    }
+
+    vw_core_kpi_latency_hourly {
+        TEXT kpi_hour_utc
+        TEXT exchange_id
+        TEXT symbol
+        INTEGER latency_sample_count
+        REAL avg_latency_ms
+        REAL min_latency_ms
+        REAL max_latency_ms
+    }
+
+    vw_core_kpi_update_frequency_daily {
+        TEXT kpi_date_utc
+        TEXT exchange_id
+        TEXT symbol
+        INTEGER interval_count
+        REAL avg_update_interval_s
+        REAL update_frequency_hz
+    }
+
+    vw_core_kpi_update_frequency_hourly {
+        TEXT kpi_hour_utc
+        TEXT exchange_id
+        TEXT symbol
+        INTEGER interval_count
+        REAL avg_update_interval_s
+        REAL update_frequency_hz
+    }
+
+    vw_core_kpi_connection_drops_daily {
+        TEXT kpi_date_utc
+        TEXT exchange_id
+        INTEGER disconnect_count
+    }
+
+    vw_core_kpi_connection_drops_hourly {
+        TEXT kpi_hour_utc
+        TEXT exchange_id
+        INTEGER disconnect_count
+    }
+
+    vw_core_kpi_price_deviation_daily {
+        TEXT kpi_date_utc
+        TEXT symbol
+        INTEGER aligned_points_compared
+        REAL max_price_diff_abs
+        REAL max_price_diff_pct
+    }
+
+    vw_core_kpi_price_deviation_hourly {
+        TEXT kpi_hour_utc
+        TEXT symbol
+        INTEGER aligned_points_compared
+        REAL max_price_diff_abs
+        REAL max_price_diff_pct
+    }
+
+    market_ticks ||--o{ vw_core_kpi_latency_daily : aggregates_to
+    market_ticks ||--o{ vw_core_kpi_latency_hourly : aggregates_to
+    market_ticks ||--o{ vw_core_kpi_update_frequency_daily : aggregates_to
+    market_ticks ||--o{ vw_core_kpi_update_frequency_hourly : aggregates_to
+    connection_events ||--o{ vw_core_kpi_connection_drops_daily : aggregates_to
+    connection_events ||--o{ vw_core_kpi_connection_drops_hourly : aggregates_to
+    cleansed_market ||--o{ vw_core_kpi_price_deviation_daily : aggregates_to
+    cleansed_market ||--o{ vw_core_kpi_price_deviation_hourly : aggregates_to

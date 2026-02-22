@@ -1,0 +1,14 @@
+flowchart TD
+    A([Start]) --> B[Parse args and resolve views SQL path]
+    B --> C{SQL file exists?}
+    C -- No --> Z1[Print error and exit 1] --> Z([End])
+    C -- Yes --> D[Create SQLite in-memory DB]
+    D --> E[Create market_ticks, connection_events, cleansed_market]
+    E --> F[Insert fixture rows]
+    F --> G[Apply core_kpi_views.sql]
+    G --> H[Check expected vw_core_* names]
+    H --> I[Check expected columns per view]
+    I --> J[Run semantic checks daily + hourly]
+    J --> K{Any failures?}
+    K -- Yes --> L[Print issues and exit 1] --> Z
+    K -- No --> M[Print PASS summary and exit 0] --> Z

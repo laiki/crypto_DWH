@@ -1,0 +1,21 @@
+sequenceDiagram
+    autonumber
+    actor Engineer as Developer/CI
+    participant Smoke as smoke_test_core_kpi_views.py
+    participant SQLite as SQLite :memory:
+    participant ViewsSQL as core_kpi_views.sql
+
+    Engineer->>Smoke: Run script
+    Smoke->>SQLite: Open in-memory connection
+    Smoke->>SQLite: Create source tables
+    Smoke->>SQLite: Insert deterministic fixtures
+    Smoke->>ViewsSQL: Read SQL file
+    Smoke->>SQLite: Apply view DDL
+    Smoke->>SQLite: Read vw_core_* names
+    Smoke->>SQLite: Read view columns via PRAGMA
+    Smoke->>SQLite: Query KPI rows for semantics
+    alt Any contract/semantic mismatch
+        Smoke-->>Engineer: FAIL (exit code 1) + issue list
+    else All checks pass
+        Smoke-->>Engineer: PASS (exit code 0)
+    end

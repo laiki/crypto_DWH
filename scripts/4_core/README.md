@@ -21,6 +21,10 @@
 - `diagrams/4_core/uml_activity_core_pipeline_fast_phase.mmd`
 - `diagrams/4_core/uml_activity_core_pipeline_full_phase.mmd`
 - `diagrams/4_core/uml_state_core_pipeline_modes.mmd`
+- `diagrams/4_core/uml_sequence_core_kpi_views_smoke_test.mmd`
+- `diagrams/4_core/uml_activity_core_kpi_views_smoke_test.mmd`
+- `diagrams/4_core/uml_er_core_kpi_views_smoke_test.mmd`
+- `diagrams/4_core/uml_deployment_core_kpi_views_smoke_test.mmd`
 
 ## Script Boundaries
 - `docs/4_core/core_scripts_responsibilities.md`
@@ -111,6 +115,19 @@ Runtime options:
 - `--skip-view-row-counts`: skips `COUNT(*)` over all KPI views.
 - `--kpi-date YYYY-MM-DD`: filters source aliases to one UTC date.
 - `--cleansing-run-id <run_id>`: filters cleansing source alias to one run.
+
+Smoke test for Core KPI views:
+
+```bash
+python scripts/4_core/smoke_test_core_kpi_views.py
+```
+
+Optional SQL path override:
+
+```bash
+python scripts/4_core/smoke_test_core_kpi_views.py \
+  --views-sql scripts/4_core/core_kpi_views.sql
+```
 
 Build options:
 - `--kpi-date YYYY-MM-DD`: builds scoped Core artifact for one UTC date.

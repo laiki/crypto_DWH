@@ -38,13 +38,13 @@ Last updated: 2026-02-22
    - Scope: run `fast`, `full`, or `both` phases with clear exit-code behavior.
    - Output: one-command orchestration including validation report links.
 
-## Next Priority 1
-1. Add automated smoke test for Core SQL views.
-   - Scope: create minimal fixture data and assert expected view columns/row semantics.
-   - Output: repeatable test command/script.
-   - Done when: CI/local execution detects breaking changes in KPI SQL.
+9. Added automated smoke test for Core KPI SQL views.
+   - Artifact: `scripts/4_core/smoke_test_core_kpi_views.py`
+   - Scope: in-memory fixture data, contract checks (view names/columns), and daily/hourly semantic checks.
+   - Output: repeatable command with clear pass/fail exit code.
 
-2. Add automated integration smoke test for `core_pipeline.py`.
+## Next Priority 1
+1. Add automated integration smoke test for `core_pipeline.py`.
    - Scope: fixture DBs + phase runs (`fast`, `full`) + expected exit codes.
    - Output: repeatable test command/script.
    - Done when: pipeline regression is detectable in local/CI runs.
