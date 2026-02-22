@@ -6,10 +6,11 @@ Use this checklist after running:
 - `scripts/4_core/core_remote_validation.py`
 
 ## A) Input Availability
-- [ ] Target DB file exists and is readable.
-- [ ] Required source table `market_ticks` exists.
-- [ ] Required source table `connection_events` exists.
-- [ ] Required source table `cleansed_market` exists.
+- [ ] Staging DB file exists and is readable.
+- [ ] Cleansing DB file exists and is readable.
+- [ ] Required source table `market_ticks` exists in staging DB.
+- [ ] Required source table `connection_events` exists in staging DB.
+- [ ] Required source table `cleansed_market` exists in cleansing DB.
 
 ## B) Core View Build
 - [ ] `core_kpi_views.sql` applied successfully.

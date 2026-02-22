@@ -6,9 +6,10 @@ Last updated: 2026-02-22
 This runbook describes how to validate Core KPI SQL views and assertions on the remote server where the real SQLite data is stored.
 
 ## Inputs
-- target SQLite DB that contains:
+- staging SQLite DB that contains:
   - `market_ticks`
   - `connection_events`
+- cleansing SQLite DB that contains:
   - `cleansed_market`
 - SQL artifacts:
   - `scripts/4_core/core_kpi_views.sql`
@@ -26,14 +27,16 @@ Run from project root on remote host:
 
 ```bash
 python scripts/4_core/core_remote_validation.py \
-  --db-path /path/to/core_or_stage_db.sqlite
+  --staging-db /path/to/staging_export.db \
+  --cleansing-db /path/to/cleaned_staging_export_60s.db
 ```
 
 Optional custom paths:
 
 ```bash
 python scripts/4_core/core_remote_validation.py \
-  --db-path /path/to/db.sqlite \
+  --staging-db /path/to/staging_export.db \
+  --cleansing-db /path/to/cleaned_staging_export_60s.db \
   --views-sql scripts/4_core/core_kpi_views.sql \
   --assertions-sql scripts/4_core/core_kpi_assertions.sql \
   --output-dir logs/core_validation
@@ -62,16 +65,31 @@ If you want non-blocking behavior for failed `error` assertions:
 
 ```bash
 python scripts/4_core/core_remote_validation.py \
-  --db-path /path/to/db.sqlite \
+  --staging-db /path/to/staging_export.db \
+  --cleansing-db /path/to/cleaned_staging_export_60s.db \
   --no-fail-on-error
+```
+
+Legacy mode (single combined DB) is still supported:
+
+```bash
+python scripts/4_core/core_remote_validation.py \
+  --db-path /path/to/combined_core.db
 ```
 
 ## Manual SQL Fallback
 If Python execution is not available:
 
 ```bash
-sqlite3 /path/to/db.sqlite ".read scripts/4_core/core_kpi_views.sql"
-sqlite3 -header -column /path/to/db.sqlite ".read scripts/4_core/core_kpi_assertions.sql"
+sqlite3 :memory: <<'SQL'
+ATTACH DATABASE '/path/to/staging_export.db' AS staging_src;
+ATTACH DATABASE '/path/to/cleaned_staging_export_60s.db' AS cleansing_src;
+CREATE TEMP VIEW market_ticks AS SELECT * FROM staging_src.market_ticks;
+CREATE TEMP VIEW connection_events AS SELECT * FROM staging_src.connection_events;
+CREATE TEMP VIEW cleansed_market AS SELECT * FROM cleansing_src.cleansed_market;
+.read scripts/4_core/core_kpi_views.sql
+.read scripts/4_core/core_kpi_assertions.sql
+SQL
 ```
 
 ## Operational Recommendation

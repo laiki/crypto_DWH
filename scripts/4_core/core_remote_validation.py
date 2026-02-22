@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Run Core KPI SQL validation against a SQLite database and write run reports.
+Run Core KPI SQL validation against staging and cleansing SQLite sources.
 
 This script:
-1) checks required source tables,
-2) applies Core KPI views,
-3) executes Core KPI assertions,
-4) writes JSON and Markdown reports.
+1) checks required source tables in both DBs,
+2) attaches both DBs into an in-memory validation session,
+3) creates temporary source alias views,
+4) applies Core KPI views (as temporary views),
+5) executes Core KPI assertions,
+6) writes JSON and Markdown reports.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import platform
+import re
 import sqlite3
 import sys
 from dataclasses import asdict, dataclass
@@ -22,11 +25,13 @@ from pathlib import Path
 from typing import Any
 
 
-REQUIRED_SOURCE_TABLES = (
-    "market_ticks",
-    "connection_events",
-    "cleansed_market",
-)
+STAGING_SCHEMA = "staging_src"
+CLEANSING_SCHEMA = "cleansing_src"
+
+REQUIRED_TABLES_BY_SCHEMA = {
+    STAGING_SCHEMA: ("market_ticks", "connection_events"),
+    CLEANSING_SCHEMA: ("cleansed_market",),
+}
 
 CORE_VIEW_NAMES = (
     "vw_core_latency_samples",
@@ -64,13 +69,28 @@ def read_text(path: Path) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate Core KPI SQL views and assertions on a SQLite database.",
+        description=(
+            "Validate Core KPI SQL views and assertions using staging and cleansing SQLite databases."
+        ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--db-path",
-        required=True,
-        help="Path to SQLite database that contains market_ticks, connection_events, and cleansed_market.",
+        default=None,
+        help=(
+            "Legacy single-DB mode. DB must contain market_ticks, connection_events, and cleansed_market. "
+            "Cannot be combined with --staging-db/--cleansing-db."
+        ),
+    )
+    parser.add_argument(
+        "--staging-db",
+        default=None,
+        help="Path to staging SQLite DB (must contain market_ticks and connection_events).",
+    )
+    parser.add_argument(
+        "--cleansing-db",
+        default=None,
+        help="Path to cleansing SQLite DB (must contain cleansed_market).",
     )
     parser.add_argument(
         "--views-sql",
@@ -101,21 +121,66 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def existing_table_names(connection: sqlite3.Connection) -> set[str]:
+def resolve_input_paths(args: argparse.Namespace) -> tuple[Path, Path, str]:
+    if args.db_path:
+        if args.staging_db or args.cleansing_db:
+            raise SystemExit("Use either --db-path OR (--staging-db and --cleansing-db), not both.")
+        db_path = Path(args.db_path)
+        return db_path, db_path, "single_db_legacy"
+
+    if not args.staging_db or not args.cleansing_db:
+        raise SystemExit("Provide both --staging-db and --cleansing-db (or use legacy --db-path).")
+
+    return Path(args.staging_db), Path(args.cleansing_db), "split_db"
+
+
+def existing_table_names(connection: sqlite3.Connection, schema_name: str) -> set[str]:
     rows = connection.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
+        f"SELECT name FROM {schema_name}.sqlite_master WHERE type='table'"
     ).fetchall()
     return {str(row[0]) for row in rows}
 
 
 def missing_required_tables(connection: sqlite3.Connection) -> list[str]:
-    existing = existing_table_names(connection)
-    missing = [name for name in REQUIRED_SOURCE_TABLES if name not in existing]
+    missing: list[str] = []
+    for schema_name, required_tables in REQUIRED_TABLES_BY_SCHEMA.items():
+        existing = existing_table_names(connection, schema_name)
+        for table_name in required_tables:
+            if table_name not in existing:
+                missing.append(f"{schema_name}.{table_name}")
     return missing
 
 
+def attach_sources(connection: sqlite3.Connection, staging_db_path: Path, cleansing_db_path: Path) -> None:
+    connection.execute(f"ATTACH DATABASE ? AS {STAGING_SCHEMA}", (str(staging_db_path),))
+    connection.execute(f"ATTACH DATABASE ? AS {CLEANSING_SCHEMA}", (str(cleansing_db_path),))
+
+
+def create_temp_source_alias_views(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        f"""
+        DROP VIEW IF EXISTS temp.market_ticks;
+        DROP VIEW IF EXISTS temp.connection_events;
+        DROP VIEW IF EXISTS temp.cleansed_market;
+
+        CREATE TEMP VIEW market_ticks AS
+        SELECT * FROM {STAGING_SCHEMA}.market_ticks;
+
+        CREATE TEMP VIEW connection_events AS
+        SELECT * FROM {STAGING_SCHEMA}.connection_events;
+
+        CREATE TEMP VIEW cleansed_market AS
+        SELECT * FROM {CLEANSING_SCHEMA}.cleansed_market;
+        """
+    )
+
+
+def to_temp_view_sql(views_sql: str) -> str:
+    return re.sub(r"\bCREATE\s+VIEW\b", "CREATE TEMP VIEW", views_sql, flags=re.IGNORECASE)
+
+
 def apply_view_sql(connection: sqlite3.Connection, views_sql: str) -> None:
-    connection.executescript(views_sql)
+    connection.executescript(to_temp_view_sql(views_sql))
 
 
 def load_assertions(connection: sqlite3.Connection, assertions_sql: str) -> list[AssertionResult]:
@@ -166,7 +231,9 @@ def format_markdown_report(payload: dict[str, Any]) -> str:
     lines.append(f"- Duration seconds: `{payload['runtime_seconds']}`")
     lines.append(f"- Host: `{payload['host']}`")
     lines.append(f"- Python: `{payload['python_version']}`")
-    lines.append(f"- DB path: `{payload['db_path']}`")
+    lines.append(f"- Input mode: `{payload['input_mode']}`")
+    lines.append(f"- Staging DB path: `{payload['staging_db_path']}`")
+    lines.append(f"- Cleansing DB path: `{payload['cleansing_db_path']}`")
     lines.append("")
     lines.append("## Table Check")
     lines.append("")
@@ -232,13 +299,21 @@ def main() -> int:
     args = parse_args()
     run_started = utc_now()
 
-    db_path = Path(args.db_path)
+    try:
+        staging_db_path, cleansing_db_path, input_mode = resolve_input_paths(args)
+    except SystemExit as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
     views_sql_path = Path(args.views_sql)
     assertions_sql_path = Path(args.assertions_sql)
     output_dir = Path(args.output_dir)
 
-    if not db_path.exists():
-        print(f"Database file not found: {db_path}", file=sys.stderr)
+    if not staging_db_path.exists():
+        print(f"Staging database file not found: {staging_db_path}", file=sys.stderr)
+        return 1
+    if not cleansing_db_path.exists():
+        print(f"Cleansing database file not found: {cleansing_db_path}", file=sys.stderr)
         return 1
     if not views_sql_path.exists():
         print(f"Views SQL file not found: {views_sql_path}", file=sys.stderr)
@@ -251,9 +326,9 @@ def main() -> int:
     assertions_sql = read_text(assertions_sql_path)
 
     try:
-        connection = sqlite3.connect(str(db_path))
+        connection = sqlite3.connect(":memory:")
     except sqlite3.Error as exc:
-        print(f"Failed to connect to database: {db_path} | error={exc!r}", file=sys.stderr)
+        print(f"Failed to initialize in-memory validation DB | error={exc!r}", file=sys.stderr)
         return 1
 
     assertions: list[AssertionResult] = []
@@ -263,12 +338,18 @@ def main() -> int:
     exit_code = 0
 
     try:
+        attach_sources(
+            connection=connection,
+            staging_db_path=staging_db_path,
+            cleansing_db_path=cleansing_db_path,
+        )
         missing_tables = missing_required_tables(connection)
         if missing_tables:
             raise RuntimeError(
                 "Missing required source tables: " + ", ".join(missing_tables)
             )
 
+        create_temp_source_alias_views(connection)
         apply_view_sql(connection, views_sql)
         assertions = load_assertions(connection, assertions_sql)
         counts = view_row_counts(connection)
@@ -294,7 +375,9 @@ def main() -> int:
         "runtime_seconds": runtime_seconds,
         "host": platform.node(),
         "python_version": platform.python_version(),
-        "db_path": str(db_path),
+        "input_mode": input_mode,
+        "staging_db_path": str(staging_db_path),
+        "cleansing_db_path": str(cleansing_db_path),
         "views_sql_path": str(views_sql_path),
         "assertions_sql_path": str(assertions_sql_path),
         "missing_required_tables": missing_tables,

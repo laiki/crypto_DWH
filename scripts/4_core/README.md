@@ -5,11 +5,15 @@
 - `core_kpi_assertions.sql`: runs validation checks against the KPI views.
 - `core_remote_validation.py`: applies views, executes assertions, and writes JSON/Markdown reports.
 
-## Required Input Tables
-Both scripts expect the following tables in the same SQLite database:
-- `market_ticks`
-- `connection_events`
-- `cleansed_market`
+## Required Inputs
+Validation script expects:
+- staging DB with:
+  - `market_ticks`
+  - `connection_events`
+- cleansing DB with:
+  - `cleansed_market`
+
+Legacy single-DB mode is still available via `--db-path`.
 
 ## View Set
 `core_kpi_views.sql` creates these stable view names:
@@ -39,7 +43,9 @@ sqlite3 -header -column data/core/core_kpi.db ".read scripts/4_core/core_kpi_ass
 Run full validation with report output:
 
 ```bash
-python scripts/4_core/core_remote_validation.py --db-path data/core/core_kpi.db
+python scripts/4_core/core_remote_validation.py \
+  --staging-db data/staging/staging_export_YYYYMMDD_HHMMSS_last_24h.db \
+  --cleansing-db data/cleansing/cleaned_staging_export_YYYYMMDD_HHMMSS_last_24h_60s.db
 ```
 
 Default report output directory:
