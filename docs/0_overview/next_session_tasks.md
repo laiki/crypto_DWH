@@ -25,7 +25,7 @@ Last updated: 2026-02-22
      - `docs/4_core/core_remote_acceptance_checklist.md`
 
 6. Added executable Core validation runner with report output.
-   - Artifact: `scripts/4_core/core_remote_validation.py`
+   - Artifact: `scripts/4_core/core_validation_runner.py`
    - Output format: JSON and Markdown reports under `logs/core_validation/`
 
 ## Next Priority 1

@@ -221,7 +221,7 @@ Remote acceptance checklist:
 - `docs/4_core/core_remote_acceptance_checklist.md`
 
 Validation runner:
-- `scripts/4_core/core_remote_validation.py`
+- `scripts/4_core/core_validation_runner.py`
 
 ## SQL Snippets
 Connection drop statistics grouped by exchange and sorted by frequency:

@@ -3,7 +3,7 @@
 Last updated: 2026-02-22
 
 Use this checklist after running:
-- `scripts/4_core/core_remote_validation.py`
+- `scripts/4_core/core_validation_runner.py`
 
 ## A) Input Availability
 - [ ] Staging DB file exists and is readable.

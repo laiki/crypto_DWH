@@ -3,7 +3,7 @@
 ## Files
 - `core_kpi_views.sql`: creates Core KPI views.
 - `core_kpi_assertions.sql`: runs validation checks against the KPI views.
-- `core_remote_validation.py`: applies views, executes assertions, and writes JSON/Markdown reports.
+- `core_validation_runner.py`: applies views, executes assertions, and writes JSON/Markdown reports.
 
 ## Required Inputs
 Validation script expects:
@@ -43,7 +43,7 @@ sqlite3 -header -column data/core/core_kpi.db ".read scripts/4_core/core_kpi_ass
 Run full validation with report output:
 
 ```bash
-python scripts/4_core/core_remote_validation.py \
+python scripts/4_core/core_validation_runner.py \
   --staging-db data/staging/staging_export_YYYYMMDD_HHMMSS_last_24h.db \
   --cleansing-db data/cleansing/cleaned_staging_export_YYYYMMDD_HHMMSS_last_24h_60s.db
 ```

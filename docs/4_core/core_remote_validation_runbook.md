@@ -15,7 +15,7 @@ This runbook describes how to validate Core KPI SQL views and assertions on the 
   - `scripts/4_core/core_kpi_views.sql`
   - `scripts/4_core/core_kpi_assertions.sql`
 - validation runner:
-  - `scripts/4_core/core_remote_validation.py`
+  - `scripts/4_core/core_validation_runner.py`
 
 ## One-Time Preparation
 1. Ensure Python 3.10+ is available on the remote host.
@@ -26,7 +26,7 @@ This runbook describes how to validate Core KPI SQL views and assertions on the 
 Run from project root on remote host:
 
 ```bash
-python scripts/4_core/core_remote_validation.py \
+python scripts/4_core/core_validation_runner.py \
   --staging-db /path/to/staging_export.db \
   --cleansing-db /path/to/cleaned_staging_export_60s.db
 ```
@@ -34,7 +34,7 @@ python scripts/4_core/core_remote_validation.py \
 Optional custom paths:
 
 ```bash
-python scripts/4_core/core_remote_validation.py \
+python scripts/4_core/core_validation_runner.py \
   --staging-db /path/to/staging_export.db \
   --cleansing-db /path/to/cleaned_staging_export_60s.db \
   --views-sql scripts/4_core/core_kpi_views.sql \
@@ -64,7 +64,7 @@ Report content includes:
 If you want non-blocking behavior for failed `error` assertions:
 
 ```bash
-python scripts/4_core/core_remote_validation.py \
+python scripts/4_core/core_validation_runner.py \
   --staging-db /path/to/staging_export.db \
   --cleansing-db /path/to/cleaned_staging_export_60s.db \
   --no-fail-on-error
@@ -73,7 +73,7 @@ python scripts/4_core/core_remote_validation.py \
 Legacy mode (single combined DB) is still supported:
 
 ```bash
-python scripts/4_core/core_remote_validation.py \
+python scripts/4_core/core_validation_runner.py \
   --db-path /path/to/combined_core.db
 ```
 
