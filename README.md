@@ -125,12 +125,12 @@ Output naming:
 - Includes UTC timestamp and export window hours.
 
 Run metadata contract:
-- `docs/staging_run_contract.md`
+- `docs/2_staging/staging_run_contract.md`
 
 Incremental state file:
 - Default: `data/staging/staging_export_state.json`
 - The state is keyed by source scope (input glob + filters) unless `--state-key` is set.
-- Contract: `docs/staging_state_contract.md`
+- Contract: `docs/2_staging/staging_state_contract.md`
 
 ## Cleansing Resampling
 The cleansing step creates a comparable 1-minute time grid per `(exchange_id, symbol)`.
@@ -194,14 +194,14 @@ python scripts/3_cleansing/cleansing_resample.py --input-db data/staging/staging
 ```
 
 Approach documentation:
-- `docs/cleansing_area_approach.md`
+- `docs/3_cleansing/cleansing_area_approach.md`
 
 Operational insights are tracked at:
-- `docs/insights.md`
+- `docs/0_overview/insights.md`
 
 ## Core KPI Layer
 Core KPI definitions:
-- `docs/core_kpi_catalog.md`
+- `docs/4_core/core_kpi_catalog.md`
 
 Core SQL views and assertions:
 - `scripts/4_core/core_kpi_views.sql`
@@ -209,16 +209,16 @@ Core SQL views and assertions:
 - `scripts/4_core/README.md`
 
 Cleansing to Core interface contract:
-- `docs/cleansing_core_handoff_contract.md`
+- `docs/4_core/cleansing_core_handoff_contract.md`
 
 Validation checklist:
-- `docs/core_kpi_validation_checks.md`
+- `docs/4_core/core_kpi_validation_checks.md`
 
 Remote validation runbook:
-- `docs/core_remote_validation_runbook.md`
+- `docs/4_core/core_remote_validation_runbook.md`
 
 Remote acceptance checklist:
-- `docs/core_remote_acceptance_checklist.md`
+- `docs/4_core/core_remote_acceptance_checklist.md`
 
 Validation runner:
 - `scripts/4_core/core_remote_validation.py`
@@ -324,4 +324,4 @@ Next steps:
 4. Implement first dashboard layout
 
 Session task backlog:
-- `docs/next_session_tasks.md`
+- `docs/0_overview/next_session_tasks.md`

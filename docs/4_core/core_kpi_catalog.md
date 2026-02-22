@@ -129,5 +129,5 @@ Core KPI views are implemented in:
 - `scripts/4_core/core_kpi_views.sql`
 
 Validation checks are defined in:
-- `docs/core_kpi_validation_checks.md`
+- `docs/4_core/core_kpi_validation_checks.md`
 - `scripts/4_core/core_kpi_assertions.sql`
