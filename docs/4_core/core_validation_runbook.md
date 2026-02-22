@@ -1,4 +1,4 @@
-# Core Remote Validation Runbook
+# Core Validation Runbook
 
 Last updated: 2026-02-22
 
@@ -11,6 +11,27 @@ Role separation reference:
 Recommended execution order:
 1. Build/update Core artifact with `scripts/4_core/build_core_db.py`.
 2. Validate quality gate with `scripts/4_core/core_validation_runner.py`.
+
+Operational shortcut:
+- `scripts/4_core/core_pipeline.py` can run both steps in one command.
+
+Fast/full phase wrapper examples:
+
+```bash
+python scripts/4_core/core_pipeline.py \
+  --phase fast \
+  --staging-db /path/to/staging_export.db \
+  --cleansing-db /path/to/cleaned_staging_export_60s.db \
+  --kpi-date 2026-02-21 \
+  --cleansing-run-id cleansing_20260221_164315_60s
+```
+
+```bash
+python scripts/4_core/core_pipeline.py \
+  --phase full \
+  --staging-db /path/to/staging_export.db \
+  --cleansing-db /path/to/cleaned_staging_export_60s.db
+```
 
 ## Inputs
 - staging SQLite DB that contains:

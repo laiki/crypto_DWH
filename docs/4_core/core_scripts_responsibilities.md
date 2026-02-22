@@ -37,16 +37,33 @@ This document clarifies the responsibilities and boundaries of Core layer script
 - **Non-goal**:
   - does not publish a query-ready Core artifact DB
 
+### 3) `scripts/4_core/core_pipeline.py` (implemented)
+- **Primary role**: Operational orchestration of build + validate steps.
+- **Input**:
+  - staging DB
+  - cleansing DB
+  - phase mode (`fast`, `full`, `both`)
+- **Output**:
+  - ordered execution of `build_core_db.py` and `core_validation_runner.py`
+  - consolidated process output including validation report paths
+- **Ownership**:
+  - phase semantics for runtime/performance tradeoff
+  - consistent exit-code propagation for operations and scheduler integration
+- **Non-goal**:
+  - does not replace business logic of build or validation scripts
+
 ## Why Both Scripts Exist
 - Build and validation are intentionally separated:
   - **build** creates the artifact to be consumed.
   - **validation** decides whether that artifact/input scope is trustworthy.
+- Pipeline orchestration is a third concern:
+  - **pipeline** coordinates build and validation execution order.
 - This separation supports:
   - reusable validation in ad hoc runs
   - CI/CD-style quality gates
   - clearer failure diagnostics without mutating product artifacts
 
 ## Recommended Pipeline Order
-1. Run `build_core_db.py` to produce/update Core artifact.
-2. Run `core_validation_runner.py` against staging/cleansing scope or built artifact scope.
+1. Run `core_pipeline.py --phase fast` for quick scoped quality feedback.
+2. Run `core_pipeline.py --phase full` (or `--phase both`) before publish.
 3. Publish dashboard/mart refresh only if validation passes (`error_failed = 0`).

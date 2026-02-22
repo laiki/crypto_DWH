@@ -1,0 +1,24 @@
+flowchart TB
+    subgraph HOST["Execution Host"]
+        subgraph FS["File System"]
+            SDB[(staging_export.db)]
+            CDB[(cleaned_staging_export.db)]
+            VSQL[[core_kpi_views.sql]]
+            ODB[(core_kpi.db)]
+            LOG[(stdout or scheduler log)]
+        end
+
+        subgraph PROC["Process Layer"]
+            CLI[Operator or Scheduler]
+            BLD[[build_core_db.py]]
+            SQLITE[[SQLite Engine]]
+        end
+    end
+
+    CLI --> BLD
+    BLD --> SQLITE
+    SQLITE --> SDB
+    SQLITE --> CDB
+    BLD --> VSQL
+    SQLITE --> ODB
+    BLD --> LOG

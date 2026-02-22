@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    actor U as Operator/CLI
+    participant P as core_pipeline.py
+    participant B as build_core_db.py
+    participant V as core_validation_runner.py
+    participant R as Validation Reports
+
+    U->>P: Start with --phase fast/full/both
+    P->>P: Parse args and resolve paths
+
+    alt phase == fast
+        P->>B: Run build with optional scope filters
+        B-->>P: exit code
+        P->>V: Run validation with same scope + skip view counts
+        V->>R: Write fast report files
+        V-->>P: exit code + report paths
+    else phase == full
+        P->>B: Run build without scope filters
+        B-->>P: exit code
+        P->>V: Run validation without scope and with view counts
+        V->>R: Write full report files
+        V-->>P: exit code + report paths
+    else phase == both
+        P->>B: Run fast build (scoped)
+        B-->>P: exit code
+        P->>V: Run fast validation (skip view counts)
+        V->>R: Write fast report files
+        V-->>P: exit code + report paths
+        alt fast succeeded
+            P->>B: Run full build (unscoped)
+            B-->>P: exit code
+            P->>V: Run full validation (with view counts)
+            V->>R: Write full report files
+            V-->>P: exit code + report paths
+        else fast failed
+            P-->>U: Abort before full phase
+        end
+    end
+
+    P-->>U: Final exit code and report links

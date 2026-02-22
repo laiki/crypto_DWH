@@ -1,0 +1,28 @@
+flowchart TD
+    A([Start]) --> B[Parse CLI args]
+    B --> C[Resolve input mode and source paths]
+    C --> D{Input files exist?}
+    D -- No --> D1[Print file error]
+    D1 --> Z1([Exit code 1])
+    D -- Yes --> E{Output exists and no-overwrite?}
+    E -- Yes --> E1[Print overwrite protection error]
+    E1 --> Z1
+    E -- No --> F[Open output DB]
+    F --> G[Attach staging_src and cleansing_src]
+    G --> H[Check required source tables]
+    H --> I{Missing tables?}
+    I -- Yes --> I1[Print missing table error]
+    I1 --> Z1
+    I -- No --> J[Build optional filter clauses]
+    J --> K[Copy market_ticks]
+    K --> L[Copy connection_events]
+    L --> M[Copy cleansed_market]
+    M --> N[Recreate indexes]
+    N --> O[Apply core_kpi_views.sql]
+    O --> P[Write core_build_metadata]
+    P --> Q{vacuum enabled?}
+    Q -- Yes --> R[Run VACUUM]
+    Q -- No --> S[Skip VACUUM]
+    R --> T[Commit transaction]
+    S --> T
+    T --> U([Exit code 0])

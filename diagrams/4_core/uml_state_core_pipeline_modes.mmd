@@ -1,0 +1,43 @@
+stateDiagram-v2
+    [*] --> ParseArgs
+    ParseArgs --> ResolvePaths
+    ResolvePaths --> SelectPhase
+
+    SelectPhase --> FastPhase: phase=fast
+    SelectPhase --> FullPhase: phase=full
+    SelectPhase --> BothFast: phase=both
+
+    state FastPhase {
+        [*] --> FastBuild
+        FastBuild --> FastValidate: build ok
+        FastBuild --> Fail: build failed
+        FastValidate --> Success: validate ok
+        FastValidate --> Fail: validate failed
+    }
+
+    state FullPhase {
+        [*] --> FullBuild
+        FullBuild --> FullValidate: build ok
+        FullBuild --> Fail: build failed
+        FullValidate --> Success: validate ok
+        FullValidate --> Fail: validate failed
+    }
+
+    state BothFast {
+        [*] --> BF_Build
+        BF_Build --> BF_Validate: build ok
+        BF_Build --> Fail: build failed
+        BF_Validate --> BothFull: validate ok
+        BF_Validate --> Fail: validate failed
+    }
+
+    state BothFull {
+        [*] --> BFull_Build
+        BFull_Build --> BFull_Validate: build ok
+        BFull_Build --> Fail: build failed
+        BFull_Validate --> Success: validate ok
+        BFull_Validate --> Fail: validate failed
+    }
+
+    Success --> [*]
+    Fail --> [*]

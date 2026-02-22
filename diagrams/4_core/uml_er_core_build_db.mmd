@@ -1,0 +1,89 @@
+erDiagram
+    STAGING_MARKET_TICKS {
+        bigint id PK
+        datetime ingestion_ts_utc
+        string exchange_id
+        string symbol
+        datetime exchange_ts_utc
+        string raw_json
+    }
+
+    STAGING_CONNECTION_EVENTS {
+        bigint id PK
+        datetime event_ts_utc
+        string exchange_id
+        string event_type
+        string details_json
+    }
+
+    CLEANSING_MARKET {
+        bigint id PK
+        string run_id
+        datetime bucket_start_utc
+        int bucket_epoch_s
+        string exchange_id
+        string symbol
+        float price
+        int is_missing
+        int is_stale
+    }
+
+    CORE_MARKET_TICKS {
+        bigint id PK
+        datetime ingestion_ts_utc
+        string exchange_id
+        string symbol
+        datetime exchange_ts_utc
+        string raw_json
+    }
+
+    CORE_CONNECTION_EVENTS {
+        bigint id PK
+        datetime event_ts_utc
+        string exchange_id
+        string event_type
+        string details_json
+    }
+
+    CORE_CLEANSED_MARKET {
+        bigint id PK
+        string run_id
+        datetime bucket_start_utc
+        int bucket_epoch_s
+        string exchange_id
+        string symbol
+        float price
+        int is_missing
+        int is_stale
+    }
+
+    CORE_BUILD_METADATA {
+        string build_id PK
+        datetime created_utc
+        string input_mode
+        string staging_db_path
+        string cleansing_db_path
+        string output_db_path
+        string views_sql_path
+        string kpi_date_filter
+        string cleansing_run_id_filter
+        int row_count_market_ticks
+        int row_count_connection_events
+        int row_count_cleansed_market
+        int created_core_views_count
+        float runtime_seconds
+    }
+
+    CORE_KPI_VIEW {
+        string view_name PK
+    }
+
+    STAGING_MARKET_TICKS ||--o{ CORE_MARKET_TICKS : copied_to
+    STAGING_CONNECTION_EVENTS ||--o{ CORE_CONNECTION_EVENTS : copied_to
+    CLEANSING_MARKET ||--o{ CORE_CLEANSED_MARKET : copied_to
+
+    CORE_MARKET_TICKS ||--o{ CORE_KPI_VIEW : feeds
+    CORE_CONNECTION_EVENTS ||--o{ CORE_KPI_VIEW : feeds
+    CORE_CLEANSED_MARKET ||--o{ CORE_KPI_VIEW : feeds
+
+    CORE_BUILD_METADATA ||--o{ CORE_KPI_VIEW : build_context

@@ -1,0 +1,36 @@
+stateDiagram-v2
+    [*] --> ParseArgs
+    ParseArgs --> ResolveInputs
+    ResolveInputs --> ValidatePaths
+
+    ValidatePaths --> Failed: invalid args or missing file
+    ValidatePaths --> PrepareOutput: paths valid
+
+    PrepareOutput --> Failed: output exists and no-overwrite
+    PrepareOutput --> OpenOutputDb
+
+    OpenOutputDb --> AttachSources
+    AttachSources --> ValidateSourceTables
+    ValidateSourceTables --> Failed: required tables missing
+    ValidateSourceTables --> CopyTables
+
+    state CopyTables {
+        [*] --> CopyMarketTicks
+        CopyMarketTicks --> CopyConnectionEvents
+        CopyConnectionEvents --> CopyCleansedMarket
+        CopyCleansedMarket --> RecreateIndexes
+        RecreateIndexes --> [*]
+    }
+
+    CopyTables --> ApplyViews
+    ApplyViews --> WriteBuildMetadata
+    WriteBuildMetadata --> VacuumCheck
+
+    VacuumCheck --> RunVacuum: vacuum true
+    VacuumCheck --> Commit: vacuum false
+    RunVacuum --> Commit
+
+    Commit --> Succeeded
+    Succeeded --> [*]
+
+    Failed --> [*]

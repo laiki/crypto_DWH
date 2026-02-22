@@ -1,0 +1,16 @@
+flowchart TD
+    A([Start Full Phase]) --> B[Resolve paths and validate files]
+    B --> C{Inputs valid?}
+    C -- No --> C1[Emit setup error]
+    C1 --> Z1([Exit code 1])
+    C -- Yes --> D[Run build_core_db.py unscoped]
+    D --> E{Build exit code == 0?}
+    E -- No --> E1[Abort full phase]
+    E1 --> Z2([Exit build code])
+    E -- Yes --> F[Run core_validation_runner.py unscoped]
+    F --> F1[Include view row counts]
+    F1 --> G{Validation exit code == 0?}
+    G -- No --> G1[Propagate validation exit code]
+    G1 --> Z3([Exit validation code])
+    G -- Yes --> H[Print report paths]
+    H --> Z4([Exit code 0])

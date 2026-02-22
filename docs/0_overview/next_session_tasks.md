@@ -21,7 +21,7 @@ Last updated: 2026-02-22
 
 5. Added remote validation runbook and acceptance checklist.
    - Artifacts:
-     - `docs/4_core/core_remote_validation_runbook.md`
+     - `docs/4_core/core_validation_runbook.md`
      - `docs/4_core/core_remote_acceptance_checklist.md`
 
 6. Added executable Core validation runner with report output.
@@ -33,16 +33,21 @@ Last updated: 2026-02-22
    - Scope: copy `market_ticks`, `connection_events`, `cleansed_market` into one Core DB and apply Core KPI views.
    - Output: query-ready Core DB + `core_build_metadata` table.
 
+8. Implemented build+validate pipeline wrapper for operations.
+   - Artifact: `scripts/4_core/core_pipeline.py`
+   - Scope: run `fast`, `full`, or `both` phases with clear exit-code behavior.
+   - Output: one-command orchestration including validation report links.
+
 ## Next Priority 1
 1. Add automated smoke test for Core SQL views.
    - Scope: create minimal fixture data and assert expected view columns/row semantics.
    - Output: repeatable test command/script.
    - Done when: CI/local execution detects breaking changes in KPI SQL.
 
-2. Add build+validate pipeline wrapper for operational execution.
-   - Scope: one command that runs `build_core_db.py` followed by `core_validation_runner.py`.
-   - Output: wrapper script with clear exit-code behavior and report links.
-   - Done when: operations can run Core refresh and quality gate with one command.
+2. Add automated integration smoke test for `core_pipeline.py`.
+   - Scope: fixture DBs + phase runs (`fast`, `full`) + expected exit codes.
+   - Output: repeatable test command/script.
+   - Done when: pipeline regression is detectable in local/CI runs.
 
 ## Next Priority 2
 1. Define mart-ready KPI extracts for dashboard.

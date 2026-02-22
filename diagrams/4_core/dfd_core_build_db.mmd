@@ -1,0 +1,20 @@
+flowchart LR
+    U[Operator]
+    SDB[(Staging DB)]
+    CDB[(Cleansing DB)]
+    P[[build_core_db.py]]
+    ODB[(Core Output DB)]
+    VSQL[[core_kpi_views.sql]]
+    MD[(core_build_metadata)]
+
+    U -->|CLI arguments| P
+    SDB -->|market_ticks and connection_events| P
+    CDB -->|cleansed_market| P
+    VSQL -->|view definitions| P
+
+    P -->|copied source tables| ODB
+    P -->|created KPI views| ODB
+    P -->|build metadata row| MD
+    MD --> ODB
+
+    ODB -->|query-ready Core dataset| U

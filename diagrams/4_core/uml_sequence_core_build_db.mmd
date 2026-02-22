@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    actor U as Operator/CLI
+    participant B as build_core_db.py
+    participant SDB as Staging DB
+    participant CDB as Cleansing DB
+    participant ODB as Output Core DB
+    participant VSQL as core_kpi_views.sql
+
+    U->>B: Start with CLI arguments
+    B->>B: Parse args and resolve input mode
+    B->>B: Validate input files and output path
+
+    alt output exists and no-overwrite
+        B-->>U: Exit code 1
+    else continue
+        B->>ODB: Open output DB connection
+        B->>ODB: Attach SDB as staging_src
+        B->>ODB: Attach CDB as cleansing_src
+        B->>ODB: Validate required source tables
+        alt missing table(s)
+            B-->>U: Exit code 1
+        else all source tables present
+            B->>ODB: Copy market_ticks from staging_src
+            B->>ODB: Copy connection_events from staging_src
+            B->>ODB: Copy cleansed_market from cleansing_src
+            Note over B,ODB: Optional filters: kpi_date and cleansing_run_id
+            B->>ODB: Recreate source indexes on copied tables
+            B->>ODB: Apply VSQL (Core KPI views)
+            B->>ODB: Insert core_build_metadata row
+            opt vacuum enabled
+                B->>ODB: VACUUM
+            end
+            B-->>U: Exit code 0
+        end
+    end

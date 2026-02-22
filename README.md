@@ -207,6 +207,7 @@ Core SQL views and assertions:
 - `scripts/4_core/build_core_db.py`
 - `scripts/4_core/core_kpi_views.sql`
 - `scripts/4_core/core_kpi_assertions.sql`
+- `scripts/4_core/core_pipeline.py`
 - `scripts/4_core/README.md`
 
 Cleansing to Core interface contract:
@@ -216,7 +217,7 @@ Validation checklist:
 - `docs/4_core/core_kpi_validation_checks.md`
 
 Remote validation runbook:
-- `docs/4_core/core_remote_validation_runbook.md`
+- `docs/4_core/core_validation_runbook.md`
 
 Remote acceptance checklist:
 - `docs/4_core/core_remote_acceptance_checklist.md`
