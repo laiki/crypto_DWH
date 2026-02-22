@@ -204,6 +204,7 @@ Core KPI definitions:
 - `docs/4_core/core_kpi_catalog.md`
 
 Core SQL views and assertions:
+- `scripts/4_core/build_core_db.py`
 - `scripts/4_core/core_kpi_views.sql`
 - `scripts/4_core/core_kpi_assertions.sql`
 - `scripts/4_core/README.md`
@@ -222,6 +223,9 @@ Remote acceptance checklist:
 
 Validation runner:
 - `scripts/4_core/core_validation_runner.py`
+
+Script role separation:
+- `docs/4_core/core_scripts_responsibilities.md`
 
 ## SQL Snippets
 Connection drop statistics grouped by exchange and sorted by frequency:

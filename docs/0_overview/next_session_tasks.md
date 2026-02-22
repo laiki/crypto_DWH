@@ -28,16 +28,21 @@ Last updated: 2026-02-22
    - Artifact: `scripts/4_core/core_validation_runner.py`
    - Output format: JSON and Markdown reports under `logs/core_validation/`
 
-## Next Priority 1
-1. Implement a small Core build runner.
-   - Scope: merge `market_ticks`, `connection_events`, and `cleansed_market` into one Core DB and apply view script automatically.
-   - Output: script (for example `scripts/4_core/build_core_db.py`) with reproducible CLI arguments.
-   - Done when: one command produces a query-ready Core KPI database.
+7. Implemented Core build runner for reproducible artifact creation.
+   - Artifact: `scripts/4_core/build_core_db.py`
+   - Scope: copy `market_ticks`, `connection_events`, `cleansed_market` into one Core DB and apply Core KPI views.
+   - Output: query-ready Core DB + `core_build_metadata` table.
 
-2. Add automated smoke test for Core SQL views.
+## Next Priority 1
+1. Add automated smoke test for Core SQL views.
    - Scope: create minimal fixture data and assert expected view columns/row semantics.
    - Output: repeatable test command/script.
    - Done when: CI/local execution detects breaking changes in KPI SQL.
+
+2. Add build+validate pipeline wrapper for operational execution.
+   - Scope: one command that runs `build_core_db.py` followed by `core_validation_runner.py`.
+   - Output: wrapper script with clear exit-code behavior and report links.
+   - Done when: operations can run Core refresh and quality gate with one command.
 
 ## Next Priority 2
 1. Define mart-ready KPI extracts for dashboard.

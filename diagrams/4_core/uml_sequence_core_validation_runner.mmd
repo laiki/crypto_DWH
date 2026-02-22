@@ -1,0 +1,40 @@
+sequenceDiagram
+    autonumber
+    actor U as Operator/CLI
+    participant R as core_validation_runner.py
+    participant M as SQLite :memory: Session
+    participant SDB as Staging DB
+    participant CDB as Cleansing DB
+    participant VSQL as core_kpi_views.sql
+    participant ASQL as core_kpi_assertions.sql
+    participant REP as Report Writer
+
+    U->>R: Start with --staging-db, --cleansing-db, options
+    R->>R: Parse and validate CLI args
+    R->>R: Resolve input mode and source paths
+    R->>M: Open in-memory validation session
+    R->>M: ATTACH SDB as staging_src
+    R->>M: ATTACH CDB as cleansing_src
+
+    R->>M: Check required tables
+    alt missing table(s)
+        M-->>R: missing_required_tables
+        R->>REP: Write JSON + Markdown failure report
+        R-->>U: Exit code 1
+    else all tables present
+        R->>M: Create TEMP alias views (market_ticks, connection_events, cleansed_market)
+        Note over R,M: Optional filters: --kpi-date, --cleansing-run-id
+        R->>M: Apply VSQL as TEMP views
+        R->>M: Execute ASQL assertions
+        M-->>R: assertion rows
+        opt not --skip-view-row-counts
+            R->>M: COUNT(*) per core KPI view
+            M-->>R: row counts
+        end
+        R->>REP: Write JSON + Markdown report
+        alt --fail-on-error and error_failed > 0
+            R-->>U: Exit code 2
+        else
+            R-->>U: Exit code 0
+        end
+    end

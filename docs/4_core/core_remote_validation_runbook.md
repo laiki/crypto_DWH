@@ -5,6 +5,13 @@ Last updated: 2026-02-22
 ## Purpose
 This runbook describes how to validate Core KPI SQL views and assertions on the remote server where the real SQLite data is stored.
 
+Role separation reference:
+- `docs/4_core/core_scripts_responsibilities.md`
+
+Recommended execution order:
+1. Build/update Core artifact with `scripts/4_core/build_core_db.py`.
+2. Validate quality gate with `scripts/4_core/core_validation_runner.py`.
+
 ## Inputs
 - staging SQLite DB that contains:
   - `market_ticks`

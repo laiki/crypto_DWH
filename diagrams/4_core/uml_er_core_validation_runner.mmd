@@ -1,0 +1,87 @@
+erDiagram
+    STAGING_MARKET_TICKS {
+        bigint id PK
+        datetime ingestion_ts_utc
+        string exchange_id
+        string symbol
+        datetime exchange_ts_utc
+    }
+
+    STAGING_CONNECTION_EVENTS {
+        bigint id PK
+        datetime event_ts_utc
+        string exchange_id
+        string event_type
+    }
+
+    CLEANSING_MARKET {
+        bigint id PK
+        string run_id
+        datetime bucket_start_utc
+        int bucket_epoch_s
+        string exchange_id
+        string symbol
+        float price
+        int is_missing
+        int is_stale
+    }
+
+    ALIAS_MARKET_TICKS {
+        datetime ingestion_ts_utc
+        string exchange_id
+        string symbol
+        datetime exchange_ts_utc
+    }
+
+    ALIAS_CONNECTION_EVENTS {
+        datetime event_ts_utc
+        string exchange_id
+        string event_type
+    }
+
+    ALIAS_CLEANSED_MARKET {
+        string run_id
+        datetime bucket_start_utc
+        int bucket_epoch_s
+        string exchange_id
+        string symbol
+        float price
+        int is_missing
+        int is_stale
+    }
+
+    CORE_KPI_VIEW {
+        string view_name PK
+        int row_count
+    }
+
+    ASSERTION_RESULT {
+        string assertion_name PK
+        string severity
+        int is_failed
+        int failed_rows
+        string details
+    }
+
+    VALIDATION_REPORT {
+        string report_id PK
+        datetime run_started_utc
+        datetime run_finished_utc
+        string input_mode
+        string kpi_date_filter
+        string cleansing_run_id_filter
+        int error_failed
+        int warn_failed
+        string error_message
+    }
+
+    STAGING_MARKET_TICKS ||--o{ ALIAS_MARKET_TICKS : projected_as
+    STAGING_CONNECTION_EVENTS ||--o{ ALIAS_CONNECTION_EVENTS : projected_as
+    CLEANSING_MARKET ||--o{ ALIAS_CLEANSED_MARKET : projected_as
+
+    ALIAS_MARKET_TICKS ||--o{ CORE_KPI_VIEW : feeds
+    ALIAS_CONNECTION_EVENTS ||--o{ CORE_KPI_VIEW : feeds
+    ALIAS_CLEANSED_MARKET ||--o{ CORE_KPI_VIEW : feeds
+
+    CORE_KPI_VIEW ||--o{ ASSERTION_RESULT : validated_by
+    ASSERTION_RESULT ||--o{ VALIDATION_REPORT : included_in
