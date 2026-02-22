@@ -84,7 +84,7 @@ mmdc -i diagrams/6_forecasting/uml_forecasting_pipeline.mmd -o diagrams/6_foreca
 ```
 
 ## Project Status
-Current: concept and architecture definition.
+Current: ingestion/staging/cleansing implemented; Core KPI catalog and SQL views defined.
 
 ## Script Documentation
 Detailed English documentation for all ingestion/orchestration scripts is available at:
@@ -199,6 +199,30 @@ Approach documentation:
 Operational insights are tracked at:
 - `docs/insights.md`
 
+## Core KPI Layer
+Core KPI definitions:
+- `docs/core_kpi_catalog.md`
+
+Core SQL views and assertions:
+- `scripts/4_core/core_kpi_views.sql`
+- `scripts/4_core/core_kpi_assertions.sql`
+- `scripts/4_core/README.md`
+
+Cleansing to Core interface contract:
+- `docs/cleansing_core_handoff_contract.md`
+
+Validation checklist:
+- `docs/core_kpi_validation_checks.md`
+
+Remote validation runbook:
+- `docs/core_remote_validation_runbook.md`
+
+Remote acceptance checklist:
+- `docs/core_remote_acceptance_checklist.md`
+
+Validation runner:
+- `scripts/4_core/core_remote_validation.py`
+
 ## SQL Snippets
 Connection drop statistics grouped by exchange and sorted by frequency:
 
@@ -294,10 +318,10 @@ Note:
   - `WHERE exchange_id = 'binance'`
 
 Next steps:
-1. Detailed data model (staging/core/marts)
-2. Definition of KPI formulas
-3. Ingestion prototype with CCXT
-4. First dashboard layout
+1. Build reproducible Core DB runner for staging + cleansing outputs
+2. Add automated smoke tests for Core SQL views
+3. Define mart views for dashboard panels
+4. Implement first dashboard layout
 
 Session task backlog:
 - `docs/next_session_tasks.md`
