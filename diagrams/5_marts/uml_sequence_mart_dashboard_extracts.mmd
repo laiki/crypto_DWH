@@ -1,0 +1,23 @@
+sequenceDiagram
+    autonumber
+    actor User as Dashboard User
+    participant UI as Dashboard UI
+    participant API as Dashboard Backend
+    participant DB as Core/Mart SQLite DB
+    participant MartSQL as mart_dashboard_views.sql
+
+    API->>DB: Apply mart views (deployment step)
+    DB-->>API: mart views ready
+
+    User->>UI: Open platform quality panel
+    UI->>API: Request latest quality KPIs
+    API->>DB: Query vw_mart_dashboard_platform_quality_daily
+    DB-->>API: Ranked KPI rows
+    API-->>UI: JSON payload
+
+    User->>UI: Select symbol (price deviation/curve)
+    UI->>API: Request symbol analytics
+    API->>DB: Query vw_mart_dashboard_price_deviation_daily
+    API->>DB: Query vw_mart_dashboard_price_curve_24h_binance
+    DB-->>API: Deviation + curve rows
+    API-->>UI: Combined response

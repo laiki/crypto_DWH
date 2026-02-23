@@ -1,0 +1,25 @@
+flowchart TB
+    subgraph HOST["Execution Host"]
+        subgraph FS["File System"]
+            COREDB[(core_kpi.db)]
+            COREV[[core_kpi_views.sql]]
+            MARTV[[mart_dashboard_views.sql]]
+            MARTQ[[dashboard_query_templates.sql]]
+            LOG[(dashboard/app log)]
+        end
+
+        subgraph PROC["Process Layer"]
+            OP[Operator or Pipeline Job]
+            APP[Dashboard Backend]
+            SQLITE[[SQLite Engine]]
+        end
+    end
+
+    OP --> COREV
+    OP --> MARTV
+    APP --> MARTQ
+    COREV --> SQLITE
+    MARTV --> SQLITE
+    APP --> SQLITE
+    SQLITE --> COREDB
+    APP --> LOG

@@ -1,0 +1,13 @@
+flowchart TD
+    A([Start]) --> B[Build or refresh Core DB]
+    B --> C[Apply Core KPI views]
+    C --> D[Apply mart_dashboard_views.sql]
+    D --> E[Dashboard query arrives]
+    E --> F{Panel type}
+    F -- Platform Quality --> G[Read vw_mart_dashboard_platform_quality_daily/hourly]
+    F -- Price Deviation --> H[Read vw_mart_dashboard_price_deviation_daily/hourly]
+    F -- Price Curve --> I[Read vw_mart_dashboard_price_curve_24h_binance]
+    G --> J[Return sorted rows by default rank]
+    H --> J
+    I --> J
+    J --> K([End])

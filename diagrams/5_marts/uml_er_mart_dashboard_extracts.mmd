@@ -1,0 +1,65 @@
+erDiagram
+    vw_core_kpi_daily_exchange {
+        TEXT kpi_date_utc
+        TEXT exchange_id
+        REAL avg_latency_ms
+        REAL max_latency_ms
+        REAL update_frequency_hz
+        INTEGER disconnect_count
+    }
+
+    vw_core_kpi_daily_exchange_symbol {
+        TEXT kpi_date_utc
+        TEXT exchange_id
+        TEXT symbol
+    }
+
+    vw_core_kpi_price_deviation_daily {
+        TEXT kpi_date_utc
+        TEXT symbol
+        REAL max_price_diff_abs
+        REAL max_price_diff_pct
+        TEXT max_diff_exchange_pair
+    }
+
+    cleansed_market {
+        TEXT run_id
+        TEXT bucket_start_utc
+        TEXT exchange_id
+        TEXT symbol
+        REAL price
+        INTEGER is_missing
+        INTEGER is_stale
+    }
+
+    vw_mart_dashboard_platform_quality_daily {
+        TEXT kpi_date_utc
+        TEXT exchange_id
+        INTEGER symbols_covered
+        REAL avg_latency_ms
+        REAL max_latency_ms
+        REAL update_frequency_hz
+        INTEGER disconnect_count
+        INTEGER default_quality_rank
+    }
+
+    vw_mart_dashboard_price_deviation_daily {
+        TEXT kpi_date_utc
+        TEXT symbol
+        REAL max_price_diff_abs
+        REAL max_price_diff_pct
+        INTEGER default_deviation_rank
+    }
+
+    vw_mart_dashboard_price_curve_24h_binance {
+        TEXT run_id
+        TEXT symbol
+        TEXT bucket_start_utc
+        REAL price_close
+        INTEGER point_index_asc
+    }
+
+    vw_core_kpi_daily_exchange ||--o{ vw_mart_dashboard_platform_quality_daily : projects_to
+    vw_core_kpi_daily_exchange_symbol ||--o{ vw_mart_dashboard_platform_quality_daily : coverage_enrichment
+    vw_core_kpi_price_deviation_daily ||--o{ vw_mart_dashboard_price_deviation_daily : projects_to
+    cleansed_market ||--o{ vw_mart_dashboard_price_curve_24h_binance : filters_and_projects

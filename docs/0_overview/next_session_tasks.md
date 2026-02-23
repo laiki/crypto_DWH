@@ -48,13 +48,17 @@ Last updated: 2026-02-22
     - Scope: file-based fixture DBs, `fast`/`full` phase runs, expected exit codes, and report/metadata checks.
     - Output: repeatable command with clear pass/fail exit code.
 
-## Next Priority 1
-1. Define mart-ready KPI extracts for dashboard.
-   - Scope: select exact columns and sort/filter defaults for platform quality and price deviation panels.
-   - Output: SQL select templates or views for dashboard consumption.
-   - Done when: dashboard can query Core KPIs without additional transformations.
+11. Defined mart-ready KPI extracts for dashboard.
+    - Artifacts:
+      - `scripts/5_marts/mart_dashboard_views.sql`
+      - `scripts/5_marts/dashboard_query_templates.sql`
+      - `scripts/5_marts/README.md`
+      - `docs/5_marts/mart_kpi_extracts.md`
+    - Scope: exact columns and default filter/sort behavior for platform quality, price deviation, and 24h price curve.
+    - Output: SQL views and templates consumable directly by dashboard.
 
-2. Align forecasting feature contract with Core/Cleansing outputs.
+## Next Priority 1
+1. Align forecasting feature contract with Core/Cleansing outputs.
    - Scope: define feature tables, label windows, and train/validation split timestamps per exchange/symbol.
    - Output: short feature contract document for model training.
    - Done when: forecasting scripts can consume stable feature inputs.

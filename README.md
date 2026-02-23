@@ -1,5 +1,7 @@
 # Crypto Data Engineering Project
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ## Goal
 This project builds a data warehouse for cryptocurrencies and a dashboard to visualize key KPIs.
 
@@ -85,6 +87,9 @@ mmdc -i diagrams/6_forecasting/uml_forecasting_pipeline.mmd -o diagrams/6_foreca
 
 ## Project Status
 Current: ingestion/staging/cleansing implemented; Core KPI catalog and SQL views defined.
+
+## License
+This project is licensed under the MIT License. See `LICENSE` for details.
 
 ## Script Documentation
 Detailed English documentation for all ingestion/orchestration scripts is available at:
@@ -228,6 +233,15 @@ Validation runner:
 Script role separation:
 - `docs/4_core/core_scripts_responsibilities.md`
 
+## Mart Dashboard Layer
+Mart-ready dashboard extracts:
+- `scripts/5_marts/mart_dashboard_views.sql`
+- `scripts/5_marts/dashboard_query_templates.sql`
+- `scripts/5_marts/README.md`
+
+Mart extract documentation:
+- `docs/5_marts/mart_kpi_extracts.md`
+
 ## SQL Snippets
 Connection drop statistics grouped by exchange and sorted by frequency:
 
@@ -323,10 +337,9 @@ Note:
   - `WHERE exchange_id = 'binance'`
 
 Next steps:
-1. Build reproducible Core DB runner for staging + cleansing outputs
-2. Add automated smoke tests for Core SQL views
-3. Define mart views for dashboard panels
-4. Implement first dashboard layout
+1. Align forecasting feature contract with Core/Cleansing outputs
+2. Implement first dashboard layout using mart extracts
+3. Add dashboard integration tests over mart query templates
 
 Session task backlog:
 - `docs/0_overview/next_session_tasks.md`

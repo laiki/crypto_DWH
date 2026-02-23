@@ -19,3 +19,5 @@ The `docs/` directory is organized analog to stage-oriented project folders like
   - `core_kpi_validation_checks.md`
   - `core_remote_acceptance_checklist.md`
   - `core_validation_runbook.md`
+- `docs/5_marts/`
+  - `mart_kpi_extracts.md`
