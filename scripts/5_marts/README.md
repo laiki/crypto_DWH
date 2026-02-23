@@ -3,12 +3,14 @@
 ## Files
 - `mart_dashboard_views.sql`: creates dashboard-ready mart views on top of Core KPIs.
 - `dashboard_query_templates.sql`: query templates with default filter/sort behavior for dashboard panels.
+- `dashboard_mvp_app.py`: Streamlit dashboard MVP consuming mart views directly.
 
 ## Related Diagram Files
 - `diagrams/5_marts/uml_sequence_mart_dashboard_extracts.mmd`
 - `diagrams/5_marts/uml_activity_mart_dashboard_extracts.mmd`
 - `diagrams/5_marts/uml_er_mart_dashboard_extracts.mmd`
 - `diagrams/5_marts/uml_deployment_mart_dashboard_extracts.mmd`
+- `diagrams/5_marts/uml_sequence_dashboard_mvp_runtime.mmd`
 
 ## View Set
 `mart_dashboard_views.sql` creates these mart view names:
@@ -34,3 +36,12 @@ sqlite3 -header -column data/core/core_kpi.db ".read scripts/5_marts/dashboard_q
 ```
 
 If your SQL client does not support `:symbol` parameters, replace them directly.
+
+## Run Dashboard MVP App
+Install dependencies from root `requirements.txt`, then start:
+
+```bash
+streamlit run scripts/5_marts/dashboard_mvp_app.py
+```
+
+In the sidebar, provide the Core SQLite DB path (default: `data/core/core_kpi.db`).

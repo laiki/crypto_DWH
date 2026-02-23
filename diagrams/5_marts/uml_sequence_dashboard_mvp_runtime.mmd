@@ -1,0 +1,23 @@
+sequenceDiagram
+    autonumber
+    actor User as Dashboard User
+    participant UI as Streamlit Dashboard
+    participant DB as SQLite Core DB
+
+    User->>UI: Open dashboard and select symbol
+    UI->>DB: Query available symbols from mart views
+    DB-->>UI: Symbol list
+    UI-->>User: Render selector
+
+    User->>UI: Choose symbol
+    UI->>DB: Query price curve 24h (selected symbol)
+    DB-->>UI: Time-series points
+    UI-->>User: Render line chart
+
+    UI->>DB: Query price deviation daily (latest day, selected symbol)
+    DB-->>UI: Deviation KPI snapshot
+    UI-->>User: Render deviation metrics/table
+
+    UI->>DB: Query platform quality daily (latest day)
+    DB-->>UI: Latency/disconnect/update KPIs by exchange
+    UI-->>User: Render quality table/charts

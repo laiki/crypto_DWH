@@ -237,10 +237,12 @@ Script role separation:
 Mart-ready dashboard extracts:
 - `scripts/5_marts/mart_dashboard_views.sql`
 - `scripts/5_marts/dashboard_query_templates.sql`
+- `scripts/5_marts/dashboard_mvp_app.py`
 - `scripts/5_marts/README.md`
 
 Mart extract documentation:
 - `docs/5_marts/mart_kpi_extracts.md`
+- `docs/5_marts/dashboard_mvp_scope.md`
 
 ## SQL Snippets
 Connection drop statistics grouped by exchange and sorted by frequency:
@@ -337,9 +339,9 @@ Note:
   - `WHERE exchange_id = 'binance'`
 
 Next steps:
-1. Align forecasting feature contract with Core/Cleansing outputs
-2. Implement first dashboard layout using mart extracts
-3. Add dashboard integration tests over mart query templates
+1. Add dashboard integration tests over mart query templates
+2. Define operational dashboard refresh workflow (core build/validate + mart apply)
+3. Align forecasting feature contract with Core/Cleansing outputs
 
 Session task backlog:
 - `docs/0_overview/next_session_tasks.md`
