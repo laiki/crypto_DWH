@@ -21,8 +21,8 @@ flowchart TD
     K --> L[Apply core_kpi_views.sql as TEMP views]
     L --> M[Execute core_kpi_assertions.sql]
     M --> N{Skip view row counts?}
-    N -- No --> O[Compute COUNT(*) for all KPI views]
-    N -- Yes --> P[Skip COUNT(*) block]
+    N -- No --> O[Compute row counts for all KPI views]
+    N -- Yes --> P[Skip row-count block]
     O --> R
     P --> R
     R --> S{Execution error occurred?}

@@ -1,6 +1,6 @@
 # Mart KPI Extracts for Dashboard
 
-Last updated: 2026-02-22
+Last updated: 2026-02-23
 
 ## Purpose
 This document defines dashboard-ready extracts on top of the Core layer.
@@ -35,6 +35,7 @@ Goal:
   - `max_latency_ms`
   - `update_frequency_hz`
   - `disconnect_count`
+  - `default_quality_score`
   - `default_quality_rank`
 
 ### Panel 2: Platform Quality (Hourly)
@@ -43,6 +44,20 @@ Goal:
   - latest `kpi_hour_utc`
 - default order:
   - `default_quality_rank ASC`, `exchange_id ASC`
+
+### Default Quality Ranking Formula
+`default_quality_rank` is calculated from `default_quality_score` (rank 1 = best quality).
+
+`default_quality_score` is the arithmetic mean of four per-snapshot normalized components:
+1. min latency component (lower `min_latency_ms` is better)
+2. update frequency component (higher `update_frequency_hz` is better)
+3. disconnect component (lower `disconnect_count` is better)
+4. symbol coverage component (higher `symbols_covered` is better)
+
+Normalization strategy:
+- per partition (`kpi_date_utc` for daily, `kpi_hour_utc` for hourly)
+- min-max scaling to `[0, 1]`
+- if all exchanges share the same value for one component, that component is set to `1.0` for all rows
 
 ### Panel 3: Price Deviation (Daily)
 - mart view: `vw_mart_dashboard_price_deviation_daily`
@@ -73,7 +88,7 @@ Goal:
 - mart view: `vw_mart_dashboard_price_curve_24h_binance`
 - default filter:
   - required `symbol`
-  - latest cleansing `run_id` (resolved by `vw_mart_latest_cleansing_run`)
+  - latest available cleansing `run_id` per selected `symbol`
 - default order:
   - `point_index_asc ASC`
 - key columns:

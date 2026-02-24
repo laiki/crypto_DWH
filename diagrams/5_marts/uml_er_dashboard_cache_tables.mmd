@@ -1,0 +1,83 @@
+erDiagram
+    vw_mart_dashboard_platform_quality_daily {
+        TEXT kpi_date_utc
+        TEXT exchange_id
+        REAL avg_latency_ms
+        INTEGER disconnect_count
+        INTEGER default_quality_rank
+    }
+
+    vw_mart_dashboard_price_deviation_daily {
+        TEXT kpi_date_utc
+        TEXT symbol
+        REAL max_price_diff_abs
+        REAL max_price_diff_pct
+        INTEGER default_deviation_rank
+    }
+
+    vw_mart_dashboard_price_curve_24h_binance {
+        TEXT run_id
+        TEXT exchange_id
+        TEXT symbol
+        TEXT bucket_start_utc
+        REAL price_close
+        INTEGER point_index_asc
+    }
+
+    dash_cache_platform_quality_daily_latest {
+        TEXT kpi_date_utc
+        TEXT exchange_id
+        INTEGER symbols_covered
+        REAL avg_latency_ms
+        REAL min_latency_ms
+        REAL max_latency_ms
+        REAL update_frequency_hz
+        INTEGER disconnect_count
+        INTEGER default_quality_rank
+    }
+
+    dash_cache_price_deviation_daily_latest {
+        TEXT kpi_date_utc
+        TEXT symbol
+        INTEGER aligned_points_compared
+        REAL max_price_diff_abs
+        REAL max_price_diff_pct
+        REAL avg_price_diff_abs
+        REAL avg_price_diff_pct
+        TEXT max_diff_bucket_start_utc
+        TEXT max_diff_exchange_pair
+        INTEGER default_deviation_rank
+    }
+
+    dash_cache_price_curve_24h_binance_latest {
+        TEXT run_id
+        TEXT exchange_id
+        TEXT symbol
+        TEXT bucket_start_utc
+        REAL price_close
+        INTEGER point_index_asc
+    }
+
+    dash_cache_symbols {
+        TEXT symbol
+    }
+
+    dash_cache_refresh_metadata {
+        TEXT refresh_ts_utc
+        TEXT platform_latest_kpi_date_utc
+        TEXT deviation_latest_kpi_date_utc
+        INTEGER platform_rows
+        INTEGER deviation_rows
+        INTEGER curve_rows
+        INTEGER symbol_rows
+    }
+
+    vw_mart_dashboard_platform_quality_daily ||--o{ dash_cache_platform_quality_daily_latest : materializes
+    vw_mart_dashboard_price_deviation_daily ||--o{ dash_cache_price_deviation_daily_latest : materializes
+    vw_mart_dashboard_price_curve_24h_binance ||--o{ dash_cache_price_curve_24h_binance_latest : materializes
+    dash_cache_price_curve_24h_binance_latest ||--o{ dash_cache_symbols : provides_symbols
+    dash_cache_price_deviation_daily_latest ||--o{ dash_cache_symbols : provides_symbols
+    dash_cache_platform_quality_daily_latest ||--o{ dash_cache_refresh_metadata : counted_in
+    dash_cache_price_deviation_daily_latest ||--o{ dash_cache_refresh_metadata : counted_in
+    dash_cache_price_curve_24h_binance_latest ||--o{ dash_cache_refresh_metadata : counted_in
+    dash_cache_symbols ||--o{ dash_cache_refresh_metadata : counted_in

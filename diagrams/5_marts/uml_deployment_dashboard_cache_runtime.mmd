@@ -1,0 +1,35 @@
+flowchart TB
+    subgraph HOST["Execution Host (VM/Server)"]
+        subgraph JOBS["Batch and Ops Layer"]
+            OP[Operator / Scheduler]
+            COREJOB[core_pipeline.py]
+            MARTJOB[sqlite3 apply mart_dashboard_views.sql]
+            CACHEJOB[build_dashboard_cache.py]
+        end
+
+        subgraph APP["Serving Layer"]
+            DASH[streamlit dashboard_mvp_app.py]
+        end
+
+        subgraph DATA["SQLite Data Layer"]
+            DB[(core_kpi.db)]
+            MARTV[[vw_mart_dashboard_*]]
+            CACHET[[dash_cache_* tables]]
+            META[(dash_cache_refresh_metadata)]
+        end
+    end
+
+    OP --> COREJOB
+    COREJOB --> DB
+    OP --> MARTJOB
+    MARTJOB --> MARTV
+    MARTV --> DB
+    OP --> CACHEJOB
+    CACHEJOB --> MARTV
+    CACHEJOB --> CACHET
+    CACHET --> DB
+    CACHEJOB --> META
+    META --> DB
+
+    DASH --> DB
+    DASH --> CACHET

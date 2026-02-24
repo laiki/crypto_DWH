@@ -1,0 +1,30 @@
+sequenceDiagram
+    autonumber
+    actor Op as Operator/Scheduler
+    participant Core as core_pipeline.py
+    participant Mart as mart_dashboard_views.sql
+    participant Cache as build_dashboard_cache.py
+    participant DB as core_kpi.db
+    participant UI as Streamlit Dashboard
+
+    Op->>Core: Run fast/full core pipeline
+    Core->>DB: Build + validate core objects
+    DB-->>Core: Core KPI views/tables ready
+    Core-->>Op: Pipeline result + reports
+
+    Op->>Mart: Apply mart views
+    Mart->>DB: Create/replace vw_mart_dashboard_*
+    DB-->>Mart: Mart views ready
+
+    Op->>Cache: Run cache build job
+    Cache->>DB: Validate required mart views
+    Cache->>DB: Recreate dash_cache_* tables
+    Cache->>DB: Insert dash_cache_refresh_metadata
+    DB-->>Cache: Cache tables committed
+    Cache-->>Op: Cache refresh summary
+
+    Op->>UI: Start or refresh dashboard
+    UI->>DB: Detect dash_cache_* tables
+    DB-->>UI: Cache mode available
+    UI->>DB: Query cached snapshot by selected symbol
+    DB-->>UI: Low-latency panel data

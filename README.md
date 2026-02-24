@@ -238,6 +238,7 @@ Mart-ready dashboard extracts:
 - `scripts/5_marts/mart_dashboard_views.sql`
 - `scripts/5_marts/dashboard_query_templates.sql`
 - `scripts/5_marts/dashboard_mvp_app.py`
+- `scripts/5_marts/build_dashboard_cache.py`
 - `scripts/5_marts/README.md`
 
 Mart extract documentation:

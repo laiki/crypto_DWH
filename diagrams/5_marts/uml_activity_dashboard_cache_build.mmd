@@ -1,0 +1,17 @@
+flowchart TD
+    A([Start]) --> B[Build or refresh Core DB]
+    B --> C[Apply core_kpi_views.sql]
+    C --> D[Apply mart_dashboard_views.sql]
+    D --> E[Run build_dashboard_cache.py]
+    E --> F{Required mart views available?}
+    F -- No --> G[Fail with actionable error]
+    F -- Yes --> H[Drop old dash_cache_* tables]
+    H --> I[Create latest platform quality cache table]
+    I --> J[Create latest price deviation cache table]
+    J --> K[Create 24h Binance price curve cache table]
+    K --> L[Create symbol list cache table]
+    L --> M[Create refresh metadata table]
+    M --> N[Create cache indexes]
+    N --> O[Commit transaction]
+    O --> P([Dashboard cache ready])
+    G --> Q([End with error])

@@ -57,12 +57,22 @@ Reason:
 - default order:
   - `default_quality_rank ASC`, `exchange_id ASC`
 - key fields:
+  - `default_quality_score`
+  - `default_quality_rank`
   - `min_latency_ms`
   - `max_latency_ms`
   - `avg_latency_ms`
   - `disconnect_count`
   - `update_frequency_hz`
   - `symbols_covered`
+
+Ranking definition:
+- `default_quality_rank = 1` means best quality.
+- Score dimensions:
+  - lower `min_latency_ms`
+  - higher `update_frequency_hz`
+  - lower `disconnect_count`
+  - higher `symbols_covered`
 
 ## Out of Scope (MVP)
 - forecasting model outputs
@@ -73,17 +83,25 @@ Reason:
 
 ## Technical Contract
 - UI framework: `streamlit`
-- data access: read-only SQLite queries against Core DB with mart views applied
+- data access: read-only SQLite queries against Core DB cache tables
+- performance mode: cache-only (mandatory for usable dashboard latency)
 - required DB objects:
-  - `vw_mart_dashboard_platform_quality_daily`
-  - `vw_mart_dashboard_price_deviation_daily`
-  - `vw_mart_dashboard_price_curve_24h_binance`
+  - cache tables:
+    - `dash_cache_platform_quality_daily_latest`
+    - `dash_cache_price_deviation_daily_latest`
+    - `dash_cache_price_curve_24h_binance_latest`
+    - `dash_cache_symbols`
+    - `dash_cache_refresh_metadata`
+  - upstream refresh dependency:
+    - `vw_mart_dashboard_platform_quality_daily`
+    - `vw_mart_dashboard_price_deviation_daily`
+    - `vw_mart_dashboard_price_curve_24h_binance`
 
 ## Done Criteria
 1. One command starts dashboard locally.
-2. Symbol selector is populated from mart views.
+2. Symbol selector is populated from cache tables.
 3. All three MVP panels render from real SQLite data.
-4. Missing-view errors are shown with actionable setup hints.
+4. Missing-cache errors are shown with actionable setup hints.
 5. No panel computes KPI logic outside SQL mart definitions.
 
 ## Immediate Next Steps After MVP
@@ -91,4 +109,5 @@ Reason:
 2. Add operational refresh runbook:
    - `core_pipeline` build/validate
    - apply `mart_dashboard_views.sql`
+   - run `build_dashboard_cache.py`
    - restart/refresh dashboard process

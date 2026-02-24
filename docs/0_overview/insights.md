@@ -50,6 +50,16 @@
   - Compare `p50/p95/p99 latency`, disconnect count, reconnect delay, and message rate.
   - If deviation exceeds an agreed threshold, enforce workload isolation (dedicated host/VM/container limits or scheduled non-overlap).
 
+### 2026-02-23 - Dashboard Usability Requires Precomputed Cache Tables
+- Context:
+  - Dashboard MVP runtime with direct mart-view reads on symbol changes.
+- Observation:
+  - Symbol switches trigger expensive recalculation and produce unacceptable response times for interactive use.
+- Impact:
+  - Dashboard is not operationally usable without precomputed cache tables.
+- Decision:
+  - Run dashboard in cache-only mode using `dash_cache_*` tables refreshed via `build_dashboard_cache.py`.
+
 ## Staging Exporter Performance
 
 ### 2026-02-21 - Unique List Runtime

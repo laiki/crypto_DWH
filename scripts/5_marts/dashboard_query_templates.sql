@@ -2,7 +2,7 @@
 -- These templates define default filters and sort orders for dashboard panels.
 -- Replace :param placeholders with your query tool parameter syntax.
 
--- Panel A: Platform quality (daily), default latest day and worst quality first.
+-- Panel A: Platform quality (daily), default latest day and best quality first.
 WITH latest_day AS (
     SELECT MAX(kpi_date_utc) AS kpi_date_utc
     FROM vw_mart_dashboard_platform_quality_daily
@@ -19,12 +19,13 @@ SELECT
     avg_update_interval_s,
     update_frequency_hz,
     disconnect_count,
+    default_quality_score,
     default_quality_rank
 FROM vw_mart_dashboard_platform_quality_daily
 WHERE kpi_date_utc = (SELECT kpi_date_utc FROM latest_day)
 ORDER BY default_quality_rank ASC, exchange_id ASC;
 
--- Panel B: Platform quality (hourly), default latest hour and worst quality first.
+-- Panel B: Platform quality (hourly), default latest hour and best quality first.
 WITH latest_hour AS (
     SELECT MAX(kpi_hour_utc) AS kpi_hour_utc
     FROM vw_mart_dashboard_platform_quality_hourly
@@ -37,6 +38,7 @@ SELECT
     max_latency_ms,
     update_frequency_hz,
     disconnect_count,
+    default_quality_score,
     default_quality_rank
 FROM vw_mart_dashboard_platform_quality_hourly
 WHERE kpi_hour_utc = (SELECT kpi_hour_utc FROM latest_hour)
