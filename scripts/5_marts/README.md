@@ -60,8 +60,16 @@ The dashboard is operated in cache-only mode for usable response times.
 Build cache tables before starting the app:
 
 ```bash
-sqlite3 data/core/core_kpi.db ".read scripts/5_marts/mart_dashboard_views.sql"
 python scripts/5_marts/build_dashboard_cache.py --db-path data/core/core_kpi.db
+```
+
+By default, the cache builder applies `mart_dashboard_views.sql` automatically
+before materializing cache tables.
+
+If mart views are already applied and you want to skip that step:
+
+```bash
+python scripts/5_marts/build_dashboard_cache.py --db-path data/core/core_kpi.db --no-apply-mart-views
 ```
 
 Optional compaction:

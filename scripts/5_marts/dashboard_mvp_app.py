@@ -144,8 +144,7 @@ def main() -> None:
 
     if not _has_cache_tables(db_path):
         st.error("Dashboard cache tables are missing. The dashboard runs only in cache mode.")
-        st.write("Prepare cache tables in this order:")
-        st.code(f"sqlite3 {db_path} \".read scripts/5_marts/mart_dashboard_views.sql\"")
+        st.write("Prepare cache tables with:")
         st.code(f"python scripts/5_marts/build_dashboard_cache.py --db-path \"{db_path}\"")
         st.stop()
 
@@ -221,7 +220,6 @@ def main() -> None:
                 "No 24h price curve points available for selected symbol in cache. "
                 "If recent data exists, refresh mart views and rebuild dashboard cache."
             )
-            st.code(f"sqlite3 {db_path} \".read scripts/5_marts/mart_dashboard_views.sql\"")
             st.code(f"python scripts/5_marts/build_dashboard_cache.py --db-path \"{db_path}\"")
         else:
             price_curve_plot = price_curve_df.copy()

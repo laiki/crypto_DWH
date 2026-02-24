@@ -31,6 +31,7 @@ CACHE_TABLES = (
 
 
 def parse_args() -> argparse.Namespace:
+    default_mart_views_sql = Path(__file__).resolve().parent / "mart_dashboard_views.sql"
     parser = argparse.ArgumentParser(
         description="Build precomputed dashboard cache tables.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -46,7 +47,35 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Run VACUUM after cache build to compact DB pages.",
     )
+    parser.add_argument(
+        "--apply-mart-views",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply mart views SQL before cache build.",
+    )
+    parser.add_argument(
+        "--mart-views-sql",
+        default=str(default_mart_views_sql),
+        help="Path to mart dashboard views SQL file.",
+    )
     return parser.parse_args()
+
+
+def apply_mart_views_sql(
+    connection: sqlite3.Connection,
+    mart_views_sql_path: Path,
+) -> None:
+    if not mart_views_sql_path.exists():
+        raise FileNotFoundError(f"Mart views SQL path does not exist: {mart_views_sql_path}")
+
+    sql_text = mart_views_sql_path.read_text(encoding="utf-8")
+    try:
+        connection.executescript(sql_text)
+    except sqlite3.Error as exc:
+        raise RuntimeError(
+            "Failed to apply mart views SQL. Ensure upstream Core views/tables exist "
+            "in the same database before building dashboard cache."
+        ) from exc
 
 
 def ensure_required_views(connection: sqlite3.Connection) -> None:
@@ -251,12 +280,19 @@ def write_metadata(connection: sqlite3.Connection) -> dict[str, int | str | None
     }
 
 
-def build_cache(db_path: Path, vacuum: bool) -> dict[str, int | str | None]:
+def build_cache(
+    db_path: Path,
+    vacuum: bool,
+    apply_mart_views: bool,
+    mart_views_sql_path: Path,
+) -> dict[str, int | str | None]:
     if not db_path.exists():
         raise FileNotFoundError(f"DB path does not exist: {db_path}")
 
     with sqlite3.connect(str(db_path)) as connection:
         connection.execute("PRAGMA foreign_keys = OFF;")
+        if apply_mart_views:
+            apply_mart_views_sql(connection, mart_views_sql_path)
         ensure_required_views(connection)
 
         connection.execute("BEGIN IMMEDIATE;")
@@ -279,10 +315,18 @@ def build_cache(db_path: Path, vacuum: bool) -> dict[str, int | str | None]:
 def main() -> None:
     args = parse_args()
     db_path = Path(args.db_path).expanduser().resolve()
-    summary = build_cache(db_path=db_path, vacuum=bool(args.vacuum))
+    mart_views_sql_path = Path(args.mart_views_sql).expanduser().resolve()
+    summary = build_cache(
+        db_path=db_path,
+        vacuum=bool(args.vacuum),
+        apply_mart_views=bool(args.apply_mart_views),
+        mart_views_sql_path=mart_views_sql_path,
+    )
 
     print("Dashboard cache build completed.")
     print(f"DB path: {db_path}")
+    print(f"Applied mart views: {bool(args.apply_mart_views)}")
+    print(f"Mart views SQL path: {mart_views_sql_path}")
     print(f"Refresh timestamp (UTC): {summary['refresh_ts_utc']}")
     print(f"Platform latest day: {summary['platform_latest_kpi_date_utc']}")
     print(f"Deviation latest day: {summary['deviation_latest_kpi_date_utc']}")
