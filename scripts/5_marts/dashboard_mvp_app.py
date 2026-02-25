@@ -259,8 +259,9 @@ def main() -> None:
     with tab_quality:
         st.write("Daily platform quality snapshot (all exchanges).")
         st.info(
-            "Ranking logic (best quality first): default_quality_score = average of 4 normalized components: "
-            "lower min_latency_ms, higher update_frequency_hz, lower disconnect_count, higher symbols_covered. "
+            "Ranking logic (best quality first): default_quality_score = average of 6 normalized components: "
+            "lower min_latency_ms, lower avg_latency_ms, lower max_latency_ms, higher update_frequency_hz, "
+            "lower disconnect_count, higher symbols_covered. "
             "default_quality_rank = 1 means best score."
         )
         if platform_quality_df.empty:

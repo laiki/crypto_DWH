@@ -27,7 +27,7 @@
 - `vw_mart_dashboard_price_curve_24h_binance`
 
 Platform quality ranking:
-- `default_quality_score`: combined score over min latency, update frequency, disconnect count, and symbol coverage.
+- `default_quality_score`: combined score over min latency, avg latency, max latency, update frequency, disconnect count, and symbol coverage.
 - `default_quality_rank`: dense rank by `default_quality_score DESC` (rank `1` is best quality).
 
 ## Required Upstream Objects

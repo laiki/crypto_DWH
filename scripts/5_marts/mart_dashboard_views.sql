@@ -1,5 +1,5 @@
 -- Mart Dashboard Views
--- Last updated: 2026-02-22
+-- Last updated: 2026-02-25
 --
 -- Required upstream artifacts (already present in Core DB):
 --   - vw_core_kpi_daily_exchange
@@ -53,6 +53,10 @@ stats AS (
         b.*,
         MIN(b.min_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS min_latency_partition_min,
         MAX(b.min_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS min_latency_partition_max,
+        MIN(b.avg_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS avg_latency_partition_min,
+        MAX(b.avg_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS avg_latency_partition_max,
+        MIN(b.max_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS max_latency_partition_min,
+        MAX(b.max_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS max_latency_partition_max,
         MIN(b.update_frequency_hz) OVER (PARTITION BY b.kpi_date_utc) AS update_frequency_partition_min,
         MAX(b.update_frequency_hz) OVER (PARTITION BY b.kpi_date_utc) AS update_frequency_partition_max,
         MIN(b.disconnect_count) OVER (PARTITION BY b.kpi_date_utc) AS disconnect_partition_min,
@@ -72,6 +76,22 @@ scored AS (
             ELSE (s.min_latency_partition_max - s.min_latency_ms)
                  / (s.min_latency_partition_max - s.min_latency_partition_min)
         END AS score_min_latency,
+        CASE
+            WHEN s.avg_latency_ms IS NULL
+              OR s.avg_latency_partition_min IS NULL
+              OR s.avg_latency_partition_max IS NULL THEN 0.0
+            WHEN s.avg_latency_partition_max = s.avg_latency_partition_min THEN 1.0
+            ELSE (s.avg_latency_partition_max - s.avg_latency_ms)
+                 / (s.avg_latency_partition_max - s.avg_latency_partition_min)
+        END AS score_avg_latency,
+        CASE
+            WHEN s.max_latency_ms IS NULL
+              OR s.max_latency_partition_min IS NULL
+              OR s.max_latency_partition_max IS NULL THEN 0.0
+            WHEN s.max_latency_partition_max = s.max_latency_partition_min THEN 1.0
+            ELSE (s.max_latency_partition_max - s.max_latency_ms)
+                 / (s.max_latency_partition_max - s.max_latency_partition_min)
+        END AS score_max_latency,
         CASE
             WHEN s.update_frequency_hz IS NULL
               OR s.update_frequency_partition_min IS NULL
@@ -103,9 +123,11 @@ final_scored AS (
         s.*,
         ROUND(
             (s.score_min_latency
+             + s.score_avg_latency
+             + s.score_max_latency
              + s.score_update_frequency
              + s.score_disconnect_count
-             + s.score_symbols_covered) / 4.0,
+             + s.score_symbols_covered) / 6.0,
             6
         ) AS default_quality_score
     FROM scored AS s
@@ -129,6 +151,8 @@ SELECT
         PARTITION BY f.kpi_date_utc
         ORDER BY
             f.default_quality_score DESC,
+            COALESCE(f.avg_latency_ms, 1e12) ASC,
+            COALESCE(f.max_latency_ms, 1e12) ASC,
             f.disconnect_count ASC,
             COALESCE(f.min_latency_ms, 1e12) ASC,
             f.exchange_id ASC
@@ -169,6 +193,10 @@ stats AS (
         b.*,
         MIN(b.min_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS min_latency_partition_min,
         MAX(b.min_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS min_latency_partition_max,
+        MIN(b.avg_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS avg_latency_partition_min,
+        MAX(b.avg_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS avg_latency_partition_max,
+        MIN(b.max_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS max_latency_partition_min,
+        MAX(b.max_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS max_latency_partition_max,
         MIN(b.update_frequency_hz) OVER (PARTITION BY b.kpi_hour_utc) AS update_frequency_partition_min,
         MAX(b.update_frequency_hz) OVER (PARTITION BY b.kpi_hour_utc) AS update_frequency_partition_max,
         MIN(b.disconnect_count) OVER (PARTITION BY b.kpi_hour_utc) AS disconnect_partition_min,
@@ -188,6 +216,22 @@ scored AS (
             ELSE (s.min_latency_partition_max - s.min_latency_ms)
                  / (s.min_latency_partition_max - s.min_latency_partition_min)
         END AS score_min_latency,
+        CASE
+            WHEN s.avg_latency_ms IS NULL
+              OR s.avg_latency_partition_min IS NULL
+              OR s.avg_latency_partition_max IS NULL THEN 0.0
+            WHEN s.avg_latency_partition_max = s.avg_latency_partition_min THEN 1.0
+            ELSE (s.avg_latency_partition_max - s.avg_latency_ms)
+                 / (s.avg_latency_partition_max - s.avg_latency_partition_min)
+        END AS score_avg_latency,
+        CASE
+            WHEN s.max_latency_ms IS NULL
+              OR s.max_latency_partition_min IS NULL
+              OR s.max_latency_partition_max IS NULL THEN 0.0
+            WHEN s.max_latency_partition_max = s.max_latency_partition_min THEN 1.0
+            ELSE (s.max_latency_partition_max - s.max_latency_ms)
+                 / (s.max_latency_partition_max - s.max_latency_partition_min)
+        END AS score_max_latency,
         CASE
             WHEN s.update_frequency_hz IS NULL
               OR s.update_frequency_partition_min IS NULL
@@ -219,9 +263,11 @@ final_scored AS (
         s.*,
         ROUND(
             (s.score_min_latency
+             + s.score_avg_latency
+             + s.score_max_latency
              + s.score_update_frequency
              + s.score_disconnect_count
-             + s.score_symbols_covered) / 4.0,
+             + s.score_symbols_covered) / 6.0,
             6
         ) AS default_quality_score
     FROM scored AS s
@@ -245,6 +291,8 @@ SELECT
         PARTITION BY f.kpi_hour_utc
         ORDER BY
             f.default_quality_score DESC,
+            COALESCE(f.avg_latency_ms, 1e12) ASC,
+            COALESCE(f.max_latency_ms, 1e12) ASC,
             f.disconnect_count ASC,
             COALESCE(f.min_latency_ms, 1e12) ASC,
             f.exchange_id ASC
