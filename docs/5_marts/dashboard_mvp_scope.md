@@ -1,12 +1,12 @@
 # Dashboard MVP Scope (Phase 1)
 
-Last updated: 2026-02-23
+Last updated: 2026-02-25
 
 ## Purpose
-Define a fixed MVP dashboard scope that visualizes already collected and computed KPI metrics from the mart layer.
+Define a fixed MVP dashboard scope that visualizes already collected and computed KPI metrics from the mart/core layer.
 
 Primary objective:
-- deliver a runnable dashboard with stable SQL inputs and no ad-hoc KPI transformations in UI code.
+- deliver a runnable dashboard with stable SQL inputs and no hard-coded 24h/day window assumptions.
 
 ## Scope Decision
 Dashboard implementation is prioritized before forecasting feature engineering.
@@ -17,41 +17,49 @@ Reason:
 
 ## MVP Panels and Data Mapping
 
-1. Symbol Selector
-- user selects one cryptocurrency symbol (for example `BTC/USDT`)
+1. Run + Time Window Selector
+- user selects one cleansing `run_id`
+- user selects UTC start/end window inside selected run coverage
 - source query:
-  - distinct symbols from
-    - `vw_mart_dashboard_price_curve_24h_binance`
-    - `vw_mart_dashboard_price_deviation_daily`
+  - `cleansed_market` grouped by `run_id`
 
-2. Price Curve Last 24h (Binance)
-- goal: visualize the selected symbol time series
-- source view:
-  - `vw_mart_dashboard_price_curve_24h_binance`
-- default filter:
+2. Symbol Selector
+- user selects one cryptocurrency symbol (for example `BTC/USDT`) for selected run/window
+- source query:
+  - distinct symbols from `cleansed_market` filtered by `run_id` and window
+
+3. Price Curve (Window, Multi-Exchange)
+- goal: visualize the selected symbol time series in selected window
+- source table:
+  - `cleansed_market`
+- default filters:
+  - `run_id = :run_id`
+  - `bucket_start_utc BETWEEN :window_start_utc AND :window_end_utc`
   - `symbol = :symbol`
+  - valid cleansed points only (`price IS NOT NULL`, `is_missing = 0`, `is_stale = 0`)
 - default order:
-  - `point_index_asc ASC`
+  - `bucket_epoch_s ASC`, `exchange_id ASC`
 
-3. Maximum Price Deviation Snapshot (Daily)
-- goal: show maximum cross-exchange spread metrics for selected symbol
-- source view:
-  - `vw_mart_dashboard_price_deviation_daily`
-- default filter:
-  - latest `kpi_date_utc`
+4. Price Deviation (Window)
+- goal: show cross-exchange spread metrics for selected symbol in selected run/window
+- source table:
+  - `cleansed_market` (bucket-aligned cross-exchange aggregation)
+- default filters:
+  - `run_id = :run_id`
+  - `bucket_start_utc BETWEEN :window_start_utc AND :window_end_utc`
   - `symbol = :symbol`
 - key fields:
+  - `exchange_count`
   - `max_price_diff_abs`
   - `max_price_diff_pct`
-  - `avg_price_diff_abs`
-  - `avg_price_diff_pct`
   - `max_diff_exchange_pair`
-  - `max_diff_bucket_start_utc`
+  - `bucket_start_utc` (series and max timestamp)
 
-4. Platform Quality Snapshot (Daily)
+5. Platform Quality Snapshot (Daily)
 - goal: compare exchange quality for latency/disconnect behavior
-- source view:
-  - `vw_mart_dashboard_platform_quality_daily`
+- source priority:
+  - `dash_cache_platform_quality_daily_latest` (preferred)
+  - fallback: `vw_mart_dashboard_platform_quality_daily` (latest day)
 - default filter:
   - latest `kpi_date_utc`
 - default order:
@@ -70,44 +78,43 @@ Ranking definition:
 - `default_quality_rank = 1` means best quality.
 - Score dimensions:
   - lower `min_latency_ms`
+  - lower `avg_latency_ms`
+  - lower `max_latency_ms`
   - higher `update_frequency_hz`
   - lower `disconnect_count`
   - higher `symbols_covered`
+- Score strategy:
+  - weighted model with higher latency weight (`avg`: 35%, `max`: 30%, `min`: 15%)
+  - cap-based penalties for high latency (`min`: 1000 ms, `avg`: 10000 ms, `max`: 600000 ms)
+  - disconnect cap at `10` for linear penalty to zero
 
 ## Out of Scope (MVP)
 - forecasting model outputs
-- multi-exchange price curve panel (beyond Binance baseline)
 - user authentication/authorization
 - write-back workflows
 - advanced alerting
 
 ## Technical Contract
 - UI framework: `streamlit`
-- data access: read-only SQLite queries against Core DB cache tables
-- performance mode: cache-only (mandatory for usable dashboard latency)
+- data access:
+  - dynamic window panels read directly from `cleansed_market`
+  - platform quality reads cache table when available, else mart view fallback
 - required DB objects:
-  - cache tables:
+  - required:
+    - `cleansed_market`
+  - optional but recommended for quality panel performance:
     - `dash_cache_platform_quality_daily_latest`
-    - `dash_cache_price_deviation_daily_latest`
-    - `dash_cache_price_curve_24h_binance_latest`
-    - `dash_cache_symbols`
     - `dash_cache_refresh_metadata`
-  - upstream refresh dependency:
+  - fallback:
     - `vw_mart_dashboard_platform_quality_daily`
-    - `vw_mart_dashboard_price_deviation_daily`
-    - `vw_mart_dashboard_price_curve_24h_binance`
 
 ## Done Criteria
 1. One command starts dashboard locally.
-2. Symbol selector is populated from cache tables.
-3. All three MVP panels render from real SQLite data.
-4. Missing-cache errors are shown with actionable setup hints.
-5. No panel computes KPI logic outside SQL mart definitions.
+2. Run selector is populated from `cleansed_market`.
+3. Symbol selector is populated for selected run/window.
+4. Price curve and price deviation render for selected window without fixed 24h/day assumptions.
+5. Platform quality panel renders from cache (preferred) or view fallback.
 
 ## Immediate Next Steps After MVP
-1. Add SQL access smoke/integration tests for dashboard data access.
-2. Add operational refresh runbook:
-   - `core_pipeline` build/validate
-   - apply `mart_dashboard_views.sql`
-   - run `build_dashboard_cache.py`
-   - restart/refresh dashboard process
+1. Add SQL access smoke/integration tests for dynamic run/window queries.
+2. Add optional fast-path cache for selected rolling windows if runtime grows.

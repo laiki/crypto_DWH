@@ -1,5 +1,5 @@
--- Dashboard Query Templates (Mart Layer)
--- These templates define default filters and sort orders for dashboard panels.
+-- Dashboard Query Templates
+-- These templates define queries used by the dashboard panels.
 -- Replace :param placeholders with your query tool parameter syntax.
 
 -- Panel A: Platform quality (daily), default latest day and best quality first.
@@ -44,56 +44,130 @@ FROM vw_mart_dashboard_platform_quality_hourly
 WHERE kpi_hour_utc = (SELECT kpi_hour_utc FROM latest_hour)
 ORDER BY default_quality_rank ASC, exchange_id ASC;
 
--- Panel C: Price deviation (daily), optional symbol filter, default highest spread first.
-WITH latest_day AS (
-    SELECT MAX(kpi_date_utc) AS kpi_date_utc
-    FROM vw_mart_dashboard_price_deviation_daily
-)
+-- Panel C: Available cleansing runs (for dynamic window analysis).
 SELECT
-    kpi_date_utc,
-    symbol,
-    aligned_points_compared,
-    max_price_diff_abs,
-    max_price_diff_pct,
-    avg_price_diff_abs,
-    avg_price_diff_pct,
-    max_diff_bucket_start_utc,
-    max_diff_exchange_pair,
-    default_deviation_rank
-FROM vw_mart_dashboard_price_deviation_daily
-WHERE kpi_date_utc = (SELECT kpi_date_utc FROM latest_day)
-  AND (:symbol IS NULL OR symbol = :symbol)
-ORDER BY default_deviation_rank ASC, symbol ASC;
+    run_id,
+    MIN(bucket_start_utc) AS min_bucket_start_utc,
+    MAX(bucket_start_utc) AS max_bucket_start_utc,
+    COUNT(*) AS row_count
+FROM cleansed_market
+GROUP BY run_id
+ORDER BY run_id DESC;
 
--- Panel D: Price deviation (hourly), optional symbol filter, default highest spread first.
-WITH latest_hour AS (
-    SELECT MAX(kpi_hour_utc) AS kpi_hour_utc
-    FROM vw_mart_dashboard_price_deviation_hourly
-)
-SELECT
-    kpi_hour_utc,
-    symbol,
-    aligned_points_compared,
-    max_price_diff_abs,
-    max_price_diff_pct,
-    avg_price_diff_abs,
-    avg_price_diff_pct,
-    max_diff_bucket_start_utc,
-    max_diff_exchange_pair,
-    default_deviation_rank
-FROM vw_mart_dashboard_price_deviation_hourly
-WHERE kpi_hour_utc = (SELECT kpi_hour_utc FROM latest_hour)
-  AND (:symbol IS NULL OR symbol = :symbol)
-ORDER BY default_deviation_rank ASC, symbol ASC;
+-- Panel D: Symbols available for selected run and window.
+SELECT DISTINCT symbol
+FROM cleansed_market
+WHERE run_id = :run_id
+  AND bucket_start_utc >= :window_start_utc
+  AND bucket_start_utc <= :window_end_utc
+  AND price IS NOT NULL
+  AND is_missing = 0
+  AND is_stale = 0
+ORDER BY symbol ASC;
 
--- Panel E: Price chart (24h), default Binance and selected symbol.
+-- Panel E: Price curve for selected run/symbol/window (multi-exchange).
 SELECT
     run_id,
     exchange_id,
     symbol,
     bucket_start_utc,
+    bucket_epoch_s,
     price_close,
-    point_index_asc
-FROM vw_mart_dashboard_price_curve_24h_binance
-WHERE symbol = :symbol
-ORDER BY point_index_asc ASC;
+    fill_method
+FROM (
+    SELECT
+        run_id,
+        exchange_id,
+        symbol,
+        bucket_start_utc,
+        bucket_epoch_s,
+        ROUND(price, 12) AS price_close,
+        fill_method
+    FROM cleansed_market
+    WHERE run_id = :run_id
+      AND symbol = :symbol
+      AND bucket_start_utc >= :window_start_utc
+      AND bucket_start_utc <= :window_end_utc
+      AND price IS NOT NULL
+      AND is_missing = 0
+      AND is_stale = 0
+)
+ORDER BY bucket_epoch_s ASC, exchange_id ASC;
+
+-- Panel F: Price deviation series for selected run/symbol/window.
+WITH filtered AS (
+    SELECT
+        cm.bucket_start_utc,
+        cm.bucket_epoch_s,
+        cm.exchange_id,
+        cm.symbol,
+        cm.price
+    FROM cleansed_market AS cm
+    WHERE cm.run_id = :run_id
+      AND cm.symbol = :symbol
+      AND cm.bucket_start_utc >= :window_start_utc
+      AND cm.bucket_start_utc <= :window_end_utc
+      AND cm.price IS NOT NULL
+      AND cm.is_missing = 0
+      AND cm.is_stale = 0
+),
+ranked AS (
+    SELECT
+        f.symbol,
+        f.bucket_epoch_s,
+        f.exchange_id,
+        f.price,
+        ROW_NUMBER() OVER (
+            PARTITION BY f.symbol, f.bucket_epoch_s
+            ORDER BY f.price DESC, f.exchange_id ASC
+        ) AS rn_max,
+        ROW_NUMBER() OVER (
+            PARTITION BY f.symbol, f.bucket_epoch_s
+            ORDER BY f.price ASC, f.exchange_id ASC
+        ) AS rn_min
+    FROM filtered AS f
+),
+bucket_agg AS (
+    SELECT
+        f.bucket_start_utc,
+        f.bucket_epoch_s,
+        f.symbol,
+        COUNT(*) AS exchange_count,
+        MAX(f.price) AS max_price,
+        MIN(f.price) AS min_price,
+        MAX(f.price) - MIN(f.price) AS price_diff_abs,
+        CASE
+            WHEN MIN(f.price) > 0.0 THEN ((MAX(f.price) - MIN(f.price)) / MIN(f.price)) * 100.0
+            ELSE NULL
+        END AS price_diff_pct
+    FROM filtered AS f
+    GROUP BY f.bucket_start_utc, f.bucket_epoch_s, f.symbol
+    HAVING COUNT(*) >= 2
+),
+max_exchange AS (
+    SELECT symbol, bucket_epoch_s, exchange_id AS max_price_exchange_id
+    FROM ranked
+    WHERE rn_max = 1
+),
+min_exchange AS (
+    SELECT symbol, bucket_epoch_s, exchange_id AS min_price_exchange_id
+    FROM ranked
+    WHERE rn_min = 1
+)
+SELECT
+    b.bucket_start_utc,
+    b.bucket_epoch_s,
+    b.exchange_count,
+    ROUND(b.max_price, 12) AS max_price,
+    ROUND(b.min_price, 12) AS min_price,
+    ROUND(b.price_diff_abs, 12) AS price_diff_abs,
+    ROUND(b.price_diff_pct, 9) AS price_diff_pct,
+    mx.max_price_exchange_id || '|' || mn.min_price_exchange_id AS max_diff_exchange_pair
+FROM bucket_agg AS b
+INNER JOIN max_exchange AS mx
+    ON mx.symbol = b.symbol
+   AND mx.bucket_epoch_s = b.bucket_epoch_s
+INNER JOIN min_exchange AS mn
+    ON mn.symbol = b.symbol
+   AND mn.bucket_epoch_s = b.bucket_epoch_s
+ORDER BY b.bucket_epoch_s ASC;
