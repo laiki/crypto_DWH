@@ -93,11 +93,10 @@ Nach dieser Session koennt ihr:
 ## Ergebnis
 - Rohdaten mit Ingestion-Timestamp als Basis fuer spaetere KPI.
 
----
+## Deployment
 
-# Deployment: Schritt 1 Ingestion
+![width:800](../../diagrams/1_ingestion/uml_deployment_ingestion_multiprocess.png)
 
-![width:1120](../../diagrams/1_ingestion/uml_deployment_ingestion_multiprocess.png)
 
 ---
 
@@ -111,11 +110,9 @@ Nach dieser Session koennt ihr:
 ## Ergebnis
 - Stabile Input-Scheibe fuer Cleansing und Core.
 
----
+## Deployment
 
-# Deployment: Schritt 2 Staging
-
-![width:1120](../../diagrams/2_staging/uml_deployment_staging_export.png)
+![width:800](../../diagrams/2_staging/uml_deployment_staging_export.png)
 
 ---
 
@@ -129,11 +126,9 @@ Nach dieser Session koennt ihr:
 ## Ergebnis
 - Vergleichbare Zeitreihen pro `(exchange_id, symbol)`.
 
----
+## Deployment
 
-# Deployment: Schritt 3 Cleansing
-
-![width:1120](../../diagrams/3_cleansing/uml_deployment_cleansing.png)
+![width:800](../../diagrams/3_cleansing/uml_deployment_cleansing.png)
 
 ---
 
@@ -150,11 +145,9 @@ Nach dieser Session koennt ihr:
 ## Ergebnis
 - Konsistente KPI-Schicht als Single Source of Truth.
 
----
+## Deployment
 
-# Deployment: Schritt 4 Core
-
-![width:1120](../../diagrams/4_core/uml_deployment_core_build_db.png)
+![width:800](../../diagrams/4_core/uml_deployment_core_build_db.png)
 
 ---
 
@@ -168,11 +161,9 @@ Nach dieser Session koennt ihr:
 ## Ergebnis
 - Schnelle, konsistente Auswertung fuer Fachnutzer.
 
----
+## Deployment
 
-# Deployment: Schritt 5 Marts
-
-![width:1120](../../diagrams/5_marts/uml_deployment_mart_dashboard_extracts.png)
+![width:800](../../diagrams/5_marts/uml_deployment_mart_dashboard_extracts.png)
 
 ---
 
