@@ -1,0 +1,50 @@
+erDiagram
+    FACT_PLATFORM_QUALITY_DAILY {
+        string date_key FK
+        string exchange_key FK
+        string symbol_key FK
+        float avg_latency_ms
+        float update_frequency_hz
+        int disconnect_count
+    }
+
+    FACT_PRICE_DEVIATION_DAILY {
+        string date_key FK
+        string symbol_key FK
+        float max_price_diff_abs
+        float max_price_diff_pct
+    }
+
+    DIM_DATE {
+        string date_key PK
+        int year_num
+        int month_num
+        int day_num
+    }
+
+    DIM_EXCHANGE {
+        string exchange_key PK
+        string exchange_id
+        string platform_type
+    }
+
+    DIM_SYMBOL {
+        string symbol_key PK
+        string symbol
+        string base_asset
+        string quote_asset
+    }
+
+    DIM_QUALITY_BAND {
+        string quality_band_key PK
+        string quality_band_name
+        string score_interval
+    }
+
+    FACT_PLATFORM_QUALITY_DAILY }o--|| DIM_DATE : "shares"
+    FACT_PLATFORM_QUALITY_DAILY }o--|| DIM_EXCHANGE : "shares"
+    FACT_PLATFORM_QUALITY_DAILY }o--|| DIM_SYMBOL : "shares"
+    FACT_PLATFORM_QUALITY_DAILY }o--|| DIM_QUALITY_BAND : "classifies"
+
+    FACT_PRICE_DEVIATION_DAILY }o--|| DIM_DATE : "shares"
+    FACT_PRICE_DEVIATION_DAILY }o--|| DIM_SYMBOL : "shares"

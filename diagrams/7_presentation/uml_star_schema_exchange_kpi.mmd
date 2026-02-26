@@ -1,0 +1,43 @@
+erDiagram
+    FACT_KPI_DAILY {
+        string kpi_date_key FK
+        string exchange_key FK
+        string symbol_key FK
+        string metric_key FK
+        float value_num
+        int sample_count
+    }
+
+    DIM_DATE {
+        string kpi_date_key PK
+        int year_num
+        int month_num
+        int day_num
+        string weekday_name
+    }
+
+    DIM_EXCHANGE {
+        string exchange_key PK
+        string exchange_id
+        string exchange_tier
+        string region
+    }
+
+    DIM_SYMBOL {
+        string symbol_key PK
+        string symbol
+        string base_asset
+        string quote_asset
+    }
+
+    DIM_METRIC {
+        string metric_key PK
+        string metric_name
+        string metric_unit
+        string metric_family
+    }
+
+    DIM_DATE ||--o{ FACT_KPI_DAILY : "filters"
+    DIM_EXCHANGE ||--o{ FACT_KPI_DAILY : "filters"
+    DIM_SYMBOL ||--o{ FACT_KPI_DAILY : "filters"
+    DIM_METRIC ||--o{ FACT_KPI_DAILY : "filters"

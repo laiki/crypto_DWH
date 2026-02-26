@@ -1,0 +1,67 @@
+erDiagram
+    FACT_KPI_DAILY {
+        string date_key FK
+        string exchange_key FK
+        string symbol_key FK
+        string metric_key FK
+        float value_num
+    }
+
+    DIM_DATE {
+        string date_key PK
+        string calendar_key FK
+        int day_num
+    }
+
+    DIM_CALENDAR {
+        string calendar_key PK
+        int year_num
+        int month_num
+        int week_num
+    }
+
+    DIM_EXCHANGE {
+        string exchange_key PK
+        string region_key FK
+        string exchange_id
+    }
+
+    DIM_REGION {
+        string region_key PK
+        string region_name
+        string timezone_name
+    }
+
+    DIM_SYMBOL {
+        string symbol_key PK
+        string asset_key FK
+        string quote_key FK
+        string symbol
+    }
+
+    DIM_ASSET {
+        string asset_key PK
+        string asset_code
+        string asset_family
+    }
+
+    DIM_QUOTE {
+        string quote_key PK
+        string quote_code
+    }
+
+    DIM_METRIC {
+        string metric_key PK
+        string metric_name
+        string metric_group
+    }
+
+    DIM_DATE ||--o{ FACT_KPI_DAILY : "filters"
+    DIM_EXCHANGE ||--o{ FACT_KPI_DAILY : "filters"
+    DIM_SYMBOL ||--o{ FACT_KPI_DAILY : "filters"
+    DIM_METRIC ||--o{ FACT_KPI_DAILY : "filters"
+
+    DIM_CALENDAR ||--o{ DIM_DATE : "normalizes"
+    DIM_REGION ||--o{ DIM_EXCHANGE : "normalizes"
+    DIM_ASSET ||--o{ DIM_SYMBOL : "normalizes"
+    DIM_QUOTE ||--o{ DIM_SYMBOL : "normalizes"

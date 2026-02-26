@@ -1,0 +1,26 @@
+flowchart TB
+    subgraph JOB["Batch Trigger"]
+        CRON[Cron / Scheduler]
+    end
+
+    subgraph HOST["Staging Export Host"]
+        EXP[scripts/2_staging/staging_exporter.py]
+        SQL[[SQLite Engine]]
+    end
+
+    subgraph OLTP["Raw OLTP Sources"]
+        WDB[(worker_*_crypto_ws_ticks.db)]
+        STATE[(staging_export_state.json)]
+    end
+
+    subgraph STG["Staging Zone"]
+        SDB[(staging_export_*.db)]
+        META[[staging_export_*_metadata.json]]
+    end
+
+    CRON --> EXP
+    EXP --> SQL
+    SQL --> WDB
+    EXP --> STATE
+    SQL --> SDB
+    EXP --> META

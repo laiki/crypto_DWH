@@ -23,3 +23,4 @@ The `docs/` directory is organized analog to stage-oriented project folders like
   - `mart_kpi_extracts.md`
 - `docs/7_presentation/`
   - `crypto_dwh_dashboard_slides.md`
+  - `crypto_dwh_data_engineering_leitfaden_slides.md`

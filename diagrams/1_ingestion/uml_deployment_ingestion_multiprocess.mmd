@@ -1,0 +1,38 @@
+flowchart TB
+    subgraph EX["Exchange APIs"]
+        BIN[[Binance WS]]
+        KRA[[Kraken WS]]
+        OTH[[Other Exchanges]]
+    end
+
+    subgraph HOST["Ingestion Host"]
+        ORCH[orchestrator_auto_shard.py]
+        W1[worker_0 ingest_all_exchanges_ws.py]
+        W2[worker_1 ingest_all_exchanges_ws.py]
+        WN[worker_n ingest_all_exchanges_ws.py]
+        LOG[(logs/worker_*.log)]
+    end
+
+    subgraph RAW["Raw OLTP Storage"]
+        DB1[(worker_0_crypto_ws_ticks.db)]
+        DB2[(worker_1_crypto_ws_ticks.db)]
+        DBN[(worker_n_crypto_ws_ticks.db)]
+        MERGE[(raw_ingestion.db optional)]
+    end
+
+    BIN --> W1
+    KRA --> W2
+    OTH --> WN
+
+    ORCH --> W1
+    ORCH --> W2
+    ORCH --> WN
+    ORCH --> LOG
+
+    W1 --> DB1
+    W2 --> DB2
+    WN --> DBN
+
+    DB1 -. incremental merge .-> MERGE
+    DB2 -. incremental merge .-> MERGE
+    DBN -. incremental merge .-> MERGE
