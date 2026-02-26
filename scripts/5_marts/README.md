@@ -3,7 +3,7 @@
 ## Files
 - `mart_dashboard_views.sql`: creates dashboard-ready mart views on top of Core KPIs.
 - `dashboard_query_templates.sql`: query templates with default filter/sort behavior for dashboard panels.
-- `dashboard_mvp_app.py`: Streamlit dashboard MVP consuming mart views directly.
+- `dashboard_mvp_app.py`: Streamlit dashboard MVP with dynamic run/window analysis on `cleansed_market`.
 - `build_dashboard_cache.py`: materializes fast dashboard cache tables from mart views.
 
 ## Related Diagram Files
@@ -27,7 +27,9 @@
 - `vw_mart_dashboard_price_curve_24h_binance`
 
 Platform quality ranking:
-- `default_quality_score`: combined score over min latency, avg latency, max latency, update frequency, disconnect count, and symbol coverage.
+- `default_quality_score`: weighted score over min/avg/max latency, update frequency, disconnect count, and symbol coverage.
+  - latency caps: min `1000 ms`, avg `10000 ms`, max `600000 ms`
+  - weights: avg latency `35%`, max latency `30%`, min latency `15%`, update frequency `10%`, disconnects `8%`, symbols `2%`
 - `default_quality_rank`: dense rank by `default_quality_score DESC` (rank `1` is best quality).
 
 ## Required Upstream Objects
@@ -55,9 +57,13 @@ streamlit run scripts/5_marts/dashboard_mvp_app.py
 
 In the sidebar, provide the Core SQLite DB path (default: `data/core/core_kpi.db`).
 
-## Build Precomputed Dashboard Cache (Required)
-The dashboard is operated in cache-only mode for usable response times.
-Build cache tables before starting the app:
+Runtime behavior:
+- price curve and price deviation are computed for a selected `run_id` and selectable UTC window
+- no fixed 24h or daily-only restriction for these two panels
+- platform quality uses cache table when available, otherwise falls back to mart view
+
+## Build Precomputed Dashboard Cache (Recommended)
+Cache is recommended for fast platform quality panel loading:
 
 ```bash
 python scripts/5_marts/build_dashboard_cache.py --db-path data/core/core_kpi.db
@@ -85,4 +91,4 @@ Created cache tables:
 - `dash_cache_symbols`
 - `dash_cache_refresh_metadata`
 
-The Streamlit app requires these cache tables and fails fast when they are missing.
+The Streamlit app can run without cache tables, but cache improves quality panel performance.

@@ -4,6 +4,15 @@ data/*.db-shm
 data/*.db-wal
 data/*.db
 data/*.log
+/data/**/*.log
+/data/**/*.db
+/data/**/*.db-shm
+/data/**/*.db-wal
+/logs/
+/scripts/data/**/*.db
+/scripts/data/**/*.db-shm
+/scripts/data/**/*.db-wal
+/scripts/data/**/*.log
 *.png
 scripts/**/__pycache__/
 scripts/**/logs/

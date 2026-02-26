@@ -20,7 +20,20 @@ DROP VIEW IF EXISTS vw_mart_latest_cleansing_run;
 DROP VIEW IF EXISTS vw_mart_dashboard_price_curve_24h_binance;
 
 CREATE VIEW vw_mart_dashboard_platform_quality_daily AS
-WITH symbol_coverage AS (
+WITH thresholds AS (
+    SELECT
+        1000.0 AS min_latency_cap_ms,
+        10000.0 AS avg_latency_cap_ms,
+        600000.0 AS max_latency_cap_ms,
+        10.0 AS disconnect_cap_count,
+        0.15 AS weight_min_latency,
+        0.35 AS weight_avg_latency,
+        0.30 AS weight_max_latency,
+        0.10 AS weight_update_frequency,
+        0.08 AS weight_disconnect_count,
+        0.02 AS weight_symbols_covered
+),
+symbol_coverage AS (
     SELECT
         kpi_date_utc,
         exchange_id,
@@ -51,16 +64,8 @@ base AS (
 stats AS (
     SELECT
         b.*,
-        MIN(b.min_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS min_latency_partition_min,
-        MAX(b.min_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS min_latency_partition_max,
-        MIN(b.avg_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS avg_latency_partition_min,
-        MAX(b.avg_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS avg_latency_partition_max,
-        MIN(b.max_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS max_latency_partition_min,
-        MAX(b.max_latency_ms) OVER (PARTITION BY b.kpi_date_utc) AS max_latency_partition_max,
         MIN(b.update_frequency_hz) OVER (PARTITION BY b.kpi_date_utc) AS update_frequency_partition_min,
         MAX(b.update_frequency_hz) OVER (PARTITION BY b.kpi_date_utc) AS update_frequency_partition_max,
-        MIN(b.disconnect_count) OVER (PARTITION BY b.kpi_date_utc) AS disconnect_partition_min,
-        MAX(b.disconnect_count) OVER (PARTITION BY b.kpi_date_utc) AS disconnect_partition_max,
         MIN(b.symbols_covered) OVER (PARTITION BY b.kpi_date_utc) AS symbols_partition_min,
         MAX(b.symbols_covered) OVER (PARTITION BY b.kpi_date_utc) AS symbols_partition_max
     FROM base AS b
@@ -69,28 +74,22 @@ scored AS (
     SELECT
         s.*,
         CASE
-            WHEN s.min_latency_ms IS NULL
-              OR s.min_latency_partition_min IS NULL
-              OR s.min_latency_partition_max IS NULL THEN 0.0
-            WHEN s.min_latency_partition_max = s.min_latency_partition_min THEN 1.0
-            ELSE (s.min_latency_partition_max - s.min_latency_ms)
-                 / (s.min_latency_partition_max - s.min_latency_partition_min)
+            WHEN s.min_latency_ms IS NULL THEN 0.0
+            WHEN s.min_latency_ms <= 0.0 THEN 1.0
+            WHEN s.min_latency_ms >= t.min_latency_cap_ms THEN 0.0
+            ELSE 1.0 - (s.min_latency_ms / t.min_latency_cap_ms)
         END AS score_min_latency,
         CASE
-            WHEN s.avg_latency_ms IS NULL
-              OR s.avg_latency_partition_min IS NULL
-              OR s.avg_latency_partition_max IS NULL THEN 0.0
-            WHEN s.avg_latency_partition_max = s.avg_latency_partition_min THEN 1.0
-            ELSE (s.avg_latency_partition_max - s.avg_latency_ms)
-                 / (s.avg_latency_partition_max - s.avg_latency_partition_min)
+            WHEN s.avg_latency_ms IS NULL THEN 0.0
+            WHEN s.avg_latency_ms <= 0.0 THEN 1.0
+            WHEN s.avg_latency_ms >= t.avg_latency_cap_ms THEN 0.0
+            ELSE 1.0 - (s.avg_latency_ms / t.avg_latency_cap_ms)
         END AS score_avg_latency,
         CASE
-            WHEN s.max_latency_ms IS NULL
-              OR s.max_latency_partition_min IS NULL
-              OR s.max_latency_partition_max IS NULL THEN 0.0
-            WHEN s.max_latency_partition_max = s.max_latency_partition_min THEN 1.0
-            ELSE (s.max_latency_partition_max - s.max_latency_ms)
-                 / (s.max_latency_partition_max - s.max_latency_partition_min)
+            WHEN s.max_latency_ms IS NULL THEN 0.0
+            WHEN s.max_latency_ms <= 0.0 THEN 1.0
+            WHEN s.max_latency_ms >= t.max_latency_cap_ms THEN 0.0
+            ELSE 1.0 - (s.max_latency_ms / t.max_latency_cap_ms)
         END AS score_max_latency,
         CASE
             WHEN s.update_frequency_hz IS NULL
@@ -101,36 +100,36 @@ scored AS (
                  / (s.update_frequency_partition_max - s.update_frequency_partition_min)
         END AS score_update_frequency,
         CASE
-            WHEN s.disconnect_count IS NULL
-              OR s.disconnect_partition_min IS NULL
-              OR s.disconnect_partition_max IS NULL THEN 0.0
-            WHEN s.disconnect_partition_max = s.disconnect_partition_min THEN 1.0
-            ELSE (s.disconnect_partition_max - s.disconnect_count)
-                 / (s.disconnect_partition_max - s.disconnect_partition_min)
+            WHEN s.disconnect_count IS NULL THEN 0.0
+            WHEN s.disconnect_count <= 0 THEN 1.0
+            WHEN s.disconnect_count >= t.disconnect_cap_count THEN 0.0
+            ELSE 1.0 - ((1.0 * s.disconnect_count) / t.disconnect_cap_count)
         END AS score_disconnect_count,
         CASE
             WHEN s.symbols_covered IS NULL
               OR s.symbols_partition_min IS NULL
               OR s.symbols_partition_max IS NULL THEN 0.0
             WHEN s.symbols_partition_max = s.symbols_partition_min THEN 1.0
-            ELSE (s.symbols_covered - s.symbols_partition_min)
+            ELSE (1.0 * (s.symbols_covered - s.symbols_partition_min))
                  / (s.symbols_partition_max - s.symbols_partition_min)
         END AS score_symbols_covered
     FROM stats AS s
+    CROSS JOIN thresholds AS t
 ),
 final_scored AS (
     SELECT
         s.*,
         ROUND(
-            (s.score_min_latency
-             + s.score_avg_latency
-             + s.score_max_latency
-             + s.score_update_frequency
-             + s.score_disconnect_count
-             + s.score_symbols_covered) / 6.0,
+            (s.score_min_latency * t.weight_min_latency)
+            + (s.score_avg_latency * t.weight_avg_latency)
+            + (s.score_max_latency * t.weight_max_latency)
+            + (s.score_update_frequency * t.weight_update_frequency)
+            + (s.score_disconnect_count * t.weight_disconnect_count)
+            + (s.score_symbols_covered * t.weight_symbols_covered),
             6
         ) AS default_quality_score
     FROM scored AS s
+    CROSS JOIN thresholds AS t
 )
 SELECT
     f.kpi_date_utc,
@@ -160,7 +159,20 @@ SELECT
 FROM final_scored AS f;
 
 CREATE VIEW vw_mart_dashboard_platform_quality_hourly AS
-WITH symbol_coverage AS (
+WITH thresholds AS (
+    SELECT
+        1000.0 AS min_latency_cap_ms,
+        10000.0 AS avg_latency_cap_ms,
+        600000.0 AS max_latency_cap_ms,
+        10.0 AS disconnect_cap_count,
+        0.15 AS weight_min_latency,
+        0.35 AS weight_avg_latency,
+        0.30 AS weight_max_latency,
+        0.10 AS weight_update_frequency,
+        0.08 AS weight_disconnect_count,
+        0.02 AS weight_symbols_covered
+),
+symbol_coverage AS (
     SELECT
         kpi_hour_utc,
         exchange_id,
@@ -191,16 +203,8 @@ base AS (
 stats AS (
     SELECT
         b.*,
-        MIN(b.min_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS min_latency_partition_min,
-        MAX(b.min_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS min_latency_partition_max,
-        MIN(b.avg_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS avg_latency_partition_min,
-        MAX(b.avg_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS avg_latency_partition_max,
-        MIN(b.max_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS max_latency_partition_min,
-        MAX(b.max_latency_ms) OVER (PARTITION BY b.kpi_hour_utc) AS max_latency_partition_max,
         MIN(b.update_frequency_hz) OVER (PARTITION BY b.kpi_hour_utc) AS update_frequency_partition_min,
         MAX(b.update_frequency_hz) OVER (PARTITION BY b.kpi_hour_utc) AS update_frequency_partition_max,
-        MIN(b.disconnect_count) OVER (PARTITION BY b.kpi_hour_utc) AS disconnect_partition_min,
-        MAX(b.disconnect_count) OVER (PARTITION BY b.kpi_hour_utc) AS disconnect_partition_max,
         MIN(b.symbols_covered) OVER (PARTITION BY b.kpi_hour_utc) AS symbols_partition_min,
         MAX(b.symbols_covered) OVER (PARTITION BY b.kpi_hour_utc) AS symbols_partition_max
     FROM base AS b
@@ -209,28 +213,22 @@ scored AS (
     SELECT
         s.*,
         CASE
-            WHEN s.min_latency_ms IS NULL
-              OR s.min_latency_partition_min IS NULL
-              OR s.min_latency_partition_max IS NULL THEN 0.0
-            WHEN s.min_latency_partition_max = s.min_latency_partition_min THEN 1.0
-            ELSE (s.min_latency_partition_max - s.min_latency_ms)
-                 / (s.min_latency_partition_max - s.min_latency_partition_min)
+            WHEN s.min_latency_ms IS NULL THEN 0.0
+            WHEN s.min_latency_ms <= 0.0 THEN 1.0
+            WHEN s.min_latency_ms >= t.min_latency_cap_ms THEN 0.0
+            ELSE 1.0 - (s.min_latency_ms / t.min_latency_cap_ms)
         END AS score_min_latency,
         CASE
-            WHEN s.avg_latency_ms IS NULL
-              OR s.avg_latency_partition_min IS NULL
-              OR s.avg_latency_partition_max IS NULL THEN 0.0
-            WHEN s.avg_latency_partition_max = s.avg_latency_partition_min THEN 1.0
-            ELSE (s.avg_latency_partition_max - s.avg_latency_ms)
-                 / (s.avg_latency_partition_max - s.avg_latency_partition_min)
+            WHEN s.avg_latency_ms IS NULL THEN 0.0
+            WHEN s.avg_latency_ms <= 0.0 THEN 1.0
+            WHEN s.avg_latency_ms >= t.avg_latency_cap_ms THEN 0.0
+            ELSE 1.0 - (s.avg_latency_ms / t.avg_latency_cap_ms)
         END AS score_avg_latency,
         CASE
-            WHEN s.max_latency_ms IS NULL
-              OR s.max_latency_partition_min IS NULL
-              OR s.max_latency_partition_max IS NULL THEN 0.0
-            WHEN s.max_latency_partition_max = s.max_latency_partition_min THEN 1.0
-            ELSE (s.max_latency_partition_max - s.max_latency_ms)
-                 / (s.max_latency_partition_max - s.max_latency_partition_min)
+            WHEN s.max_latency_ms IS NULL THEN 0.0
+            WHEN s.max_latency_ms <= 0.0 THEN 1.0
+            WHEN s.max_latency_ms >= t.max_latency_cap_ms THEN 0.0
+            ELSE 1.0 - (s.max_latency_ms / t.max_latency_cap_ms)
         END AS score_max_latency,
         CASE
             WHEN s.update_frequency_hz IS NULL
@@ -241,36 +239,36 @@ scored AS (
                  / (s.update_frequency_partition_max - s.update_frequency_partition_min)
         END AS score_update_frequency,
         CASE
-            WHEN s.disconnect_count IS NULL
-              OR s.disconnect_partition_min IS NULL
-              OR s.disconnect_partition_max IS NULL THEN 0.0
-            WHEN s.disconnect_partition_max = s.disconnect_partition_min THEN 1.0
-            ELSE (s.disconnect_partition_max - s.disconnect_count)
-                 / (s.disconnect_partition_max - s.disconnect_partition_min)
+            WHEN s.disconnect_count IS NULL THEN 0.0
+            WHEN s.disconnect_count <= 0 THEN 1.0
+            WHEN s.disconnect_count >= t.disconnect_cap_count THEN 0.0
+            ELSE 1.0 - ((1.0 * s.disconnect_count) / t.disconnect_cap_count)
         END AS score_disconnect_count,
         CASE
             WHEN s.symbols_covered IS NULL
               OR s.symbols_partition_min IS NULL
               OR s.symbols_partition_max IS NULL THEN 0.0
             WHEN s.symbols_partition_max = s.symbols_partition_min THEN 1.0
-            ELSE (s.symbols_covered - s.symbols_partition_min)
+            ELSE (1.0 * (s.symbols_covered - s.symbols_partition_min))
                  / (s.symbols_partition_max - s.symbols_partition_min)
         END AS score_symbols_covered
     FROM stats AS s
+    CROSS JOIN thresholds AS t
 ),
 final_scored AS (
     SELECT
         s.*,
         ROUND(
-            (s.score_min_latency
-             + s.score_avg_latency
-             + s.score_max_latency
-             + s.score_update_frequency
-             + s.score_disconnect_count
-             + s.score_symbols_covered) / 6.0,
+            (s.score_min_latency * t.weight_min_latency)
+            + (s.score_avg_latency * t.weight_avg_latency)
+            + (s.score_max_latency * t.weight_max_latency)
+            + (s.score_update_frequency * t.weight_update_frequency)
+            + (s.score_disconnect_count * t.weight_disconnect_count)
+            + (s.score_symbols_covered * t.weight_symbols_covered),
             6
         ) AS default_quality_score
     FROM scored AS s
+    CROSS JOIN thresholds AS t
 )
 SELECT
     f.kpi_hour_utc,
