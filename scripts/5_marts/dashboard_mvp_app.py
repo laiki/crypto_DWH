@@ -913,6 +913,23 @@ def main() -> None:
         filtered_symbol_observed_quality_df = symbol_observed_quality_df[
             symbol_observed_quality_df["observed_quality_band"].isin(selected_observed_quality_bands)
         ].copy()
+    if filtered_symbol_observed_quality_df.empty:
+        eligible_observed_symbols: set[str] = set()
+    else:
+        eligible_exchange_count_df = (
+            filtered_symbol_observed_quality_df.groupby("symbol", as_index=False)["exchange_id"]
+            .nunique()
+            .rename(columns={"exchange_id": "eligible_exchange_count"})
+        )
+        eligible_observed_symbols = set(
+            eligible_exchange_count_df[eligible_exchange_count_df["eligible_exchange_count"] > 1][
+                "symbol"
+            ]
+            .astype(str)
+            .tolist()
+        )
+    with st.sidebar:
+        st.caption(f"symbols={len(eligible_observed_symbols)}")
 
     run_symbols_df = _query_dataframe(
         db_path,
@@ -935,10 +952,7 @@ def main() -> None:
 
     symbols = symbols_df["symbol"].astype(str).tolist()
     if not symbol_observed_quality_df.empty:
-        observed_symbol_set = set(
-            filtered_symbol_observed_quality_df["symbol"].astype(str).unique().tolist()
-        )
-        symbols = [symbol_value for symbol_value in symbols if symbol_value in observed_symbol_set]
+        symbols = [symbol_value for symbol_value in symbols if symbol_value in eligible_observed_symbols]
 
     if not symbols:
         st.warning(
@@ -977,7 +991,7 @@ def main() -> None:
             )
             st.caption(
                 "Observed quality symbols (active bands): "
-                f"{int(filtered_symbol_observed_quality_df['symbol'].nunique())}"
+                f"{len(eligible_observed_symbols)}"
             )
             st.caption(
                 f"Selected symbol exchanges (active bands): {len(observed_quality_allowed_exchanges)}"
@@ -1030,11 +1044,8 @@ def main() -> None:
             params=symbol_violin_params,
         )
     if not symbol_observed_quality_df.empty:
-        observed_symbol_set = set(
-            filtered_symbol_observed_quality_df["symbol"].astype(str).unique().tolist()
-        )
         symbol_violin_df = symbol_violin_df[
-            symbol_violin_df["symbol"].astype(str).isin(observed_symbol_set)
+            symbol_violin_df["symbol"].astype(str).isin(eligible_observed_symbols)
         ].copy()
 
     st.subheader("Symbol Start Page: Price Deviation Violin Grid")
