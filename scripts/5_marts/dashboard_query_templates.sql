@@ -171,3 +171,37 @@ INNER JOIN min_exchange AS mn
     ON mn.symbol = b.symbol
    AND mn.bucket_epoch_s = b.bucket_epoch_s
 ORDER BY b.bucket_epoch_s ASC;
+
+-- Panel G: Symbol start page violin input (run/window, all symbols).
+-- Preferred source (cache materialization):
+SELECT
+    run_id,
+    symbol,
+    bucket_start_utc,
+    bucket_epoch_s,
+    exchange_count,
+    price_diff_pct
+FROM dash_cache_symbol_deviation_bucket
+WHERE run_id = :run_id
+  AND bucket_start_utc >= :window_start_utc
+  AND bucket_start_utc <= :window_end_utc
+ORDER BY symbol ASC, bucket_epoch_s ASC;
+
+-- Panel H: Symbol detail spread series from mart view (fallback if no cache table).
+SELECT
+    run_id,
+    symbol,
+    bucket_start_utc,
+    bucket_epoch_s,
+    exchange_count,
+    max_price_close,
+    min_price_close,
+    price_diff_abs,
+    price_diff_pct,
+    max_diff_exchange_pair
+FROM vw_mart_dashboard_symbol_deviation_bucket
+WHERE run_id = :run_id
+  AND symbol = :symbol
+  AND bucket_start_utc >= :window_start_utc
+  AND bucket_start_utc <= :window_end_utc
+ORDER BY bucket_epoch_s ASC;

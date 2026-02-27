@@ -17,6 +17,8 @@ Goal:
 - required upstream:
   - Core KPI views from `scripts/4_core/core_kpi_views.sql`
   - `cleansed_market` table in same Core DB
+- design note:
+  - `docs/5_marts/symbol_deviation_mart_use_case.md`
 
 ## Dashboard Panels and Extracts
 

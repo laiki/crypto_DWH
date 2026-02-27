@@ -28,7 +28,20 @@ Reason:
 - source query:
   - distinct symbols from `cleansed_market` filtered by `run_id` and window
 
-3. Price Curve (Window, Multi-Exchange)
+3. Symbol Start Page (Violin Grid)
+- goal: distribution view per symbol before opening detail analysis
+- visualization:
+  - one violin plot per symbol
+  - y-axis: `price_diff_pct` (bucket-level percentage close spread between exchanges)
+- source priority:
+  - `dash_cache_symbol_deviation_bucket`
+  - fallback: `vw_mart_dashboard_symbol_deviation_bucket`
+  - fallback: raw query over `cleansed_market`
+- default filters:
+  - `run_id = :run_id`
+  - `bucket_start_utc BETWEEN :window_start_utc AND :window_end_utc`
+
+4. Price Curve (Window, Multi-Exchange)
 - goal: visualize the selected symbol time series in selected window
 - source table:
   - `cleansed_market`
@@ -40,7 +53,7 @@ Reason:
 - default order:
   - `bucket_epoch_s ASC`, `exchange_id ASC`
 
-4. Price Deviation (Window)
+5. Price Deviation (Window)
 - goal: show cross-exchange spread metrics for selected symbol in selected run/window
 - source table:
   - `cleansed_market` (bucket-aligned cross-exchange aggregation)
@@ -55,7 +68,7 @@ Reason:
   - `max_diff_exchange_pair`
   - `bucket_start_utc` (series and max timestamp)
 
-5. Platform Quality Snapshot (Daily)
+6. Platform Quality Snapshot (Daily)
 - goal: compare exchange quality for latency/disconnect behavior
 - source priority:
   - `dash_cache_platform_quality_daily_latest` (preferred)
@@ -98,15 +111,18 @@ Ranking definition:
 - UI framework: `streamlit`
 - data access:
   - dynamic window panels read directly from `cleansed_market`
+  - symbol deviation start page uses mart/cache spread fact dataset
   - platform quality reads cache table when available, else mart view fallback
 - required DB objects:
   - required:
     - `cleansed_market`
   - optional but recommended for quality panel performance:
     - `dash_cache_platform_quality_daily_latest`
+    - `dash_cache_symbol_deviation_bucket`
     - `dash_cache_refresh_metadata`
   - fallback:
     - `vw_mart_dashboard_platform_quality_daily`
+    - `vw_mart_dashboard_symbol_deviation_bucket`
 
 ## Done Criteria
 1. One command starts dashboard locally.
@@ -114,6 +130,7 @@ Ranking definition:
 3. Symbol selector is populated for selected run/window.
 4. Price curve and price deviation render for selected window without fixed 24h/day assumptions.
 5. Platform quality panel renders from cache (preferred) or view fallback.
+6. Symbol start page renders violin distributions and supports symbol jump action.
 
 ## Immediate Next Steps After MVP
 1. Add SQL access smoke/integration tests for dynamic run/window queries.

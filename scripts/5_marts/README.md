@@ -16,6 +16,7 @@
 - `diagrams/5_marts/uml_sequence_dashboard_cache_refresh_runtime.mmd`
 - `diagrams/5_marts/uml_er_dashboard_cache_tables.mmd`
 - `diagrams/5_marts/uml_deployment_dashboard_cache_runtime.mmd`
+- `diagrams/5_marts/uml_architecture_symbol_deviation_mart.mmd`
 
 ## View Set
 `mart_dashboard_views.sql` creates these mart view names:
