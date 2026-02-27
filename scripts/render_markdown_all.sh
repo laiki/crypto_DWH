@@ -19,17 +19,33 @@ if ! command -v pandoc >/dev/null 2>&1; then
   exit 1
 fi
 
+is_marp_file() {
+  local file_path="$1"
+  head -n 20 "$file_path" | grep -Eq '^marp:[[:space:]]*true'
+}
+
+rewrite_svg_references_for_pdf() {
+  perl -pe '
+    # Local SVG assets: prefer sibling PDF exports to avoid svg.sty/rsvg-convert dependency.
+    s/\(((?!https?:\/\/)[^)]+)\.svg\)/($1.pdf)/g;
+    # Remote SVG assets (e.g. shields): try PNG variant first.
+    s/\((https?:\/\/[^)]+)\.svg\)/($1.png)/g;
+  '
+}
+
 found=0
 failed=0
 
 while IFS= read -r -d '' input_file; do
   found=$((found + 1))
   output_file="${input_file%.md}.pdf"
+  input_dir="$(dirname "$input_file")"
 
   echo "Rendering \"$input_file\" -> \"$output_file\""
-  if head -n 20 "$input_file" | rg -q '^marp:[[:space:]]*true'; then
-    input_dir="$(dirname "$input_file")"
+
+  if is_marp_file "$input_file"; then
     if ! sed -E 's/!\[width:([0-9]+)\]\(([^)]+)\)/![](\2){ width=\1px }/g' "$input_file" \
+      | rewrite_svg_references_for_pdf \
       | pandoc --resource-path="$input_dir:." -f markdown -o "$output_file"; then
       echo "Error: failed to render \"$input_file\"" >&2
       failed=$((failed + 1))
@@ -37,7 +53,8 @@ while IFS= read -r -d '' input_file; do
     continue
   fi
 
-  if ! pandoc "$input_file" -o "$output_file"; then
+  if ! rewrite_svg_references_for_pdf < "$input_file" \
+    | pandoc --resource-path="$input_dir:." -f markdown -o "$output_file"; then
     echo "Error: failed to render \"$input_file\"" >&2
     failed=$((failed + 1))
   fi

@@ -16,6 +16,7 @@ import sqlite3
 from pathlib import Path
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 
@@ -202,6 +203,47 @@ INNER JOIN min_exchange AS mn
 ORDER BY b.bucket_epoch_s ASC;
 """
 
+SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW = """
+WITH filtered AS (
+    SELECT
+        cm.bucket_start_utc,
+        cm.bucket_epoch_s,
+        cm.symbol,
+        cm.price
+    FROM cleansed_market AS cm
+    WHERE cm.run_id = :run_id
+      AND cm.bucket_start_utc >= :window_start_utc
+      AND cm.bucket_start_utc <= :window_end_utc
+      AND cm.price IS NOT NULL
+      AND cm.is_missing = 0
+      AND cm.is_stale = 0
+      AND cm.symbol IS NOT NULL
+),
+bucket_agg AS (
+    SELECT
+        f.bucket_start_utc,
+        f.bucket_epoch_s,
+        f.symbol,
+        COUNT(*) AS exchange_count,
+        CASE
+            WHEN MIN(f.price) > 0.0 THEN ((MAX(f.price) - MIN(f.price)) / MIN(f.price)) * 100.0
+            ELSE NULL
+        END AS price_diff_pct
+    FROM filtered AS f
+    GROUP BY f.bucket_start_utc, f.bucket_epoch_s, f.symbol
+    HAVING COUNT(*) >= 2
+)
+SELECT
+    symbol,
+    bucket_start_utc,
+    bucket_epoch_s,
+    exchange_count,
+    ROUND(price_diff_pct, 9) AS price_diff_pct
+FROM bucket_agg
+WHERE price_diff_pct IS NOT NULL
+ORDER BY symbol ASC, bucket_epoch_s ASC;
+"""
+
 SQL_EXISTING_OBJECTS = """
 SELECT type, name
 FROM sqlite_master
@@ -266,6 +308,24 @@ def _to_naive_utc_datetime(ts: pd.Timestamp) -> datetime:
 
 def _naive_utc_datetime_to_iso(ts: datetime) -> str:
     return ts.replace(tzinfo=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _get_symbol_query_param() -> str | None:
+    raw_value = st.query_params.get("symbol")
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, list):
+        if not raw_value:
+            return None
+        value = raw_value[0]
+    else:
+        value = raw_value
+    value_str = str(value).strip()
+    return value_str if value_str else None
+
+
+def _set_symbol_query_param(symbol: str) -> None:
+    st.query_params["symbol"] = symbol
 
 
 def main() -> None:
@@ -393,8 +453,13 @@ def main() -> None:
         st.warning("No symbols found for selected run/window.")
         st.stop()
 
+    symbol_from_query = _get_symbol_query_param()
+    selected_symbol_index = symbols.index(symbol_from_query) if symbol_from_query in symbols else 0
     with st.sidebar:
-        selected_symbol = st.selectbox("Symbol", options=symbols, index=0)
+        selected_symbol = st.selectbox("Symbol", options=symbols, index=selected_symbol_index)
+
+    if selected_symbol != symbol_from_query:
+        _set_symbol_query_param(selected_symbol)
 
     if has_platform_quality_cache:
         platform_quality_df = _query_dataframe(db_path, SQL_PLATFORM_QUALITY_DAILY_CACHE)
@@ -411,6 +476,68 @@ def main() -> None:
     }
     price_curve_df = _query_dataframe(db_path, SQL_PRICE_CURVE_WINDOW, params=query_params)
     price_deviation_window_df = _query_dataframe(db_path, SQL_PRICE_DEVIATION_WINDOW, params=query_params)
+    symbol_violin_df = _query_dataframe(
+        db_path,
+        SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW,
+        params={
+            "run_id": selected_run_id,
+            "window_start_utc": window_start_utc,
+            "window_end_utc": window_end_utc,
+        },
+    )
+
+    st.subheader("Symbol Start Page: Price Deviation Violin Grid")
+    st.caption(
+        "Each violin shows the distribution of bucket-level percentage close-price deviation across exchanges "
+        "for the selected run and UTC window."
+    )
+    if symbol_violin_df.empty:
+        st.info("No aligned multi-exchange points available for violin plots in the selected run/window.")
+    else:
+        symbol_stats_df = (
+            symbol_violin_df.groupby("symbol", as_index=False)
+            .agg(
+                point_count=("price_diff_pct", "size"),
+                avg_price_diff_pct=("price_diff_pct", "mean"),
+                max_price_diff_pct=("price_diff_pct", "max"),
+            )
+            .sort_values(by=["max_price_diff_pct", "symbol"], ascending=[False, True])
+        )
+        columns_per_row = 4
+        grid_columns = st.columns(columns_per_row)
+        for idx, symbol in enumerate(symbol_stats_df["symbol"].astype(str).tolist()):
+            with grid_columns[idx % columns_per_row]:
+                symbol_points_df = symbol_violin_df[symbol_violin_df["symbol"] == symbol]
+                st.markdown(f"**{symbol}**")
+                violin_figure = px.violin(
+                    symbol_points_df,
+                    y="price_diff_pct",
+                    points=False,
+                    box=True,
+                )
+                violin_figure.update_layout(
+                    height=220,
+                    margin={"l": 20, "r": 20, "t": 5, "b": 10},
+                    showlegend=False,
+                    xaxis_title=None,
+                    yaxis_title="Diff %",
+                )
+                st.plotly_chart(
+                    violin_figure,
+                    use_container_width=True,
+                    config={"displayModeBar": False},
+                )
+                stat_row = symbol_stats_df[symbol_stats_df["symbol"] == symbol].iloc[0]
+                st.caption(
+                    f"n={int(stat_row['point_count'])} | "
+                    f"avg={float(stat_row['avg_price_diff_pct']):.4f}% | "
+                    f"max={float(stat_row['max_price_diff_pct']):.4f}%"
+                )
+                if st.button(f"Open {symbol}", key=f"open_symbol_{symbol}"):
+                    _set_symbol_query_param(symbol)
+                    st.rerun()
+        with st.expander("Symbol Deviation Stats (Table)"):
+            st.dataframe(symbol_stats_df, use_container_width=True, hide_index=True)
 
     st.subheader("Snapshot")
     metric_col_1, metric_col_2, metric_col_3, metric_col_4 = st.columns(4)
