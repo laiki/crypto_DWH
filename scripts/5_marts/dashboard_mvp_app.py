@@ -492,6 +492,67 @@ def _set_symbol_query_param(symbol: str) -> None:
     st.query_params["symbol"] = symbol
 
 
+def _parse_contains_terms(raw_value: str) -> list[str]:
+    return [term.strip().lower() for term in raw_value.split(",") if term.strip()]
+
+
+def _parse_numeric_criteria(raw_value: str) -> tuple[list[tuple[float, float]], list[str]]:
+    criteria: list[tuple[float, float]] = []
+    invalid_tokens: list[str] = []
+    for token in [part.strip() for part in raw_value.split(",") if part.strip()]:
+        try:
+            if token.startswith(">="):
+                value = float(token[2:].strip())
+                criteria.append((value, float("inf")))
+            elif token.startswith(">"):
+                value = float(token[1:].strip())
+                criteria.append((value + 1e-12, float("inf")))
+            elif token.startswith("<="):
+                value = float(token[2:].strip())
+                criteria.append((float("-inf"), value))
+            elif token.startswith("<"):
+                value = float(token[1:].strip())
+                criteria.append((float("-inf"), value - 1e-12))
+            elif "-" in token:
+                low_raw, high_raw = token.split("-", 1)
+                low = float(low_raw.strip())
+                high = float(high_raw.strip())
+                criteria.append((min(low, high), max(low, high)))
+            else:
+                value = float(token)
+                criteria.append((value, value))
+        except ValueError:
+            invalid_tokens.append(token)
+    return criteria, invalid_tokens
+
+
+def _apply_contains_filter(
+    df: pd.DataFrame,
+    column_name: str,
+    terms: list[str],
+) -> pd.DataFrame:
+    if not terms:
+        return df
+    mask = pd.Series(False, index=df.index)
+    lower_series = df[column_name].astype(str).str.lower()
+    for term in terms:
+        mask = mask | lower_series.str.contains(term, na=False)
+    return df[mask]
+
+
+def _apply_numeric_criteria_filter(
+    df: pd.DataFrame,
+    column_name: str,
+    criteria: list[tuple[float, float]],
+) -> pd.DataFrame:
+    if not criteria:
+        return df
+    mask = pd.Series(False, index=df.index)
+    for low, high in criteria:
+        mask = mask | df[column_name].between(low, high, inclusive="both")
+    return df[mask]
+
+
 def _apply_theme(theme_mode: str) -> str:
     if theme_mode == "Dark":
         st.markdown(DARK_THEME_CSS, unsafe_allow_html=True)
@@ -897,10 +958,23 @@ def main() -> None:
 
             all_exchange_values = sorted(curve_table_df["exchange_id"].unique().tolist())
             all_fill_method_values = sorted(curve_table_df["fill_method"].unique().tolist())
-            epoch_min = int(curve_table_df["bucket_epoch_s"].min())
-            epoch_max = int(curve_table_df["bucket_epoch_s"].max())
-            price_min = float(curve_table_df["price_close"].min())
-            price_max = float(curve_table_df["price_close"].max())
+
+            curve_filter_keys = {
+                "exchange_values": f"curve_filter_exchange_values_{selected_run_id}_{selected_symbol}",
+                "exchange_text": f"curve_filter_exchange_text_{selected_run_id}_{selected_symbol}",
+                "fill_values": f"curve_filter_fill_values_{selected_run_id}_{selected_symbol}",
+                "fill_text": f"curve_filter_fill_text_{selected_run_id}_{selected_symbol}",
+                "epoch_expr": f"curve_filter_epoch_expr_{selected_run_id}_{selected_symbol}",
+                "price_expr": f"curve_filter_price_expr_{selected_run_id}_{selected_symbol}",
+            }
+
+            if st.button(
+                "Reset Filters",
+                key=f"curve_filter_reset_{selected_run_id}_{selected_symbol}",
+            ):
+                for state_key in curve_filter_keys.values():
+                    st.session_state.pop(state_key, None)
+                st.rerun()
 
             st.caption(
                 "Column-style filters (Excel-like): graph and table use the same filtered rows."
@@ -908,46 +982,42 @@ def main() -> None:
             filter_col_1, filter_col_2, filter_col_3, filter_col_4 = st.columns(4)
             with filter_col_1:
                 selected_exchange_values = st.multiselect(
-                    "exchange_id",
+                    "exchange_id values",
                     options=all_exchange_values,
                     default=all_exchange_values,
-                    key=f"curve_filter_exchange_{selected_run_id}_{selected_symbol}",
+                    key=curve_filter_keys["exchange_values"],
+                )
+                exchange_filter_text = st.text_input(
+                    "exchange_id contains (comma OR)",
+                    value="",
+                    key=curve_filter_keys["exchange_text"],
                 )
             with filter_col_2:
                 selected_fill_method_values = st.multiselect(
-                    "fill_method",
+                    "fill_method values",
                     options=all_fill_method_values,
                     default=all_fill_method_values,
-                    key=f"curve_filter_fill_{selected_run_id}_{selected_symbol}",
+                    key=curve_filter_keys["fill_values"],
+                )
+                fill_method_filter_text = st.text_input(
+                    "fill_method contains (comma OR)",
+                    value="",
+                    key=curve_filter_keys["fill_text"],
                 )
             with filter_col_3:
-                selected_epoch_range = st.slider(
-                    "bucket_epoch_s",
-                    min_value=epoch_min,
-                    max_value=epoch_max,
-                    value=(epoch_min, epoch_max),
-                    key=f"curve_filter_epoch_{selected_run_id}_{selected_symbol}",
+                bucket_epoch_expr = st.text_input(
+                    "bucket_epoch_s criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. 1700000000-1700003600,>=1700010000,<1700020000",
+                    key=curve_filter_keys["epoch_expr"],
                 )
             with filter_col_4:
-                if price_min == price_max:
-                    selected_price_range = (price_min, price_max)
-                    st.number_input(
-                        "price_close",
-                        value=price_min,
-                        step=0.0,
-                        disabled=True,
-                        key=f"curve_filter_price_const_{selected_run_id}_{selected_symbol}",
-                    )
-                else:
-                    price_step = max((price_max - price_min) / 500.0, 1e-9)
-                    selected_price_range = st.slider(
-                        "price_close",
-                        min_value=price_min,
-                        max_value=price_max,
-                        value=(price_min, price_max),
-                        step=price_step,
-                        key=f"curve_filter_price_{selected_run_id}_{selected_symbol}",
-                    )
+                price_close_expr = st.text_input(
+                    "price_close criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. 42000-43000,>=44000,<41000",
+                    key=curve_filter_keys["price_expr"],
+                )
 
             filtered_curve_df = curve_table_df.copy()
             if selected_exchange_values:
@@ -956,22 +1026,51 @@ def main() -> None:
                 ]
             else:
                 filtered_curve_df = filtered_curve_df.iloc[0:0]
+
+            exchange_terms = _parse_contains_terms(exchange_filter_text)
+            filtered_curve_df = _apply_contains_filter(
+                filtered_curve_df,
+                "exchange_id",
+                exchange_terms,
+            )
+
             if selected_fill_method_values:
                 filtered_curve_df = filtered_curve_df[
                     filtered_curve_df["fill_method"].isin(selected_fill_method_values)
                 ]
             else:
                 filtered_curve_df = filtered_curve_df.iloc[0:0]
-            filtered_curve_df = filtered_curve_df[
-                filtered_curve_df["bucket_epoch_s"].between(
-                    int(selected_epoch_range[0]), int(selected_epoch_range[1])
+
+            fill_terms = _parse_contains_terms(fill_method_filter_text)
+            filtered_curve_df = _apply_contains_filter(
+                filtered_curve_df,
+                "fill_method",
+                fill_terms,
+            )
+
+            epoch_criteria, invalid_epoch_tokens = _parse_numeric_criteria(bucket_epoch_expr)
+            if invalid_epoch_tokens:
+                st.warning(
+                    "Invalid bucket_epoch_s criteria ignored: "
+                    + ", ".join(invalid_epoch_tokens)
                 )
-            ]
-            filtered_curve_df = filtered_curve_df[
-                filtered_curve_df["price_close"].between(
-                    float(selected_price_range[0]), float(selected_price_range[1])
+            filtered_curve_df = _apply_numeric_criteria_filter(
+                filtered_curve_df,
+                "bucket_epoch_s",
+                epoch_criteria,
+            )
+
+            price_criteria, invalid_price_tokens = _parse_numeric_criteria(price_close_expr)
+            if invalid_price_tokens:
+                st.warning(
+                    "Invalid price_close criteria ignored: "
+                    + ", ".join(invalid_price_tokens)
                 )
-            ]
+            filtered_curve_df = _apply_numeric_criteria_filter(
+                filtered_curve_df,
+                "price_close",
+                price_criteria,
+            )
 
             if filtered_curve_df.empty:
                 st.warning("No rows match the active column filters.")
@@ -1036,71 +1135,226 @@ def main() -> None:
         if price_deviation_window_df.empty:
             st.warning("No aligned deviation points available (need at least two exchanges per timestamp).")
         else:
-            row_max = price_deviation_window_df.sort_values(
-                by=["price_diff_abs", "bucket_epoch_s"],
-                ascending=[False, True],
-            ).iloc[0]
-            dev_col_1, dev_col_2, dev_col_3, dev_col_4 = st.columns(4)
-            dev_col_1.metric(
-                "Max Diff (%)",
-                _format_float(price_deviation_window_df["price_diff_pct"].max(), decimals=4),
+            deviation_table_df = price_deviation_window_df.copy()
+            deviation_table_df["max_diff_exchange_pair"] = (
+                deviation_table_df["max_diff_exchange_pair"].fillna("n/a").astype(str)
             )
-            dev_col_2.metric(
-                "Max Diff (Abs)",
-                _format_float(price_deviation_window_df["price_diff_abs"].max(), decimals=8),
-            )
-            dev_col_3.metric(
-                "Avg Diff (%)",
-                _format_float(price_deviation_window_df["price_diff_pct"].mean(), decimals=4),
-            )
-            dev_col_4.metric("Compared Points", int(len(price_deviation_window_df)))
-            st.write(f"Max spread exchange pair: `{row_max['max_diff_exchange_pair']}`")
-            st.write(f"Max spread timestamp (UTC): `{row_max['bucket_start_utc']}`")
+            deviation_table_df["bucket_start_utc"] = deviation_table_df["bucket_start_utc"].astype(str)
 
-            deviation_plot = price_deviation_window_df.copy()
-            deviation_plot["bucket_start_utc"] = pd.to_datetime(
-                deviation_plot["bucket_start_utc"],
-                utc=True,
-                errors="coerce",
+            numeric_deviation_columns = [
+                "bucket_epoch_s",
+                "exchange_count",
+                "max_price",
+                "min_price",
+                "price_diff_abs",
+                "price_diff_pct",
+            ]
+            for numeric_column in numeric_deviation_columns:
+                deviation_table_df[numeric_column] = pd.to_numeric(
+                    deviation_table_df[numeric_column], errors="coerce"
+                )
+            deviation_table_df = deviation_table_df.dropna(subset=numeric_deviation_columns)
+            deviation_table_df["bucket_epoch_s"] = deviation_table_df["bucket_epoch_s"].astype(int)
+            deviation_table_df["exchange_count"] = deviation_table_df["exchange_count"].astype(int)
+
+            all_pair_values = sorted(deviation_table_df["max_diff_exchange_pair"].unique().tolist())
+            deviation_filter_keys = {
+                "pair_values": f"deviation_filter_pair_values_{selected_run_id}_{selected_symbol}",
+                "pair_text": f"deviation_filter_pair_text_{selected_run_id}_{selected_symbol}",
+                "bucket_start_text": f"deviation_filter_bucket_start_text_{selected_run_id}_{selected_symbol}",
+                "bucket_epoch_expr": f"deviation_filter_bucket_epoch_expr_{selected_run_id}_{selected_symbol}",
+                "exchange_count_expr": f"deviation_filter_exchange_count_expr_{selected_run_id}_{selected_symbol}",
+                "max_price_expr": f"deviation_filter_max_price_expr_{selected_run_id}_{selected_symbol}",
+                "min_price_expr": f"deviation_filter_min_price_expr_{selected_run_id}_{selected_symbol}",
+                "price_diff_abs_expr": f"deviation_filter_price_diff_abs_expr_{selected_run_id}_{selected_symbol}",
+                "price_diff_pct_expr": f"deviation_filter_price_diff_pct_expr_{selected_run_id}_{selected_symbol}",
+            }
+
+            if st.button(
+                "Reset Deviation Filters",
+                key=f"deviation_filter_reset_{selected_run_id}_{selected_symbol}",
+            ):
+                for state_key in deviation_filter_keys.values():
+                    st.session_state.pop(state_key, None)
+                st.rerun()
+
+            st.caption(
+                "Column-style filters (Excel-like): graphs and table use the same filtered rows."
             )
-            deviation_plot = deviation_plot.dropna(subset=["bucket_start_utc"])
-            deviation_abs_figure = px.line(
-                deviation_plot,
-                x="bucket_start_utc",
-                y="price_diff_abs",
-                template=plotly_template,
+            dev_filter_col_1, dev_filter_col_2, dev_filter_col_3 = st.columns(3)
+            with dev_filter_col_1:
+                selected_pair_values = st.multiselect(
+                    "max_diff_exchange_pair values",
+                    options=all_pair_values,
+                    default=all_pair_values,
+                    key=deviation_filter_keys["pair_values"],
+                )
+                pair_filter_text = st.text_input(
+                    "max_diff_exchange_pair contains (comma OR)",
+                    value="",
+                    key=deviation_filter_keys["pair_text"],
+                )
+            with dev_filter_col_2:
+                bucket_start_filter_text = st.text_input(
+                    "bucket_start_utc contains (comma OR)",
+                    value="",
+                    key=deviation_filter_keys["bucket_start_text"],
+                )
+                bucket_epoch_expr = st.text_input(
+                    "bucket_epoch_s criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. 1700000000-1700003600,>=1700010000,<1700020000",
+                    key=deviation_filter_keys["bucket_epoch_expr"],
+                )
+            with dev_filter_col_3:
+                exchange_count_expr = st.text_input(
+                    "exchange_count criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. 2,>=3,2-5",
+                    key=deviation_filter_keys["exchange_count_expr"],
+                )
+
+            dev_num_col_1, dev_num_col_2, dev_num_col_3, dev_num_col_4 = st.columns(4)
+            with dev_num_col_1:
+                max_price_expr = st.text_input(
+                    "max_price criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. >=42000,42000-43000",
+                    key=deviation_filter_keys["max_price_expr"],
+                )
+            with dev_num_col_2:
+                min_price_expr = st.text_input(
+                    "min_price criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. >=41000,41000-42500",
+                    key=deviation_filter_keys["min_price_expr"],
+                )
+            with dev_num_col_3:
+                price_diff_abs_expr = st.text_input(
+                    "price_diff_abs criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. >=50,10-200",
+                    key=deviation_filter_keys["price_diff_abs_expr"],
+                )
+            with dev_num_col_4:
+                price_diff_pct_expr = st.text_input(
+                    "price_diff_pct criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. >=0.1,0.05-1.0",
+                    key=deviation_filter_keys["price_diff_pct_expr"],
+                )
+
+            filtered_deviation_df = deviation_table_df.copy()
+            if selected_pair_values:
+                filtered_deviation_df = filtered_deviation_df[
+                    filtered_deviation_df["max_diff_exchange_pair"].isin(selected_pair_values)
+                ]
+            else:
+                filtered_deviation_df = filtered_deviation_df.iloc[0:0]
+
+            pair_terms = _parse_contains_terms(pair_filter_text)
+            filtered_deviation_df = _apply_contains_filter(
+                filtered_deviation_df,
+                "max_diff_exchange_pair",
+                pair_terms,
             )
-            deviation_abs_figure.update_layout(
-                height=320,
-                margin={"l": 20, "r": 20, "t": 20, "b": 10},
-                xaxis_title="UTC Timestamp",
-                yaxis_title="Price Diff (Abs)",
+
+            bucket_start_terms = _parse_contains_terms(bucket_start_filter_text)
+            filtered_deviation_df = _apply_contains_filter(
+                filtered_deviation_df,
+                "bucket_start_utc",
+                bucket_start_terms,
             )
-            st.plotly_chart(
-                deviation_abs_figure,
-                width="stretch",
-                config=PLOTLY_CHART_CONFIG,
-                key=f"deviation_abs_{selected_run_id}_{selected_symbol}",
-            )
-            deviation_pct_figure = px.line(
-                deviation_plot,
-                x="bucket_start_utc",
-                y="price_diff_pct",
-                template=plotly_template,
-            )
-            deviation_pct_figure.update_layout(
-                height=320,
-                margin={"l": 20, "r": 20, "t": 20, "b": 10},
-                xaxis_title="UTC Timestamp",
-                yaxis_title="Price Diff (%)",
-            )
-            st.plotly_chart(
-                deviation_pct_figure,
-                width="stretch",
-                config=PLOTLY_CHART_CONFIG,
-                key=f"deviation_pct_{selected_run_id}_{selected_symbol}",
-            )
-            st.dataframe(price_deviation_window_df, width="stretch", hide_index=True)
+
+            column_criteria_map = [
+                ("bucket_epoch_s", bucket_epoch_expr),
+                ("exchange_count", exchange_count_expr),
+                ("max_price", max_price_expr),
+                ("min_price", min_price_expr),
+                ("price_diff_abs", price_diff_abs_expr),
+                ("price_diff_pct", price_diff_pct_expr),
+            ]
+            for column_name, expression in column_criteria_map:
+                criteria, invalid_tokens = _parse_numeric_criteria(expression)
+                if invalid_tokens:
+                    st.warning(
+                        f"Invalid {column_name} criteria ignored: " + ", ".join(invalid_tokens)
+                    )
+                filtered_deviation_df = _apply_numeric_criteria_filter(
+                    filtered_deviation_df,
+                    column_name,
+                    criteria,
+                )
+
+            if filtered_deviation_df.empty:
+                st.warning("No rows match the active deviation filters.")
+                st.dataframe(filtered_deviation_df, width="stretch", hide_index=True)
+            else:
+                row_max = filtered_deviation_df.sort_values(
+                    by=["price_diff_abs", "bucket_epoch_s"],
+                    ascending=[False, True],
+                ).iloc[0]
+                dev_col_1, dev_col_2, dev_col_3, dev_col_4 = st.columns(4)
+                dev_col_1.metric(
+                    "Max Diff (%)",
+                    _format_float(filtered_deviation_df["price_diff_pct"].max(), decimals=4),
+                )
+                dev_col_2.metric(
+                    "Max Diff (Abs)",
+                    _format_float(filtered_deviation_df["price_diff_abs"].max(), decimals=8),
+                )
+                dev_col_3.metric(
+                    "Avg Diff (%)",
+                    _format_float(filtered_deviation_df["price_diff_pct"].mean(), decimals=4),
+                )
+                dev_col_4.metric("Compared Points", int(len(filtered_deviation_df)))
+                st.write(f"Max spread exchange pair: `{row_max['max_diff_exchange_pair']}`")
+                st.write(f"Max spread timestamp (UTC): `{row_max['bucket_start_utc']}`")
+
+                deviation_plot = filtered_deviation_df.copy()
+                deviation_plot["bucket_start_utc"] = pd.to_datetime(
+                    deviation_plot["bucket_start_utc"],
+                    utc=True,
+                    errors="coerce",
+                )
+                deviation_plot = deviation_plot.dropna(subset=["bucket_start_utc"])
+                deviation_abs_figure = px.line(
+                    deviation_plot,
+                    x="bucket_start_utc",
+                    y="price_diff_abs",
+                    template=plotly_template,
+                )
+                deviation_abs_figure.update_layout(
+                    height=320,
+                    margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                    xaxis_title="UTC Timestamp",
+                    yaxis_title="Price Diff (Abs)",
+                )
+                st.plotly_chart(
+                    deviation_abs_figure,
+                    width="stretch",
+                    config=PLOTLY_CHART_CONFIG,
+                    key=f"deviation_abs_{selected_run_id}_{selected_symbol}",
+                )
+                deviation_pct_figure = px.line(
+                    deviation_plot,
+                    x="bucket_start_utc",
+                    y="price_diff_pct",
+                    template=plotly_template,
+                )
+                deviation_pct_figure.update_layout(
+                    height=320,
+                    margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                    xaxis_title="UTC Timestamp",
+                    yaxis_title="Price Diff (%)",
+                )
+                st.plotly_chart(
+                    deviation_pct_figure,
+                    width="stretch",
+                    config=PLOTLY_CHART_CONFIG,
+                    key=f"deviation_pct_{selected_run_id}_{selected_symbol}",
+                )
+                st.dataframe(filtered_deviation_df, width="stretch", hide_index=True)
 
     with tab_quality:
         st.write("Daily platform quality snapshot (all exchanges).")
