@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
 
 
@@ -1318,41 +1320,45 @@ def main() -> None:
                     errors="coerce",
                 )
                 deviation_plot = deviation_plot.dropna(subset=["bucket_start_utc"])
-                deviation_abs_figure = px.line(
-                    deviation_plot,
-                    x="bucket_start_utc",
-                    y="price_diff_abs",
-                    template=plotly_template,
+                deviation_dual_figure = make_subplots(specs=[[{"secondary_y": True}]])
+                deviation_dual_figure.add_trace(
+                    go.Scatter(
+                        x=deviation_plot["bucket_start_utc"],
+                        y=deviation_plot["price_diff_abs"],
+                        mode="lines",
+                        name="Price Diff (Abs)",
+                    ),
+                    secondary_y=False,
                 )
-                deviation_abs_figure.update_layout(
-                    height=320,
+                deviation_dual_figure.add_trace(
+                    go.Scatter(
+                        x=deviation_plot["bucket_start_utc"],
+                        y=deviation_plot["price_diff_pct"],
+                        mode="lines",
+                        name="Price Diff (%)",
+                    ),
+                    secondary_y=True,
+                )
+                deviation_dual_figure.update_layout(
+                    template=plotly_template,
+                    height=360,
                     margin={"l": 20, "r": 20, "t": 20, "b": 10},
                     xaxis_title="UTC Timestamp",
-                    yaxis_title="Price Diff (Abs)",
+                    legend_title="Metric",
+                )
+                deviation_dual_figure.update_yaxes(
+                    title_text="Price Diff (Abs)",
+                    secondary_y=False,
+                )
+                deviation_dual_figure.update_yaxes(
+                    title_text="Price Diff (%)",
+                    secondary_y=True,
                 )
                 st.plotly_chart(
-                    deviation_abs_figure,
+                    deviation_dual_figure,
                     width="stretch",
                     config=PLOTLY_CHART_CONFIG,
-                    key=f"deviation_abs_{selected_run_id}_{selected_symbol}",
-                )
-                deviation_pct_figure = px.line(
-                    deviation_plot,
-                    x="bucket_start_utc",
-                    y="price_diff_pct",
-                    template=plotly_template,
-                )
-                deviation_pct_figure.update_layout(
-                    height=320,
-                    margin={"l": 20, "r": 20, "t": 20, "b": 10},
-                    xaxis_title="UTC Timestamp",
-                    yaxis_title="Price Diff (%)",
-                )
-                st.plotly_chart(
-                    deviation_pct_figure,
-                    width="stretch",
-                    config=PLOTLY_CHART_CONFIG,
-                    key=f"deviation_pct_{selected_run_id}_{selected_symbol}",
+                    key=f"deviation_dual_{selected_run_id}_{selected_symbol}",
                 )
                 st.dataframe(filtered_deviation_df, width="stretch", hide_index=True)
 
@@ -1383,59 +1389,219 @@ def main() -> None:
                     "update_frequency_hz",
                     "disconnect_count",
                 ]
+            ].copy()
+            quality_display["exchange_id"] = quality_display["exchange_id"].astype(str)
+            numeric_quality_columns = [
+                "default_quality_score",
+                "default_quality_rank",
+                "symbols_covered",
+                "avg_latency_ms",
+                "min_latency_ms",
+                "max_latency_ms",
+                "update_frequency_hz",
+                "disconnect_count",
             ]
-            quality_by_disconnect = quality_display.sort_values(
-                by=["disconnect_count", "exchange_id"],
-                ascending=[False, True],
+            for numeric_column in numeric_quality_columns:
+                quality_display[numeric_column] = pd.to_numeric(
+                    quality_display[numeric_column], errors="coerce"
+                )
+            quality_display = quality_display.dropna(subset=numeric_quality_columns)
+            quality_display["default_quality_rank"] = quality_display["default_quality_rank"].astype(int)
+            quality_display["symbols_covered"] = quality_display["symbols_covered"].astype(int)
+            quality_display["disconnect_count"] = quality_display["disconnect_count"].astype(int)
+
+            all_quality_exchange_values = sorted(quality_display["exchange_id"].unique().tolist())
+            quality_filter_keys = {
+                "exchange_values": f"quality_filter_exchange_values_{selected_run_id}_{selected_symbol}",
+                "exchange_text": f"quality_filter_exchange_text_{selected_run_id}_{selected_symbol}",
+                "score_expr": f"quality_filter_score_expr_{selected_run_id}_{selected_symbol}",
+                "rank_expr": f"quality_filter_rank_expr_{selected_run_id}_{selected_symbol}",
+                "symbols_expr": f"quality_filter_symbols_expr_{selected_run_id}_{selected_symbol}",
+                "avg_latency_expr": f"quality_filter_avg_latency_expr_{selected_run_id}_{selected_symbol}",
+                "min_latency_expr": f"quality_filter_min_latency_expr_{selected_run_id}_{selected_symbol}",
+                "max_latency_expr": f"quality_filter_max_latency_expr_{selected_run_id}_{selected_symbol}",
+                "update_hz_expr": f"quality_filter_update_hz_expr_{selected_run_id}_{selected_symbol}",
+                "disconnect_expr": f"quality_filter_disconnect_expr_{selected_run_id}_{selected_symbol}",
+            }
+
+            if st.button(
+                "Reset Quality Filters",
+                key=f"quality_filter_reset_{selected_run_id}_{selected_symbol}",
+            ):
+                for state_key in quality_filter_keys.values():
+                    st.session_state.pop(state_key, None)
+                st.rerun()
+
+            st.caption(
+                "Column-style filters (Excel-like): charts and table use the same filtered rows."
             )
-            st.dataframe(quality_display, width="stretch", hide_index=True)
-            st.write("Disconnects by exchange (sorted descending).")
-            disconnect_figure = px.bar(
-                quality_by_disconnect,
-                x="exchange_id",
-                y="disconnect_count",
-                template=plotly_template,
+            quality_filter_col_1, quality_filter_col_2, quality_filter_col_3 = st.columns(3)
+            with quality_filter_col_1:
+                selected_quality_exchange_values = st.multiselect(
+                    "exchange_id values",
+                    options=all_quality_exchange_values,
+                    default=all_quality_exchange_values,
+                    key=quality_filter_keys["exchange_values"],
+                )
+                quality_exchange_filter_text = st.text_input(
+                    "exchange_id contains (comma OR)",
+                    value="",
+                    key=quality_filter_keys["exchange_text"],
+                )
+            with quality_filter_col_2:
+                quality_rank_expr = st.text_input(
+                    "default_quality_rank criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. 1,<=3,2-5",
+                    key=quality_filter_keys["rank_expr"],
+                )
+                quality_score_expr = st.text_input(
+                    "default_quality_score criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. >=70,60-90",
+                    key=quality_filter_keys["score_expr"],
+                )
+            with quality_filter_col_3:
+                symbols_covered_expr = st.text_input(
+                    "symbols_covered criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. >=10,5-25",
+                    key=quality_filter_keys["symbols_expr"],
+                )
+                disconnect_count_expr = st.text_input(
+                    "disconnect_count criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. 0,>=1,0-3",
+                    key=quality_filter_keys["disconnect_expr"],
+                )
+
+            quality_filter_num_col_1, quality_filter_num_col_2, quality_filter_num_col_3, quality_filter_num_col_4 = st.columns(4)
+            with quality_filter_num_col_1:
+                avg_latency_expr = st.text_input(
+                    "avg_latency_ms criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. <5000,1000-8000",
+                    key=quality_filter_keys["avg_latency_expr"],
+                )
+            with quality_filter_num_col_2:
+                min_latency_expr = st.text_input(
+                    "min_latency_ms criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. <1000,100-2000",
+                    key=quality_filter_keys["min_latency_expr"],
+                )
+            with quality_filter_num_col_3:
+                max_latency_expr = st.text_input(
+                    "max_latency_ms criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. <60000,5000-120000",
+                    key=quality_filter_keys["max_latency_expr"],
+                )
+            with quality_filter_num_col_4:
+                update_frequency_expr = st.text_input(
+                    "update_frequency_hz criteria (comma OR)",
+                    value="",
+                    placeholder="e.g. >0.1,0.05-1.0",
+                    key=quality_filter_keys["update_hz_expr"],
+                )
+
+            filtered_quality_df = quality_display.copy()
+            if selected_quality_exchange_values:
+                filtered_quality_df = filtered_quality_df[
+                    filtered_quality_df["exchange_id"].isin(selected_quality_exchange_values)
+                ]
+            else:
+                filtered_quality_df = filtered_quality_df.iloc[0:0]
+
+            quality_exchange_terms = _parse_contains_terms(quality_exchange_filter_text)
+            filtered_quality_df = _apply_contains_filter(
+                filtered_quality_df,
+                "exchange_id",
+                quality_exchange_terms,
             )
-            disconnect_figure.update_layout(
-                height=320,
-                margin={"l": 20, "r": 20, "t": 20, "b": 10},
-                xaxis_title="Exchange",
-                yaxis_title="Disconnect Count",
-                showlegend=False,
-            )
-            st.plotly_chart(
-                disconnect_figure,
-                width="stretch",
-                config=PLOTLY_CHART_CONFIG,
-                key="quality_disconnect_bar",
-            )
-            latency_long_df = quality_display.melt(
-                id_vars=["exchange_id"],
-                value_vars=["min_latency_ms", "max_latency_ms"],
-                var_name="latency_type",
-                value_name="latency_ms",
-            )
-            latency_figure = px.bar(
-                latency_long_df,
-                x="exchange_id",
-                y="latency_ms",
-                color="latency_type",
-                barmode="group",
-                template=plotly_template,
-            )
-            latency_figure.update_layout(
-                height=320,
-                margin={"l": 20, "r": 20, "t": 20, "b": 10},
-                xaxis_title="Exchange",
-                yaxis_title="Latency (ms)",
-                legend_title="Latency Metric",
-            )
-            st.plotly_chart(
-                latency_figure,
-                width="stretch",
-                config=PLOTLY_CHART_CONFIG,
-                key="quality_latency_bar",
-            )
+
+            quality_criteria_map = [
+                ("default_quality_rank", quality_rank_expr),
+                ("default_quality_score", quality_score_expr),
+                ("symbols_covered", symbols_covered_expr),
+                ("disconnect_count", disconnect_count_expr),
+                ("avg_latency_ms", avg_latency_expr),
+                ("min_latency_ms", min_latency_expr),
+                ("max_latency_ms", max_latency_expr),
+                ("update_frequency_hz", update_frequency_expr),
+            ]
+            for column_name, expression in quality_criteria_map:
+                criteria, invalid_tokens = _parse_numeric_criteria(expression)
+                if invalid_tokens:
+                    st.warning(
+                        f"Invalid {column_name} criteria ignored: " + ", ".join(invalid_tokens)
+                    )
+                filtered_quality_df = _apply_numeric_criteria_filter(
+                    filtered_quality_df,
+                    column_name,
+                    criteria,
+                )
+
+            if filtered_quality_df.empty:
+                st.warning("No rows match the active platform quality filters.")
+                st.dataframe(filtered_quality_df, width="stretch", hide_index=True)
+            else:
+                quality_by_disconnect = filtered_quality_df.sort_values(
+                    by=["disconnect_count", "exchange_id"],
+                    ascending=[False, True],
+                )
+                st.caption(
+                    f"Visible exchanges after filters: {int(filtered_quality_df['exchange_id'].nunique())} | "
+                    f"Filtered rows: {len(filtered_quality_df)}"
+                )
+                st.dataframe(filtered_quality_df, width="stretch", hide_index=True)
+                st.write("Disconnects by exchange (sorted descending).")
+                disconnect_figure = px.bar(
+                    quality_by_disconnect,
+                    x="exchange_id",
+                    y="disconnect_count",
+                    template=plotly_template,
+                )
+                disconnect_figure.update_layout(
+                    height=320,
+                    margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                    xaxis_title="Exchange",
+                    yaxis_title="Disconnect Count",
+                    showlegend=False,
+                )
+                st.plotly_chart(
+                    disconnect_figure,
+                    width="stretch",
+                    config=PLOTLY_CHART_CONFIG,
+                    key="quality_disconnect_bar",
+                )
+                latency_long_df = filtered_quality_df.melt(
+                    id_vars=["exchange_id"],
+                    value_vars=["min_latency_ms", "max_latency_ms"],
+                    var_name="latency_type",
+                    value_name="latency_ms",
+                )
+                latency_figure = px.bar(
+                    latency_long_df,
+                    x="exchange_id",
+                    y="latency_ms",
+                    color="latency_type",
+                    barmode="group",
+                    template=plotly_template,
+                )
+                latency_figure.update_layout(
+                    height=320,
+                    margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                    xaxis_title="Exchange",
+                    yaxis_title="Latency (ms)",
+                    legend_title="Latency Metric",
+                )
+                st.plotly_chart(
+                    latency_figure,
+                    width="stretch",
+                    config=PLOTLY_CHART_CONFIG,
+                    key="quality_latency_bar",
+                )
 
 
 if __name__ == "__main__":
