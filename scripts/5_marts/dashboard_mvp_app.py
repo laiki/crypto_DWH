@@ -873,39 +873,121 @@ def main() -> None:
         if price_curve_df.empty:
             st.warning("No curve points available in selected run/window for this symbol.")
         else:
-            exchange_point_counts = (
-                price_curve_df.groupby("exchange_id", as_index=False)
-                .size()
-                .rename(columns={"size": "point_count"})
-                .sort_values(by=["point_count", "exchange_id"], ascending=[False, True])
+            curve_table_df = price_curve_df[
+                [
+                    "run_id",
+                    "exchange_id",
+                    "symbol",
+                    "bucket_start_utc",
+                    "bucket_epoch_s",
+                    "price_close",
+                    "fill_method",
+                ]
+            ].copy()
+            curve_table_df["exchange_id"] = curve_table_df["exchange_id"].astype(str)
+            curve_table_df["fill_method"] = curve_table_df["fill_method"].fillna("n/a").astype(str)
+            curve_table_df["bucket_epoch_s"] = pd.to_numeric(
+                curve_table_df["bucket_epoch_s"], errors="coerce"
             )
-            available_exchanges = exchange_point_counts["exchange_id"].astype(str).tolist()
-            selected_curve_exchanges = st.multiselect(
-                "Visible Exchanges",
-                options=available_exchanges,
-                default=available_exchanges,
+            curve_table_df["price_close"] = pd.to_numeric(
+                curve_table_df["price_close"], errors="coerce"
             )
-            if not selected_curve_exchanges:
-                st.warning("Select at least one exchange to render the curve.")
-                st.dataframe(exchange_point_counts, width="stretch", hide_index=True)
+            curve_table_df = curve_table_df.dropna(subset=["bucket_epoch_s", "price_close"])
+            curve_table_df["bucket_epoch_s"] = curve_table_df["bucket_epoch_s"].astype(int)
+
+            all_exchange_values = sorted(curve_table_df["exchange_id"].unique().tolist())
+            all_fill_method_values = sorted(curve_table_df["fill_method"].unique().tolist())
+            epoch_min = int(curve_table_df["bucket_epoch_s"].min())
+            epoch_max = int(curve_table_df["bucket_epoch_s"].max())
+            price_min = float(curve_table_df["price_close"].min())
+            price_max = float(curve_table_df["price_close"].max())
+
+            st.caption(
+                "Column-style filters (Excel-like): graph and table use the same filtered rows."
+            )
+            filter_col_1, filter_col_2, filter_col_3, filter_col_4 = st.columns(4)
+            with filter_col_1:
+                selected_exchange_values = st.multiselect(
+                    "exchange_id",
+                    options=all_exchange_values,
+                    default=all_exchange_values,
+                    key=f"curve_filter_exchange_{selected_run_id}_{selected_symbol}",
+                )
+            with filter_col_2:
+                selected_fill_method_values = st.multiselect(
+                    "fill_method",
+                    options=all_fill_method_values,
+                    default=all_fill_method_values,
+                    key=f"curve_filter_fill_{selected_run_id}_{selected_symbol}",
+                )
+            with filter_col_3:
+                selected_epoch_range = st.slider(
+                    "bucket_epoch_s",
+                    min_value=epoch_min,
+                    max_value=epoch_max,
+                    value=(epoch_min, epoch_max),
+                    key=f"curve_filter_epoch_{selected_run_id}_{selected_symbol}",
+                )
+            with filter_col_4:
+                if price_min == price_max:
+                    selected_price_range = (price_min, price_max)
+                    st.number_input(
+                        "price_close",
+                        value=price_min,
+                        step=0.0,
+                        disabled=True,
+                        key=f"curve_filter_price_const_{selected_run_id}_{selected_symbol}",
+                    )
+                else:
+                    price_step = max((price_max - price_min) / 500.0, 1e-9)
+                    selected_price_range = st.slider(
+                        "price_close",
+                        min_value=price_min,
+                        max_value=price_max,
+                        value=(price_min, price_max),
+                        step=price_step,
+                        key=f"curve_filter_price_{selected_run_id}_{selected_symbol}",
+                    )
+
+            filtered_curve_df = curve_table_df.copy()
+            if selected_exchange_values:
+                filtered_curve_df = filtered_curve_df[
+                    filtered_curve_df["exchange_id"].isin(selected_exchange_values)
+                ]
             else:
-                filtered_curve_df = price_curve_df[
-                    price_curve_df["exchange_id"].astype(str).isin(selected_curve_exchanges)
-                ].copy()
-                price_curve_plot = price_curve_df.copy()
+                filtered_curve_df = filtered_curve_df.iloc[0:0]
+            if selected_fill_method_values:
+                filtered_curve_df = filtered_curve_df[
+                    filtered_curve_df["fill_method"].isin(selected_fill_method_values)
+                ]
+            else:
+                filtered_curve_df = filtered_curve_df.iloc[0:0]
+            filtered_curve_df = filtered_curve_df[
+                filtered_curve_df["bucket_epoch_s"].between(
+                    int(selected_epoch_range[0]), int(selected_epoch_range[1])
+                )
+            ]
+            filtered_curve_df = filtered_curve_df[
+                filtered_curve_df["price_close"].between(
+                    float(selected_price_range[0]), float(selected_price_range[1])
+                )
+            ]
+
+            if filtered_curve_df.empty:
+                st.warning("No rows match the active column filters.")
+            else:
+                price_curve_plot = filtered_curve_df.copy()
                 price_curve_plot["bucket_start_utc"] = pd.to_datetime(
                     price_curve_plot["bucket_start_utc"],
                     utc=True,
                     errors="coerce",
                 )
                 price_curve_plot = price_curve_plot.dropna(subset=["bucket_start_utc"])
-                price_curve_plot = price_curve_plot[
-                    price_curve_plot["exchange_id"].astype(str).isin(selected_curve_exchanges)
-                ]
                 price_curve_plot["exchange_id"] = price_curve_plot["exchange_id"].astype(str)
+                visible_exchange_count = int(price_curve_plot["exchange_id"].nunique())
                 st.caption(
-                    f"Visible exchanges: {len(selected_curve_exchanges)} / {len(available_exchanges)} "
-                    f"(for symbol `{selected_symbol}` in selected window)."
+                    f"Visible exchanges after filters: {visible_exchange_count} | "
+                    f"Filtered rows: {len(filtered_curve_df)}"
                 )
                 curve_figure = px.line(
                     price_curve_plot,
@@ -928,21 +1010,25 @@ def main() -> None:
                     key=f"curve_{selected_run_id}_{selected_symbol}",
                 )
                 st.dataframe(
-                    filtered_curve_df[
-                        [
-                            "run_id",
-                            "exchange_id",
-                            "symbol",
-                            "bucket_start_utc",
-                            "bucket_epoch_s",
-                            "price_close",
-                            "fill_method",
-                        ]
-                    ],
+                    filtered_curve_df,
                     width="stretch",
                     hide_index=True,
                 )
-                with st.expander("Exchange Coverage in Window"):
+                with st.expander("Exchange Coverage (Filtered)"):
+                    filtered_exchange_point_counts = (
+                        filtered_curve_df.groupby("exchange_id", as_index=False)
+                        .size()
+                        .rename(columns={"size": "point_count"})
+                        .sort_values(by=["point_count", "exchange_id"], ascending=[False, True])
+                    )
+                    st.dataframe(filtered_exchange_point_counts, width="stretch", hide_index=True)
+                with st.expander("Exchange Coverage (Unfiltered Window)"):
+                    exchange_point_counts = (
+                        curve_table_df.groupby("exchange_id", as_index=False)
+                        .size()
+                        .rename(columns={"size": "point_count"})
+                        .sort_values(by=["point_count", "exchange_id"], ascending=[False, True])
+                    )
                     st.dataframe(exchange_point_counts, width="stretch", hide_index=True)
 
     with tab_deviation:
