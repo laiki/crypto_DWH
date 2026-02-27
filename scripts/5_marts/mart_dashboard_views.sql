@@ -17,6 +17,7 @@ DROP VIEW IF EXISTS vw_mart_dashboard_platform_quality_hourly;
 DROP VIEW IF EXISTS vw_mart_dashboard_price_deviation_daily;
 DROP VIEW IF EXISTS vw_mart_dashboard_price_deviation_hourly;
 DROP VIEW IF EXISTS vw_mart_dashboard_symbol_deviation_bucket;
+DROP VIEW IF EXISTS vw_mart_dashboard_symbol_observed_quality_base;
 DROP VIEW IF EXISTS vw_mart_latest_cleansing_run;
 DROP VIEW IF EXISTS vw_mart_dashboard_price_curve_24h_binance;
 
@@ -430,6 +431,27 @@ INNER JOIN min_exchange AS mn
    AND mn.symbol = b.symbol
    AND mn.bucket_epoch_s = b.bucket_epoch_s
 WHERE b.price_diff_pct IS NOT NULL;
+
+CREATE VIEW vw_mart_dashboard_symbol_observed_quality_base AS
+SELECT
+    cm.run_id,
+    cm.symbol,
+    cm.exchange_id,
+    cm.bucket_start_utc,
+    cm.bucket_epoch_s,
+    CASE
+        WHEN cm.fill_method = 'observed' THEN 1
+        ELSE 0
+    END AS observed_flag
+FROM cleansed_market AS cm
+WHERE cm.run_id IS NOT NULL
+  AND cm.symbol IS NOT NULL
+  AND cm.exchange_id IS NOT NULL
+  AND cm.bucket_start_utc IS NOT NULL
+  AND cm.bucket_epoch_s IS NOT NULL
+  AND cm.price IS NOT NULL
+  AND cm.is_missing = 0
+  AND cm.is_stale = 0;
 
 CREATE VIEW vw_mart_latest_cleansing_run AS
 SELECT

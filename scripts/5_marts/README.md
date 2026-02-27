@@ -25,6 +25,7 @@
 - `vw_mart_dashboard_price_deviation_daily`
 - `vw_mart_dashboard_price_deviation_hourly`
 - `vw_mart_dashboard_symbol_deviation_bucket`
+- `vw_mart_dashboard_symbol_observed_quality_base`
 - `vw_mart_latest_cleansing_run`
 - `vw_mart_dashboard_price_curve_24h_binance`
 
@@ -62,6 +63,7 @@ In the sidebar, provide the Core SQLite DB path (default: `data/core/core_kpi.db
 Runtime behavior:
 - symbol start page can render violin distributions of `price_diff_pct` per symbol (selected run/window)
 - price curve and price deviation are computed for a selected `run_id` and selectable UTC window
+- observed coverage KPI is computed from `vw_mart_dashboard_symbol_observed_quality_base` and grouped into quality bands (`0-50%`, `50-75%`, `75-90%`, `90-100%`)
 - no fixed 24h or daily-only restriction for these two panels
 - platform quality uses cache table when available, otherwise falls back to mart view
 - symbol deviation panels use cache table when available, otherwise fall back to mart view or raw query

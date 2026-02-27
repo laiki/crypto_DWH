@@ -25,6 +25,7 @@ import streamlit as st
 DEFAULT_DB_PATH = Path("data/core/core_kpi.db")
 THEME_OPTIONS = ("Dark", "Light")
 PAGINATION_SIGNATURE_STATE_KEY = "violin_page_signature_v1"
+OBSERVED_QUALITY_BANDS = ("0-50%", "50-75%", "75-90%", "90-100%")
 
 DARK_THEME_CSS = """
 <style>
@@ -204,6 +205,107 @@ WHERE run_id = :run_id
   AND is_stale = 0
   AND symbol IS NOT NULL
 ORDER BY symbol ASC;
+"""
+
+SQL_SYMBOL_OBSERVED_QUALITY_WINDOW_VIEW = """
+WITH base AS (
+    SELECT
+        oq.symbol,
+        oq.exchange_id,
+        COUNT(*) AS total_points,
+        SUM(oq.observed_flag) AS observed_points
+    FROM vw_mart_dashboard_symbol_observed_quality_base AS oq
+    WHERE oq.run_id = :run_id
+      AND oq.bucket_start_utc >= :window_start_utc
+      AND oq.bucket_start_utc <= :window_end_utc
+    GROUP BY oq.symbol, oq.exchange_id
+),
+with_max AS (
+    SELECT
+        b.*,
+        MAX(b.observed_points) OVER (PARTITION BY b.symbol) AS max_observed_points_for_symbol
+    FROM base AS b
+)
+SELECT
+    symbol,
+    exchange_id,
+    total_points,
+    observed_points,
+    max_observed_points_for_symbol,
+    CASE
+        WHEN max_observed_points_for_symbol > 0
+            THEN ROUND((100.0 * observed_points) / max_observed_points_for_symbol, 4)
+        ELSE 0.0
+    END AS observed_vs_max_pct,
+    CASE
+        WHEN max_observed_points_for_symbol <= 0 THEN '0-50%'
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 50.0 THEN '0-50%'
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 75.0 THEN '50-75%'
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 90.0 THEN '75-90%'
+        ELSE '90-100%'
+    END AS observed_quality_band,
+    CASE
+        WHEN max_observed_points_for_symbol <= 0 THEN 1
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 50.0 THEN 1
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 75.0 THEN 2
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 90.0 THEN 3
+        ELSE 4
+    END AS observed_quality_band_order
+FROM with_max
+ORDER BY symbol ASC, observed_vs_max_pct DESC, exchange_id ASC;
+"""
+
+SQL_SYMBOL_OBSERVED_QUALITY_WINDOW_RAW = """
+WITH base AS (
+    SELECT
+        cm.symbol,
+        cm.exchange_id,
+        COUNT(*) AS total_points,
+        SUM(CASE WHEN cm.fill_method = 'observed' THEN 1 ELSE 0 END) AS observed_points
+    FROM cleansed_market AS cm
+    WHERE cm.run_id = :run_id
+      AND cm.bucket_start_utc >= :window_start_utc
+      AND cm.bucket_start_utc <= :window_end_utc
+      AND cm.symbol IS NOT NULL
+      AND cm.exchange_id IS NOT NULL
+      AND cm.price IS NOT NULL
+      AND cm.is_missing = 0
+      AND cm.is_stale = 0
+    GROUP BY cm.symbol, cm.exchange_id
+),
+with_max AS (
+    SELECT
+        b.*,
+        MAX(b.observed_points) OVER (PARTITION BY b.symbol) AS max_observed_points_for_symbol
+    FROM base AS b
+)
+SELECT
+    symbol,
+    exchange_id,
+    total_points,
+    observed_points,
+    max_observed_points_for_symbol,
+    CASE
+        WHEN max_observed_points_for_symbol > 0
+            THEN ROUND((100.0 * observed_points) / max_observed_points_for_symbol, 4)
+        ELSE 0.0
+    END AS observed_vs_max_pct,
+    CASE
+        WHEN max_observed_points_for_symbol <= 0 THEN '0-50%'
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 50.0 THEN '0-50%'
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 75.0 THEN '50-75%'
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 90.0 THEN '75-90%'
+        ELSE '90-100%'
+    END AS observed_quality_band,
+    CASE
+        WHEN max_observed_points_for_symbol <= 0 THEN 1
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 50.0 THEN 1
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 75.0 THEN 2
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 90.0 THEN 3
+        ELSE 4
+    END AS observed_quality_band_order
+FROM with_max
+ORDER BY symbol ASC, observed_vs_max_pct DESC, exchange_id ASC;
 """
 
 SQL_PRICE_CURVE_WINDOW = """
@@ -555,6 +657,84 @@ def _apply_numeric_criteria_filter(
     return df[mask]
 
 
+def _build_deviation_from_curve(price_curve_df: pd.DataFrame) -> pd.DataFrame:
+    output_columns = [
+        "bucket_start_utc",
+        "bucket_epoch_s",
+        "exchange_count",
+        "max_price",
+        "min_price",
+        "price_diff_abs",
+        "price_diff_pct",
+        "max_diff_exchange_pair",
+    ]
+    if price_curve_df.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    working = price_curve_df.copy()
+    for column_name in ["bucket_epoch_s", "price_close"]:
+        working[column_name] = pd.to_numeric(working[column_name], errors="coerce")
+    working["exchange_id"] = working["exchange_id"].astype(str)
+    working = working.dropna(subset=["bucket_start_utc", "bucket_epoch_s", "price_close", "exchange_id"])
+    if working.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    working["bucket_epoch_s"] = working["bucket_epoch_s"].astype(int)
+    group_columns = ["bucket_start_utc", "bucket_epoch_s"]
+    agg_df = (
+        working.groupby(group_columns, as_index=False)
+        .agg(
+            exchange_count=("exchange_id", "nunique"),
+            max_price=("price_close", "max"),
+            min_price=("price_close", "min"),
+        )
+    )
+    agg_df = agg_df[agg_df["exchange_count"] >= 2].copy()
+    if agg_df.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    agg_df["price_diff_abs"] = agg_df["max_price"] - agg_df["min_price"]
+    agg_df["price_diff_pct"] = (agg_df["price_diff_abs"] / agg_df["min_price"]) * 100.0
+    agg_df.loc[agg_df["min_price"] <= 0.0, "price_diff_pct"] = pd.NA
+
+    max_exchange_df = (
+        working.sort_values(
+            by=["bucket_start_utc", "bucket_epoch_s", "price_close", "exchange_id"],
+            ascending=[True, True, False, True],
+        )
+        .drop_duplicates(subset=group_columns, keep="first")
+        .loc[:, group_columns + ["exchange_id"]]
+        .rename(columns={"exchange_id": "max_price_exchange_id"})
+    )
+    min_exchange_df = (
+        working.sort_values(
+            by=["bucket_start_utc", "bucket_epoch_s", "price_close", "exchange_id"],
+            ascending=[True, True, True, True],
+        )
+        .drop_duplicates(subset=group_columns, keep="first")
+        .loc[:, group_columns + ["exchange_id"]]
+        .rename(columns={"exchange_id": "min_price_exchange_id"})
+    )
+    merged_df = agg_df.merge(max_exchange_df, on=group_columns, how="left").merge(
+        min_exchange_df,
+        on=group_columns,
+        how="left",
+    )
+    merged_df["max_diff_exchange_pair"] = (
+        merged_df["max_price_exchange_id"].astype(str)
+        + "|"
+        + merged_df["min_price_exchange_id"].astype(str)
+    )
+    merged_df["max_price"] = merged_df["max_price"].round(12)
+    merged_df["min_price"] = merged_df["min_price"].round(12)
+    merged_df["price_diff_abs"] = merged_df["price_diff_abs"].round(12)
+    merged_df["price_diff_pct"] = merged_df["price_diff_pct"].round(9)
+    merged_df = merged_df[merged_df["price_diff_pct"].notna()].copy()
+    return merged_df[output_columns].sort_values(by=["bucket_epoch_s"], ascending=[True]).reset_index(
+        drop=True
+    )
+
+
 def _apply_theme(theme_mode: str) -> str:
     if theme_mode == "Dark":
         st.markdown(DARK_THEME_CSS, unsafe_allow_html=True)
@@ -592,6 +772,7 @@ def main() -> None:
     has_quality_view = "vw_mart_dashboard_platform_quality_daily" in existing_objects
     has_symbol_deviation_cache = "dash_cache_symbol_deviation_bucket" in existing_objects
     has_symbol_deviation_view = "vw_mart_dashboard_symbol_deviation_bucket" in existing_objects
+    has_symbol_observed_quality_view = "vw_mart_dashboard_symbol_observed_quality_base" in existing_objects
     has_cleansed_market = "cleansed_market" in existing_objects
 
     if not has_cleansed_market:
@@ -612,6 +793,11 @@ def main() -> None:
             st.warning("Symbol deviation source: mart view fallback (no cache table)")
         else:
             st.warning("Symbol deviation source: raw fallback from cleansed_market")
+
+        if has_symbol_observed_quality_view:
+            st.success("Observed quality source: mart view")
+        else:
+            st.warning("Observed quality source: raw fallback from cleansed_market")
 
     if "dash_cache_refresh_metadata" in existing_objects:
         cache_meta_df = _query_dataframe(db_path, SQL_CACHE_METADATA)
@@ -683,6 +869,51 @@ def main() -> None:
     window_start_utc = _naive_utc_datetime_to_iso(window_start_dt)
     window_end_utc = _naive_utc_datetime_to_iso(window_end_dt)
 
+    observed_quality_query = (
+        SQL_SYMBOL_OBSERVED_QUALITY_WINDOW_VIEW
+        if has_symbol_observed_quality_view
+        else SQL_SYMBOL_OBSERVED_QUALITY_WINDOW_RAW
+    )
+    symbol_observed_quality_df = _query_dataframe(
+        db_path,
+        observed_quality_query,
+        params={
+            "run_id": selected_run_id,
+            "window_start_utc": window_start_utc,
+            "window_end_utc": window_end_utc,
+        },
+    )
+    if not symbol_observed_quality_df.empty:
+        symbol_observed_quality_df["symbol"] = symbol_observed_quality_df["symbol"].astype(str)
+        symbol_observed_quality_df["exchange_id"] = symbol_observed_quality_df["exchange_id"].astype(str)
+        symbol_observed_quality_df["observed_quality_band"] = (
+            symbol_observed_quality_df["observed_quality_band"].astype(str)
+        )
+        symbol_observed_quality_df["observed_vs_max_pct"] = pd.to_numeric(
+            symbol_observed_quality_df["observed_vs_max_pct"], errors="coerce"
+        )
+        symbol_observed_quality_df["observed_quality_band_order"] = pd.to_numeric(
+            symbol_observed_quality_df["observed_quality_band_order"], errors="coerce"
+        )
+
+    with st.sidebar:
+        selected_observed_quality_bands = st.multiselect(
+            "Observed Coverage Quality Bands",
+            options=list(OBSERVED_QUALITY_BANDS),
+            default=list(OBSERVED_QUALITY_BANDS),
+            help=(
+                "Per symbol, compare observed points of each exchange against "
+                "the maximum observed points across exchanges in the selected window."
+            ),
+        )
+
+    if symbol_observed_quality_df.empty:
+        filtered_symbol_observed_quality_df = symbol_observed_quality_df.copy()
+    else:
+        filtered_symbol_observed_quality_df = symbol_observed_quality_df[
+            symbol_observed_quality_df["observed_quality_band"].isin(selected_observed_quality_bands)
+        ].copy()
+
     run_symbols_df = _query_dataframe(
         db_path,
         SQL_SYMBOLS_BY_RUN,
@@ -703,8 +934,16 @@ def main() -> None:
         symbols_df = run_symbols_df
 
     symbols = symbols_df["symbol"].astype(str).tolist()
+    if not symbol_observed_quality_df.empty:
+        observed_symbol_set = set(
+            filtered_symbol_observed_quality_df["symbol"].astype(str).unique().tolist()
+        )
+        symbols = [symbol_value for symbol_value in symbols if symbol_value in observed_symbol_set]
+
     if not symbols:
-        st.warning("No symbols found for selected run/window.")
+        st.warning(
+            "No symbols found for selected run/window and observed quality category filter."
+        )
         st.stop()
 
     symbol_from_query = _get_symbol_query_param()
@@ -714,6 +953,35 @@ def main() -> None:
 
     if selected_symbol != symbol_from_query:
         _set_symbol_query_param(selected_symbol)
+
+    selected_symbol_observed_quality_df = pd.DataFrame()
+    observed_quality_allowed_exchanges: set[str] = set()
+    if not filtered_symbol_observed_quality_df.empty:
+        selected_symbol_observed_quality_df = filtered_symbol_observed_quality_df[
+            filtered_symbol_observed_quality_df["symbol"] == selected_symbol
+        ].copy()
+        if not selected_symbol_observed_quality_df.empty:
+            selected_symbol_observed_quality_df = selected_symbol_observed_quality_df.sort_values(
+                by=["observed_vs_max_pct", "exchange_id"],
+                ascending=[False, True],
+            ).reset_index(drop=True)
+            observed_quality_allowed_exchanges = set(
+                selected_symbol_observed_quality_df["exchange_id"].astype(str).tolist()
+            )
+
+    with st.sidebar:
+        if not symbol_observed_quality_df.empty:
+            st.caption(
+                "Observed quality rows (active bands): "
+                f"{len(filtered_symbol_observed_quality_df)}"
+            )
+            st.caption(
+                "Observed quality symbols (active bands): "
+                f"{int(filtered_symbol_observed_quality_df['symbol'].nunique())}"
+            )
+            st.caption(
+                f"Selected symbol exchanges (active bands): {len(observed_quality_allowed_exchanges)}"
+            )
 
     if has_platform_quality_cache:
         platform_quality_df = _query_dataframe(db_path, SQL_PLATFORM_QUALITY_DAILY_CACHE)
@@ -729,24 +997,14 @@ def main() -> None:
         "window_end_utc": window_end_utc,
     }
     price_curve_df = _query_dataframe(db_path, SQL_PRICE_CURVE_WINDOW, params=query_params)
-    if has_symbol_deviation_cache:
-        price_deviation_window_df = _query_dataframe(
-            db_path,
-            SQL_PRICE_DEVIATION_WINDOW_CACHE,
-            params=query_params,
-        )
-    elif has_symbol_deviation_view:
-        price_deviation_window_df = _query_dataframe(
-            db_path,
-            SQL_PRICE_DEVIATION_WINDOW_VIEW,
-            params=query_params,
-        )
-    else:
-        price_deviation_window_df = _query_dataframe(
-            db_path,
-            SQL_PRICE_DEVIATION_WINDOW_RAW,
-            params=query_params,
-        )
+    if observed_quality_allowed_exchanges:
+        price_curve_df = price_curve_df[
+            price_curve_df["exchange_id"].astype(str).isin(observed_quality_allowed_exchanges)
+        ].copy()
+    elif not symbol_observed_quality_df.empty:
+        price_curve_df = price_curve_df.iloc[0:0].copy()
+
+    price_deviation_window_df = _build_deviation_from_curve(price_curve_df)
 
     symbol_violin_params = {
         "run_id": selected_run_id,
@@ -771,6 +1029,13 @@ def main() -> None:
             SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_RAW,
             params=symbol_violin_params,
         )
+    if not symbol_observed_quality_df.empty:
+        observed_symbol_set = set(
+            filtered_symbol_observed_quality_df["symbol"].astype(str).unique().tolist()
+        )
+        symbol_violin_df = symbol_violin_df[
+            symbol_violin_df["symbol"].astype(str).isin(observed_symbol_set)
+        ].copy()
 
     st.subheader("Symbol Start Page: Price Deviation Violin Grid")
     st.caption(
@@ -924,7 +1189,8 @@ def main() -> None:
     metric_col_5.metric("Aligned Diff Points", deviation_points)
     st.caption(
         f"Window UTC: {window_start_utc} -> {window_end_utc} | "
-        f"Curve points: {curve_points} | Platform KPI date: {latest_kpi_date}"
+        f"Curve points: {curve_points} | Platform KPI date: {latest_kpi_date} | "
+        f"Observed bands: {', '.join(selected_observed_quality_bands) if selected_observed_quality_bands else 'none'}"
     )
 
     tab_curve, tab_deviation, tab_quality = st.tabs(
@@ -1371,6 +1637,80 @@ def main() -> None:
             "disconnect count 8%, symbols covered 2%. "
             "default_quality_rank = 1 means best score."
         )
+        st.write(
+            "Observed coverage quality (selected symbol): observed points per exchange "
+            "vs maximum observed points of that symbol in the selected run/window."
+        )
+        if symbol_observed_quality_df.empty:
+            st.warning("No observed quality rows available for selected run/window.")
+        elif selected_symbol_observed_quality_df.empty:
+            st.warning(
+                "No exchange of selected symbol matches the active observed quality categories."
+            )
+        else:
+            observed_quality_display_df = selected_symbol_observed_quality_df[
+                [
+                    "symbol",
+                    "exchange_id",
+                    "total_points",
+                    "observed_points",
+                    "max_observed_points_for_symbol",
+                    "observed_vs_max_pct",
+                    "observed_quality_band",
+                ]
+            ].copy()
+            for numeric_column in [
+                "total_points",
+                "observed_points",
+                "max_observed_points_for_symbol",
+                "observed_vs_max_pct",
+            ]:
+                observed_quality_display_df[numeric_column] = pd.to_numeric(
+                    observed_quality_display_df[numeric_column], errors="coerce"
+                )
+
+            oq_col_1, oq_col_2, oq_col_3, oq_col_4 = st.columns(4)
+            oq_col_1.metric("Exchanges (Symbol)", int(len(observed_quality_display_df)))
+            oq_col_2.metric(
+                "Max Observed vs Max (%)",
+                _format_float(observed_quality_display_df["observed_vs_max_pct"].max(), decimals=2),
+            )
+            oq_col_3.metric(
+                "Median Observed vs Max (%)",
+                _format_float(observed_quality_display_df["observed_vs_max_pct"].median(), decimals=2),
+            )
+            oq_col_4.metric(
+                "Min Observed vs Max (%)",
+                _format_float(observed_quality_display_df["observed_vs_max_pct"].min(), decimals=2),
+            )
+
+            observed_quality_bar_df = observed_quality_display_df.sort_values(
+                by=["observed_vs_max_pct", "exchange_id"], ascending=[False, True]
+            )
+            observed_quality_figure = px.bar(
+                observed_quality_bar_df,
+                x="exchange_id",
+                y="observed_vs_max_pct",
+                color="observed_quality_band",
+                category_orders={"observed_quality_band": list(OBSERVED_QUALITY_BANDS)},
+                template=plotly_template,
+            )
+            observed_quality_figure.update_layout(
+                height=320,
+                margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                xaxis_title="Exchange",
+                yaxis_title="Observed vs Symbol Max (%)",
+                legend_title="Observed Quality Band",
+            )
+            observed_quality_figure.update_yaxes(range=[0, 100])
+            st.plotly_chart(
+                observed_quality_figure,
+                width="stretch",
+                config=PLOTLY_CHART_CONFIG,
+                key=f"quality_observed_band_{selected_run_id}_{selected_symbol}",
+            )
+            st.dataframe(observed_quality_display_df, width="stretch", hide_index=True)
+
         if platform_quality_df.empty:
             st.warning(
                 "No platform quality data available. "

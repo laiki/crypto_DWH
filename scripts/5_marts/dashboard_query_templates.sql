@@ -205,3 +205,43 @@ WHERE run_id = :run_id
   AND bucket_start_utc >= :window_start_utc
   AND bucket_start_utc <= :window_end_utc
 ORDER BY bucket_epoch_s ASC;
+
+-- Panel I: Symbol observed coverage quality bands (run/window).
+WITH base AS (
+    SELECT
+        oq.symbol,
+        oq.exchange_id,
+        COUNT(*) AS total_points,
+        SUM(oq.observed_flag) AS observed_points
+    FROM vw_mart_dashboard_symbol_observed_quality_base AS oq
+    WHERE oq.run_id = :run_id
+      AND oq.bucket_start_utc >= :window_start_utc
+      AND oq.bucket_start_utc <= :window_end_utc
+    GROUP BY oq.symbol, oq.exchange_id
+),
+with_max AS (
+    SELECT
+        b.*,
+        MAX(b.observed_points) OVER (PARTITION BY b.symbol) AS max_observed_points_for_symbol
+    FROM base AS b
+)
+SELECT
+    symbol,
+    exchange_id,
+    total_points,
+    observed_points,
+    max_observed_points_for_symbol,
+    CASE
+        WHEN max_observed_points_for_symbol > 0
+            THEN ROUND((100.0 * observed_points) / max_observed_points_for_symbol, 4)
+        ELSE 0.0
+    END AS observed_vs_max_pct,
+    CASE
+        WHEN max_observed_points_for_symbol <= 0 THEN '0-50%'
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 50.0 THEN '0-50%'
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 75.0 THEN '50-75%'
+        WHEN (100.0 * observed_points) / max_observed_points_for_symbol < 90.0 THEN '75-90%'
+        ELSE '90-100%'
+    END AS observed_quality_band
+FROM with_max
+ORDER BY symbol ASC, observed_vs_max_pct DESC, exchange_id ASC;

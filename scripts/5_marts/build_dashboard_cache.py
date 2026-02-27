@@ -20,6 +20,7 @@ REQUIRED_VIEWS = (
     "vw_mart_dashboard_price_deviation_daily",
     "vw_mart_dashboard_price_curve_24h_binance",
     "vw_mart_dashboard_symbol_deviation_bucket",
+    "vw_mart_dashboard_symbol_observed_quality_base",
 )
 
 CACHE_TABLES = (
