@@ -19,12 +19,14 @@ REQUIRED_VIEWS = (
     "vw_mart_dashboard_platform_quality_daily",
     "vw_mart_dashboard_price_deviation_daily",
     "vw_mart_dashboard_price_curve_24h_binance",
+    "vw_mart_dashboard_symbol_deviation_bucket",
 )
 
 CACHE_TABLES = (
     "dash_cache_platform_quality_daily_latest",
     "dash_cache_price_deviation_daily_latest",
     "dash_cache_price_curve_24h_binance_latest",
+    "dash_cache_symbol_deviation_bucket",
     "dash_cache_symbols",
     "dash_cache_refresh_metadata",
 )
@@ -158,12 +160,34 @@ def create_cache_tables(connection: sqlite3.Connection) -> None:
 
     connection.execute(
         """
+        CREATE TABLE dash_cache_symbol_deviation_bucket AS
+        SELECT
+            run_id,
+            symbol,
+            bucket_start_utc,
+            bucket_epoch_s,
+            exchange_count,
+            max_price_close,
+            min_price_close,
+            price_diff_abs,
+            price_diff_pct,
+            max_price_exchange_id,
+            min_price_exchange_id,
+            max_diff_exchange_pair
+        FROM vw_mart_dashboard_symbol_deviation_bucket;
+        """
+    )
+
+    connection.execute(
+        """
         CREATE TABLE dash_cache_symbols AS
         SELECT symbol
         FROM (
             SELECT symbol FROM dash_cache_price_curve_24h_binance_latest
             UNION
             SELECT symbol FROM dash_cache_price_deviation_daily_latest
+            UNION
+            SELECT symbol FROM dash_cache_symbol_deviation_bucket
         )
         WHERE symbol IS NOT NULL
         ORDER BY symbol ASC;
@@ -179,6 +203,7 @@ def create_cache_tables(connection: sqlite3.Connection) -> None:
             platform_rows INTEGER NOT NULL,
             deviation_rows INTEGER NOT NULL,
             curve_rows INTEGER NOT NULL,
+            symbol_deviation_bucket_rows INTEGER NOT NULL,
             symbol_rows INTEGER NOT NULL
         );
         """
@@ -212,6 +237,18 @@ def create_indexes(connection: sqlite3.Connection) -> None:
     )
     connection.execute(
         """
+        CREATE INDEX IF NOT EXISTS idx_dash_cache_symbol_deviation_run_symbol_bucket
+        ON dash_cache_symbol_deviation_bucket(run_id, symbol, bucket_start_utc);
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_dash_cache_symbol_deviation_symbol_bucket
+        ON dash_cache_symbol_deviation_bucket(symbol, bucket_start_utc);
+        """
+    )
+    connection.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_dash_cache_symbols_symbol
         ON dash_cache_symbols(symbol);
         """
@@ -241,6 +278,11 @@ def write_metadata(connection: sqlite3.Connection) -> dict[str, int | str | None
             "SELECT COUNT(*) FROM dash_cache_price_curve_24h_binance_latest;"
         ).fetchone()[0]
     )
+    symbol_deviation_bucket_rows = int(
+        connection.execute(
+            "SELECT COUNT(*) FROM dash_cache_symbol_deviation_bucket;"
+        ).fetchone()[0]
+    )
     symbol_rows = int(
         connection.execute("SELECT COUNT(*) FROM dash_cache_symbols;").fetchone()[0]
     )
@@ -255,8 +297,9 @@ def write_metadata(connection: sqlite3.Connection) -> dict[str, int | str | None
             platform_rows,
             deviation_rows,
             curve_rows,
+            symbol_deviation_bucket_rows,
             symbol_rows
-        ) VALUES (?, ?, ?, ?, ?, ?, ?);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """,
         (
             refresh_ts_utc,
@@ -265,6 +308,7 @@ def write_metadata(connection: sqlite3.Connection) -> dict[str, int | str | None
             platform_rows,
             deviation_rows,
             curve_rows,
+            symbol_deviation_bucket_rows,
             symbol_rows,
         ),
     )
@@ -276,6 +320,7 @@ def write_metadata(connection: sqlite3.Connection) -> dict[str, int | str | None
         "platform_rows": platform_rows,
         "deviation_rows": deviation_rows,
         "curve_rows": curve_rows,
+        "symbol_deviation_bucket_rows": symbol_deviation_bucket_rows,
         "symbol_rows": symbol_rows,
     }
 
@@ -333,6 +378,7 @@ def main() -> None:
     print(f"Platform rows: {summary['platform_rows']}")
     print(f"Deviation rows: {summary['deviation_rows']}")
     print(f"Curve rows: {summary['curve_rows']}")
+    print(f"Symbol deviation bucket rows: {summary['symbol_deviation_bucket_rows']}")
     print(f"Symbol rows: {summary['symbol_rows']}")
 
 

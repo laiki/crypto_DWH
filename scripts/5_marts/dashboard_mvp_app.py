@@ -124,7 +124,7 @@ WHERE run_id = :run_id
 ORDER BY bucket_epoch_s ASC, exchange_id ASC;
 """
 
-SQL_PRICE_DEVIATION_WINDOW = """
+SQL_PRICE_DEVIATION_WINDOW_RAW = """
 WITH filtered AS (
     SELECT
         cm.bucket_start_utc,
@@ -203,7 +203,43 @@ INNER JOIN min_exchange AS mn
 ORDER BY b.bucket_epoch_s ASC;
 """
 
-SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW = """
+SQL_PRICE_DEVIATION_WINDOW_CACHE = """
+SELECT
+    bucket_start_utc,
+    bucket_epoch_s,
+    exchange_count,
+    max_price_close AS max_price,
+    min_price_close AS min_price,
+    price_diff_abs,
+    price_diff_pct,
+    max_diff_exchange_pair
+FROM dash_cache_symbol_deviation_bucket
+WHERE run_id = :run_id
+  AND symbol = :symbol
+  AND bucket_start_utc >= :window_start_utc
+  AND bucket_start_utc <= :window_end_utc
+ORDER BY bucket_epoch_s ASC;
+"""
+
+SQL_PRICE_DEVIATION_WINDOW_VIEW = """
+SELECT
+    bucket_start_utc,
+    bucket_epoch_s,
+    exchange_count,
+    max_price_close AS max_price,
+    min_price_close AS min_price,
+    price_diff_abs,
+    price_diff_pct,
+    max_diff_exchange_pair
+FROM vw_mart_dashboard_symbol_deviation_bucket
+WHERE run_id = :run_id
+  AND symbol = :symbol
+  AND bucket_start_utc >= :window_start_utc
+  AND bucket_start_utc <= :window_end_utc
+ORDER BY bucket_epoch_s ASC;
+"""
+
+SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_RAW = """
 WITH filtered AS (
     SELECT
         cm.bucket_start_utc,
@@ -241,6 +277,34 @@ SELECT
     ROUND(price_diff_pct, 9) AS price_diff_pct
 FROM bucket_agg
 WHERE price_diff_pct IS NOT NULL
+ORDER BY symbol ASC, bucket_epoch_s ASC;
+"""
+
+SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_CACHE = """
+SELECT
+    symbol,
+    bucket_start_utc,
+    bucket_epoch_s,
+    exchange_count,
+    price_diff_pct
+FROM dash_cache_symbol_deviation_bucket
+WHERE run_id = :run_id
+  AND bucket_start_utc >= :window_start_utc
+  AND bucket_start_utc <= :window_end_utc
+ORDER BY symbol ASC, bucket_epoch_s ASC;
+"""
+
+SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_VIEW = """
+SELECT
+    symbol,
+    bucket_start_utc,
+    bucket_epoch_s,
+    exchange_count,
+    price_diff_pct
+FROM vw_mart_dashboard_symbol_deviation_bucket
+WHERE run_id = :run_id
+  AND bucket_start_utc >= :window_start_utc
+  AND bucket_start_utc <= :window_end_utc
 ORDER BY symbol ASC, bucket_epoch_s ASC;
 """
 
@@ -348,6 +412,8 @@ def main() -> None:
     existing_objects = _get_existing_objects(db_path)
     has_platform_quality_cache = "dash_cache_platform_quality_daily_latest" in existing_objects
     has_quality_view = "vw_mart_dashboard_platform_quality_daily" in existing_objects
+    has_symbol_deviation_cache = "dash_cache_symbol_deviation_bucket" in existing_objects
+    has_symbol_deviation_view = "vw_mart_dashboard_symbol_deviation_bucket" in existing_objects
     has_cleansed_market = "cleansed_market" in existing_objects
 
     if not has_cleansed_market:
@@ -361,6 +427,13 @@ def main() -> None:
             st.warning("Platform quality source: mart view fallback (no cache table)")
         else:
             st.warning("Platform quality source unavailable (missing mart view and cache table)")
+
+        if has_symbol_deviation_cache:
+            st.success("Symbol deviation source: cache table")
+        elif has_symbol_deviation_view:
+            st.warning("Symbol deviation source: mart view fallback (no cache table)")
+        else:
+            st.warning("Symbol deviation source: raw fallback from cleansed_market")
 
     if "dash_cache_refresh_metadata" in existing_objects:
         cache_meta_df = _query_dataframe(db_path, SQL_CACHE_METADATA)
@@ -475,16 +548,48 @@ def main() -> None:
         "window_end_utc": window_end_utc,
     }
     price_curve_df = _query_dataframe(db_path, SQL_PRICE_CURVE_WINDOW, params=query_params)
-    price_deviation_window_df = _query_dataframe(db_path, SQL_PRICE_DEVIATION_WINDOW, params=query_params)
-    symbol_violin_df = _query_dataframe(
-        db_path,
-        SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW,
-        params={
-            "run_id": selected_run_id,
-            "window_start_utc": window_start_utc,
-            "window_end_utc": window_end_utc,
-        },
-    )
+    if has_symbol_deviation_cache:
+        price_deviation_window_df = _query_dataframe(
+            db_path,
+            SQL_PRICE_DEVIATION_WINDOW_CACHE,
+            params=query_params,
+        )
+    elif has_symbol_deviation_view:
+        price_deviation_window_df = _query_dataframe(
+            db_path,
+            SQL_PRICE_DEVIATION_WINDOW_VIEW,
+            params=query_params,
+        )
+    else:
+        price_deviation_window_df = _query_dataframe(
+            db_path,
+            SQL_PRICE_DEVIATION_WINDOW_RAW,
+            params=query_params,
+        )
+
+    symbol_violin_params = {
+        "run_id": selected_run_id,
+        "window_start_utc": window_start_utc,
+        "window_end_utc": window_end_utc,
+    }
+    if has_symbol_deviation_cache:
+        symbol_violin_df = _query_dataframe(
+            db_path,
+            SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_CACHE,
+            params=symbol_violin_params,
+        )
+    elif has_symbol_deviation_view:
+        symbol_violin_df = _query_dataframe(
+            db_path,
+            SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_VIEW,
+            params=symbol_violin_params,
+        )
+    else:
+        symbol_violin_df = _query_dataframe(
+            db_path,
+            SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_RAW,
+            params=symbol_violin_params,
+        )
 
     st.subheader("Symbol Start Page: Price Deviation Violin Grid")
     st.caption(

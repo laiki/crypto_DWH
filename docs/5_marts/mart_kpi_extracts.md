@@ -61,6 +61,26 @@ Goal:
   - `price_diff_pct`
   - `max_diff_exchange_pair`
 
+### Panel 3b: Symbol Start Page (Violin Grid)
+- goal:
+  - show one violin distribution per symbol for bucket-level `%` close-price deviation
+  - allow quick jump into symbol detail page
+- source priority:
+  - cache table: `dash_cache_symbol_deviation_bucket`
+  - fallback view: `vw_mart_dashboard_symbol_deviation_bucket`
+  - fallback query: raw aggregation on `cleansed_market`
+- required filters:
+  - `run_id = :run_id`
+  - `bucket_start_utc BETWEEN :window_start_utc AND :window_end_utc`
+- key columns:
+  - `run_id`
+  - `symbol`
+  - `bucket_start_utc`
+  - `bucket_epoch_s`
+  - `exchange_count`
+  - `price_diff_pct`
+  - `max_diff_exchange_pair`
+
 ### Panel 4: Platform Quality (Daily)
 - source priority:
   - cache table: `dash_cache_platform_quality_daily_latest`
@@ -110,7 +130,7 @@ Normalization strategy:
 2. Apply mart views:
    - `.read scripts/5_marts/mart_dashboard_views.sql`
 3. Use templates in:
-   - `scripts/5_marts/dashboard_query_templates.sql`
+  - `scripts/5_marts/dashboard_query_templates.sql`
 4. Start dashboard:
    - `streamlit run scripts/5_marts/dashboard_mvp_app.py`
 
@@ -118,3 +138,4 @@ Normalization strategy:
 - exact extract columns are defined in SQL templates and mart views
 - run/window filters remove fixed 24h/day constraints for price curve and spread analysis
 - dashboard can visualize 1h staging exports directly when loaded into `cleansed_market`
+- symbol start page supports distribution-based symbol triage via violin plots

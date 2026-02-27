@@ -23,6 +23,7 @@
 - `vw_mart_dashboard_platform_quality_hourly`
 - `vw_mart_dashboard_price_deviation_daily`
 - `vw_mart_dashboard_price_deviation_hourly`
+- `vw_mart_dashboard_symbol_deviation_bucket`
 - `vw_mart_latest_cleansing_run`
 - `vw_mart_dashboard_price_curve_24h_binance`
 
@@ -58,9 +59,11 @@ streamlit run scripts/5_marts/dashboard_mvp_app.py
 In the sidebar, provide the Core SQLite DB path (default: `data/core/core_kpi.db`).
 
 Runtime behavior:
+- symbol start page can render violin distributions of `price_diff_pct` per symbol (selected run/window)
 - price curve and price deviation are computed for a selected `run_id` and selectable UTC window
 - no fixed 24h or daily-only restriction for these two panels
 - platform quality uses cache table when available, otherwise falls back to mart view
+- symbol deviation panels use cache table when available, otherwise fall back to mart view or raw query
 
 ## Build Precomputed Dashboard Cache (Recommended)
 Cache is recommended for fast platform quality panel loading:
@@ -88,6 +91,7 @@ Created cache tables:
 - `dash_cache_platform_quality_daily_latest`
 - `dash_cache_price_deviation_daily_latest`
 - `dash_cache_price_curve_24h_binance_latest`
+- `dash_cache_symbol_deviation_bucket`
 - `dash_cache_symbols`
 - `dash_cache_refresh_metadata`
 

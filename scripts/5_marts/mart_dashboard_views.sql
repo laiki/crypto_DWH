@@ -16,6 +16,7 @@ DROP VIEW IF EXISTS vw_mart_dashboard_platform_quality_daily;
 DROP VIEW IF EXISTS vw_mart_dashboard_platform_quality_hourly;
 DROP VIEW IF EXISTS vw_mart_dashboard_price_deviation_daily;
 DROP VIEW IF EXISTS vw_mart_dashboard_price_deviation_hourly;
+DROP VIEW IF EXISTS vw_mart_dashboard_symbol_deviation_bucket;
 DROP VIEW IF EXISTS vw_mart_latest_cleansing_run;
 DROP VIEW IF EXISTS vw_mart_dashboard_price_curve_24h_binance;
 
@@ -336,6 +337,99 @@ SELECT
             d.symbol ASC
     ) AS default_deviation_rank
 FROM vw_core_kpi_price_deviation_hourly AS d;
+
+CREATE VIEW vw_mart_dashboard_symbol_deviation_bucket AS
+WITH filtered AS (
+    SELECT
+        cm.run_id,
+        cm.bucket_start_utc,
+        cm.bucket_epoch_s,
+        cm.exchange_id,
+        cm.symbol,
+        cm.price
+    FROM cleansed_market AS cm
+    WHERE cm.run_id IS NOT NULL
+      AND cm.symbol IS NOT NULL
+      AND cm.price IS NOT NULL
+      AND cm.is_missing = 0
+      AND cm.is_stale = 0
+),
+ranked AS (
+    SELECT
+        f.run_id,
+        f.symbol,
+        f.bucket_epoch_s,
+        f.exchange_id,
+        f.price,
+        ROW_NUMBER() OVER (
+            PARTITION BY f.run_id, f.symbol, f.bucket_epoch_s
+            ORDER BY f.price DESC, f.exchange_id ASC
+        ) AS rn_max,
+        ROW_NUMBER() OVER (
+            PARTITION BY f.run_id, f.symbol, f.bucket_epoch_s
+            ORDER BY f.price ASC, f.exchange_id ASC
+        ) AS rn_min
+    FROM filtered AS f
+),
+bucket_agg AS (
+    SELECT
+        f.run_id,
+        f.bucket_start_utc,
+        f.bucket_epoch_s,
+        f.symbol,
+        COUNT(*) AS exchange_count,
+        MAX(f.price) AS max_price_close,
+        MIN(f.price) AS min_price_close,
+        MAX(f.price) - MIN(f.price) AS price_diff_abs,
+        CASE
+            WHEN MIN(f.price) > 0.0 THEN ((MAX(f.price) - MIN(f.price)) / MIN(f.price)) * 100.0
+            ELSE NULL
+        END AS price_diff_pct
+    FROM filtered AS f
+    GROUP BY f.run_id, f.bucket_start_utc, f.bucket_epoch_s, f.symbol
+    HAVING COUNT(*) >= 2
+),
+max_exchange AS (
+    SELECT
+        run_id,
+        symbol,
+        bucket_epoch_s,
+        exchange_id AS max_price_exchange_id
+    FROM ranked
+    WHERE rn_max = 1
+),
+min_exchange AS (
+    SELECT
+        run_id,
+        symbol,
+        bucket_epoch_s,
+        exchange_id AS min_price_exchange_id
+    FROM ranked
+    WHERE rn_min = 1
+)
+SELECT
+    b.run_id,
+    b.symbol,
+    b.bucket_start_utc,
+    b.bucket_epoch_s,
+    b.exchange_count,
+    ROUND(b.max_price_close, 12) AS max_price_close,
+    ROUND(b.min_price_close, 12) AS min_price_close,
+    ROUND(b.price_diff_abs, 12) AS price_diff_abs,
+    ROUND(b.price_diff_pct, 9) AS price_diff_pct,
+    mx.max_price_exchange_id,
+    mn.min_price_exchange_id,
+    mx.max_price_exchange_id || '|' || mn.min_price_exchange_id AS max_diff_exchange_pair
+FROM bucket_agg AS b
+INNER JOIN max_exchange AS mx
+    ON mx.run_id = b.run_id
+   AND mx.symbol = b.symbol
+   AND mx.bucket_epoch_s = b.bucket_epoch_s
+INNER JOIN min_exchange AS mn
+    ON mn.run_id = b.run_id
+   AND mn.symbol = b.symbol
+   AND mn.bucket_epoch_s = b.bucket_epoch_s
+WHERE b.price_diff_pct IS NOT NULL;
 
 CREATE VIEW vw_mart_latest_cleansing_run AS
 SELECT
