@@ -54,7 +54,7 @@ Nach dieser Session koennt ihr:
 
 # End-to-End Datenfluss (Uebersicht)
 
-![width:1120](../../diagrams/0_overview/uml_architecture.png)
+![width:1120](../../diagrams/0_overview/uml_architecture.svg)
 
 ---
 
@@ -95,7 +95,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/1_ingestion/uml_deployment_ingestion_multiprocess.png)
+![width:800](../../diagrams/1_ingestion/uml_deployment_ingestion_multiprocess.svg)
 
 
 ---
@@ -112,7 +112,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/2_staging/uml_deployment_staging_export.png)
+![width:800](../../diagrams/2_staging/uml_deployment_staging_export.svg)
 
 ---
 
@@ -128,7 +128,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/3_cleansing/uml_deployment_cleansing.png)
+![width:800](../../diagrams/3_cleansing/uml_deployment_cleansing.svg)
 
 ---
 
@@ -147,7 +147,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/4_core/uml_deployment_core_build_db.png)
+![width:800](../../diagrams/4_core/uml_deployment_core_build_db.svg)
 
 ---
 
@@ -163,7 +163,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/5_marts/uml_deployment_mart_dashboard_extracts.png)
+![width:800](../../diagrams/5_marts/uml_deployment_mart_dashboard_extracts.svg)
 
 ---
 
@@ -185,7 +185,7 @@ Nach dieser Session koennt ihr:
 Empfehlung:
 - fuer stabile Dashboard-KPI mit klaren Dimensionen.
 
-![width:930](../../diagrams/7_presentation/uml_star_schema_exchange_kpi.png)
+![width:930](../../diagrams/7_presentation/uml_star_schema_exchange_kpi.svg)
 
 ---
 
@@ -197,7 +197,7 @@ Empfehlung:
 Trade-off:
 - weniger Duplikate, aber komplexere Joins.
 
-![width:930](../../diagrams/7_presentation/uml_snowflake_schema_exchange_kpi.png)
+![width:930](../../diagrams/7_presentation/uml_snowflake_schema_exchange_kpi.svg)
 
 ---
 
@@ -207,7 +207,7 @@ Empfehlung:
 - wenn mehrere Analysebereiche parallel laufen.
 - hier: Plattformqualitaet und Preisabweichung als getrennte Facts.
 
-![width:930](../../diagrams/7_presentation/uml_galaxy_schema_exchange_kpi.png)
+![width:930](../../diagrams/7_presentation/uml_galaxy_schema_exchange_kpi.svg)
 
 ---
 

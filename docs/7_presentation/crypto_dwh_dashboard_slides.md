@@ -43,7 +43,7 @@ Masterarbeit Projektstand
 
 # Zielarchitektur (Uebersicht)
 
-![width:1100](../../diagrams/0_overview/uml_architecture.png)
+![width:1100](../../diagrams/0_overview/uml_architecture.svg)
 
 ---
 
@@ -118,7 +118,7 @@ Technik:
 
 # Dashboard Laufzeitfluss
 
-![width:1100](../../diagrams/5_marts/uml_sequence_dashboard_mvp_runtime.png)
+![width:1100](../../diagrams/5_marts/uml_sequence_dashboard_mvp_runtime.svg)
 
 ---
 
