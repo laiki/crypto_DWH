@@ -223,12 +223,13 @@ async def put_tick(
     ticker: dict[str, Any],
 ) -> None:
     exchange_ts_ms = ticker.get("timestamp")
+    selected_price = ticker.get("last") if ticker.get("last") is not None else ticker.get("close")
     payload = {
         "ingestion_ts_utc": utc_now_iso(),
         "exchange_id": exchange_id,
         "symbol": ticker.get("symbol", "UNKNOWN"),
         "market_type": ticker.get("type"),
-        "price": ticker.get("last") if ticker.get("last") is not None else ticker.get("close"),
+        "price": selected_price,
         "bid": ticker.get("bid"),
         "ask": ticker.get("ask"),
         "last": ticker.get("last"),
@@ -241,6 +242,14 @@ async def put_tick(
         "exchange_ts_utc": ms_to_utc_iso(exchange_ts_ms),
         "raw_json": json_dumps_safe(ticker),
     }
+    if LOGGER.isEnabledFor(logging.DEBUG):
+        LOGGER.debug(
+            "Tick received | ingestion_ts_utc=%s | exchange_id=%s | symbol=%s | price=%s",
+            payload["ingestion_ts_utc"],
+            payload["exchange_id"],
+            payload["symbol"],
+            payload["price"],
+        )
     await queue.put(("tick", payload))
 
 

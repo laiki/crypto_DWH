@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -22,7 +23,8 @@ from plotly.subplots import make_subplots
 import streamlit as st
 
 
-DEFAULT_DB_PATH = Path("data/core/core_kpi.db")
+DEFAULT_DB_PATH = Path(os.getenv("CORE_DB_PATH", "scripts/data/core_kpi.db"))
+DEFAULT_INGESTION_DB_PATH = Path(os.getenv("INGESTION_DB_PATH", "scripts/data/"))
 THEME_OPTIONS = ("Dark", "Light")
 PAGINATION_SIGNATURE_STATE_KEY = "violin_page_signature_v1"
 OBSERVED_QUALITY_BANDS = ("0-50%", "50-75%", "75-90%", "90-100%")
@@ -657,6 +659,123 @@ def _apply_numeric_criteria_filter(
     return df[mask]
 
 
+@st.cache_data(show_spinner=False, ttl=120)
+def _query_ingestion_raw_ticks_cached(
+    ingestion_db_path_str: str,
+    symbol: str,
+    window_start_utc: str,
+    window_end_utc: str,
+    exchanges_json: str,
+) -> pd.DataFrame:
+    exchanges = json.loads(exchanges_json) if exchanges_json else []
+    expected_columns = ["ingestion_ts_utc", "exchange_id", "symbol", "price", "source_db"]
+    if not exchanges:
+        return pd.DataFrame(columns=expected_columns)
+
+    ingestion_path = Path(ingestion_db_path_str).expanduser()
+    ingestion_db_files: list[Path] = []
+    if ingestion_path.is_file():
+        ingestion_db_files = [ingestion_path]
+    elif ingestion_path.is_dir():
+        ingestion_db_files = sorted(
+            db_file
+            for db_file in ingestion_path.glob("worker_*_crypto_ws_ticks.db")
+            if db_file.is_file()
+        )
+        if not ingestion_db_files:
+            ingestion_db_files = sorted(
+                db_file
+                for db_file in ingestion_path.glob("*crypto_ws_ticks.db")
+                if db_file.is_file()
+            )
+
+    if not ingestion_db_files:
+        return pd.DataFrame(columns=expected_columns)
+
+    placeholders = ",".join(["?"] * len(exchanges))
+    query = f"""
+    SELECT
+        ingestion_ts_utc,
+        exchange_id,
+        symbol,
+        price
+    FROM market_ticks
+    WHERE symbol = ?
+      AND exchange_id IN ({placeholders})
+      AND price IS NOT NULL
+      AND datetime(ingestion_ts_utc) >= datetime(?)
+      AND datetime(ingestion_ts_utc) <= datetime(?)
+    ORDER BY ingestion_ts_utc ASC;
+    """
+    params: list[object] = [symbol, *exchanges, window_start_utc, window_end_utc]
+    frame_list: list[pd.DataFrame] = []
+    for ingestion_db_file in ingestion_db_files:
+        try:
+            with sqlite3.connect(str(ingestion_db_file)) as connection:
+                connection.execute("PRAGMA query_only = ON;")
+                table_exists = connection.execute(
+                    """
+                    SELECT 1
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'market_ticks'
+                    LIMIT 1;
+                    """
+                ).fetchone()
+                if table_exists is None:
+                    continue
+                current_df = pd.read_sql_query(query, connection, params=params)
+                if current_df.empty:
+                    continue
+                current_df["source_db"] = str(ingestion_db_file)
+                frame_list.append(current_df)
+        except sqlite3.Error:
+            continue
+
+    if not frame_list:
+        return pd.DataFrame(columns=expected_columns)
+    return pd.concat(frame_list, ignore_index=True).sort_values(
+        by=["ingestion_ts_utc", "exchange_id"],
+        ascending=[True, True],
+    ).reset_index(drop=True)
+
+
+def _query_ingestion_raw_ticks(
+    ingestion_db_path: Path,
+    symbol: str,
+    window_start_utc: str,
+    window_end_utc: str,
+    exchanges: list[str],
+) -> pd.DataFrame:
+    normalized_exchanges = sorted({str(exchange_id) for exchange_id in exchanges if str(exchange_id)})
+    exchanges_json = json.dumps(normalized_exchanges, sort_keys=True)
+    return _query_ingestion_raw_ticks_cached(
+        str(ingestion_db_path),
+        symbol,
+        window_start_utc,
+        window_end_utc,
+        exchanges_json,
+    )
+
+
+def _discover_ingestion_db_files(ingestion_db_path: Path) -> list[Path]:
+    if ingestion_db_path.is_file():
+        return [ingestion_db_path]
+    if ingestion_db_path.is_dir():
+        worker_db_files = sorted(
+            db_file
+            for db_file in ingestion_db_path.glob("worker_*_crypto_ws_ticks.db")
+            if db_file.is_file()
+        )
+        if worker_db_files:
+            return worker_db_files
+        return sorted(
+            db_file
+            for db_file in ingestion_db_path.glob("*crypto_ws_ticks.db")
+            if db_file.is_file()
+        )
+    return []
+
+
 def _build_deviation_from_curve(price_curve_df: pd.DataFrame) -> pd.DataFrame:
     output_columns = [
         "bucket_start_utc",
@@ -757,12 +876,18 @@ def main() -> None:
             horizontal=True,
         )
         db_path_raw = st.text_input("Core SQLite DB path", str(DEFAULT_DB_PATH))
+        ingestion_db_path_raw = st.text_input(
+            "Ingestion SQLite path (raw file or directory)",
+            str(DEFAULT_INGESTION_DB_PATH),
+        )
         if st.button("Refresh Query Cache"):
             st.cache_data.clear()
             st.success("Query cache cleared.")
     plotly_template = _apply_theme(theme_mode)
 
     db_path = Path(db_path_raw).expanduser()
+    ingestion_db_path = Path(ingestion_db_path_raw).expanduser()
+    ingestion_db_files = _discover_ingestion_db_files(ingestion_db_path)
     if not db_path.exists():
         st.error(f"Database path does not exist: {db_path}")
         st.stop()
@@ -798,6 +923,14 @@ def main() -> None:
             st.success("Observed quality source: mart view")
         else:
             st.warning("Observed quality source: raw fallback from cleansed_market")
+
+        if ingestion_db_path.is_dir():
+            st.caption(f"Raw ingestion directory: {ingestion_db_path}")
+            st.caption(f"Worker raw DB files: {len(ingestion_db_files)}")
+        elif ingestion_db_path.is_file():
+            st.caption(f"Raw ingestion DB: {ingestion_db_path}")
+        else:
+            st.warning(f"Raw ingestion DB path not found: {ingestion_db_path}")
 
     if "dash_cache_refresh_metadata" in existing_objects:
         cache_meta_df = _query_dataframe(db_path, SQL_CACHE_METADATA)
@@ -1367,11 +1500,113 @@ def main() -> None:
                     f"Visible exchanges after filters: {visible_exchange_count} | "
                     f"Filtered rows: {len(filtered_curve_df)}"
                 )
+                raw_overlay_state_key = f"raw_overlay_enabled_{selected_run_id}_{selected_symbol}"
+                if raw_overlay_state_key not in st.session_state:
+                    st.session_state[raw_overlay_state_key] = False
+                raw_button_col_1, raw_button_col_2 = st.columns([1.4, 1.4], gap="small")
+                with raw_button_col_1:
+                    if st.button(
+                        "Load Raw Data (On Demand)",
+                        key=f"curve_raw_load_{selected_run_id}_{selected_symbol}",
+                    ):
+                        st.session_state[raw_overlay_state_key] = True
+                with raw_button_col_2:
+                    if st.button(
+                        "Hide Raw Data",
+                        key=f"curve_raw_hide_{selected_run_id}_{selected_symbol}",
+                    ):
+                        st.session_state[raw_overlay_state_key] = False
+
+                raw_overlay_enabled = bool(st.session_state.get(raw_overlay_state_key, False))
+                raw_overlay_df = pd.DataFrame()
+                raw_overlay_plot_df = pd.DataFrame()
+                raw_overlay_error_message: str | None = None
+
+                if raw_overlay_enabled:
+                    if not ingestion_db_path.exists():
+                        raw_overlay_error_message = (
+                            f"Raw ingestion DB path does not exist: {ingestion_db_path}"
+                        )
+                    elif ingestion_db_path.is_dir() and not ingestion_db_files:
+                        raw_overlay_error_message = (
+                            "No worker raw DB files found in ingestion directory "
+                            f"{ingestion_db_path} (expected pattern: worker_*_crypto_ws_ticks.db)."
+                        )
+                    else:
+                        raw_window_start_utc = price_curve_plot["bucket_start_utc"].min().isoformat()
+                        raw_window_end_utc = price_curve_plot["bucket_start_utc"].max().isoformat()
+                        raw_exchanges = (
+                            price_curve_plot["exchange_id"].astype(str).dropna().unique().tolist()
+                        )
+                        with st.spinner("Loading raw ingestion ticks..."):
+                            try:
+                                raw_overlay_df = _query_ingestion_raw_ticks(
+                                    ingestion_db_path=ingestion_db_path,
+                                    symbol=selected_symbol,
+                                    window_start_utc=raw_window_start_utc,
+                                    window_end_utc=raw_window_end_utc,
+                                    exchanges=raw_exchanges,
+                                )
+                            except Exception as exc:
+                                raw_overlay_error_message = str(exc)
+                        if raw_overlay_error_message is None and not raw_overlay_df.empty:
+                            raw_overlay_plot_df = raw_overlay_df.copy()
+                            raw_overlay_plot_df["bucket_start_utc"] = pd.to_datetime(
+                                raw_overlay_plot_df["ingestion_ts_utc"],
+                                utc=True,
+                                errors="coerce",
+                            )
+                            raw_overlay_plot_df["price_close"] = pd.to_numeric(
+                                raw_overlay_plot_df["price"], errors="coerce"
+                            )
+                            raw_overlay_plot_df = raw_overlay_plot_df.dropna(
+                                subset=["bucket_start_utc", "price_close", "exchange_id"]
+                            )
+                            raw_overlay_plot_df["series_name"] = (
+                                raw_overlay_plot_df["exchange_id"].astype(str) + "_raw"
+                            )
+                            raw_overlay_plot_df = raw_overlay_plot_df[
+                                ["bucket_start_utc", "price_close", "series_name", "exchange_id"]
+                            ].copy()
+
+                if raw_overlay_error_message:
+                    st.warning(f"Raw data load failed: {raw_overlay_error_message}")
+                elif raw_overlay_enabled:
+                    if raw_overlay_df.empty:
+                        st.info(
+                            "No raw ingestion ticks found for selected symbol/exchanges and displayed window."
+                        )
+                    else:
+                        st.caption(
+                            f"Raw ticks loaded: {len(raw_overlay_df)} | "
+                            f"Raw exchanges: {int(raw_overlay_df['exchange_id'].nunique())}"
+                        )
+
+                clean_plot_df = price_curve_plot[["bucket_start_utc", "price_close", "exchange_id"]].copy()
+                clean_plot_df["series_name"] = clean_plot_df["exchange_id"].astype(str)
+                combined_plot_df = clean_plot_df[
+                    ["bucket_start_utc", "price_close", "series_name"]
+                ].copy()
+
+                raw_overlay_rendered_in_main = False
+                if raw_overlay_enabled and not raw_overlay_plot_df.empty:
+                    try:
+                        combined_plot_df = pd.concat(
+                            [
+                                combined_plot_df,
+                                raw_overlay_plot_df[["bucket_start_utc", "price_close", "series_name"]],
+                            ],
+                            ignore_index=True,
+                        )
+                        raw_overlay_rendered_in_main = True
+                    except Exception:
+                        raw_overlay_rendered_in_main = False
+
                 curve_figure = px.line(
-                    price_curve_plot,
+                    combined_plot_df,
                     x="bucket_start_utc",
                     y="price_close",
-                    color="exchange_id",
+                    color="series_name",
                     template=plotly_template,
                 )
                 curve_figure.update_layout(
@@ -1379,7 +1614,7 @@ def main() -> None:
                     margin={"l": 20, "r": 20, "t": 20, "b": 10},
                     xaxis_title="UTC Timestamp",
                     yaxis_title="Close Price",
-                    legend_title="Exchange",
+                    legend_title="Exchange / Raw",
                 )
                 st.plotly_chart(
                     curve_figure,
@@ -1387,6 +1622,34 @@ def main() -> None:
                     config=PLOTLY_CHART_CONFIG,
                     key=f"curve_{selected_run_id}_{selected_symbol}",
                 )
+
+                if raw_overlay_enabled and not raw_overlay_rendered_in_main and not raw_overlay_plot_df.empty:
+                    st.info("Raw data is rendered in a separate chart (overlay merge unavailable).")
+                    raw_figure = px.line(
+                        raw_overlay_plot_df,
+                        x="bucket_start_utc",
+                        y="price_close",
+                        color="series_name",
+                        template=plotly_template,
+                    )
+                    raw_figure.update_layout(
+                        height=300,
+                        margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                        xaxis_title="UTC Timestamp",
+                        yaxis_title="Raw Price",
+                        legend_title="Exchange Raw",
+                    )
+                    st.plotly_chart(
+                        raw_figure,
+                        width="stretch",
+                        config=PLOTLY_CHART_CONFIG,
+                        key=f"curve_raw_{selected_run_id}_{selected_symbol}",
+                    )
+
+                if raw_overlay_enabled and not raw_overlay_df.empty:
+                    with st.expander("Raw Ingestion Ticks (Loaded)"):
+                        st.dataframe(raw_overlay_df, width="stretch", hide_index=True)
+
                 st.dataframe(
                     filtered_curve_df,
                     width="stretch",
