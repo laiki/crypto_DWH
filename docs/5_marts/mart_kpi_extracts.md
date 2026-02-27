@@ -19,6 +19,7 @@ Goal:
   - `cleansed_market` table in same Core DB
 - design note:
   - `docs/5_marts/symbol_deviation_mart_use_case.md`
+  - `docs/5_marts/symbol_observed_quality_mart_use_case.md`
 
 ## Dashboard Panels and Extracts
 
@@ -82,6 +83,24 @@ Goal:
   - `exchange_count`
   - `price_diff_pct`
   - `max_diff_exchange_pair`
+
+### Panel 3c: Symbol Observed Coverage Quality (Window)
+- source priority:
+  - mart view: `vw_mart_dashboard_symbol_observed_quality_base`
+  - fallback: raw query over `cleansed_market` (for backward compatibility)
+- required filters:
+  - `run_id = :run_id`
+  - `bucket_start_utc BETWEEN :window_start_utc AND :window_end_utc`
+- key columns:
+  - `symbol`
+  - `exchange_id`
+  - `total_points`
+  - `observed_points`
+  - `max_observed_points_for_symbol`
+  - `observed_vs_max_pct`
+  - `observed_quality_band` (`0-50%`, `50-75%`, `75-90%`, `90-100%`)
+- purpose:
+  - filter symbols/exchanges by observed coverage quality before evaluating spread outliers
 
 ### Panel 4: Platform Quality (Daily)
 - source priority:

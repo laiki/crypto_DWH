@@ -28,6 +28,18 @@ Reason:
 - source query:
   - distinct symbols from `cleansed_market` filtered by `run_id` and window
 
+2b. Observed Coverage Quality Selector
+- user selects one or multiple observed coverage quality bands:
+  - `0-50%`
+  - `50-75%`
+  - `75-90%`
+  - `90-100%`
+- source query:
+  - window-aware aggregation on `vw_mart_dashboard_symbol_observed_quality_base`
+- effect:
+  - restrict available symbols and exchanges to selected quality bands
+  - propagate filter to price curve and price deviation analysis
+
 3. Symbol Start Page (Violin Grid)
 - goal: distribution view per symbol before opening detail analysis
 - visualization:
@@ -67,6 +79,10 @@ Reason:
   - `max_price_diff_pct`
   - `max_diff_exchange_pair`
   - `bucket_start_utc` (series and max timestamp)
+
+Observed quality consistency:
+- spread analysis uses the active observed-quality band filter.
+- exchange participation is restricted to exchanges that match the selected symbol-band rows.
 
 6. Platform Quality Snapshot (Daily)
 - goal: compare exchange quality for latency/disconnect behavior
@@ -116,6 +132,7 @@ Ranking definition:
 - required DB objects:
   - required:
     - `cleansed_market`
+    - `vw_mart_dashboard_symbol_observed_quality_base`
   - optional but recommended for quality panel performance:
     - `dash_cache_platform_quality_daily_latest`
     - `dash_cache_symbol_deviation_bucket`

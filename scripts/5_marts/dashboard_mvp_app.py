@@ -900,7 +900,7 @@ def main() -> None:
         selected_observed_quality_bands = st.multiselect(
             "Observed Coverage Quality Bands",
             options=list(OBSERVED_QUALITY_BANDS),
-            default=list(OBSERVED_QUALITY_BANDS),
+            default=["90-100%"],
             help=(
                 "Per symbol, compare observed points of each exchange against "
                 "the maximum observed points across exchanges in the selected window."
