@@ -21,6 +21,106 @@ import streamlit as st
 
 
 DEFAULT_DB_PATH = Path("data/core/core_kpi.db")
+THEME_OPTIONS = ("Dark", "Light")
+PAGINATION_SIGNATURE_STATE_KEY = "violin_page_signature_v1"
+
+DARK_THEME_CSS = """
+<style>
+[data-testid="stAppViewContainer"] {
+  background: #0e1117;
+  color: #e6edf3;
+}
+[data-testid="stSidebar"] {
+  background: #161b22;
+}
+[data-testid="stSidebar"] * {
+  color: #aeb9c5;
+}
+[data-testid="stMetricValue"] {
+  color: #f0f6fc;
+}
+[data-testid="stMetricLabel"] {
+  color: #9aa6b2;
+}
+[data-testid="stDataFrame"] {
+  background: #0e1117;
+}
+h1, h2, h3, h4, h5, h6, p, span, label, div {
+  color: #bcc7d3;
+}
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stNumberInput"] input {
+  background: #1a2330 !important;
+  border: 1px solid #2c3746 !important;
+  color: #9da9b6 !important;
+}
+[data-testid="stSelectbox"] [data-baseweb="select"] *,
+[data-testid="stMultiSelect"] [data-baseweb="select"] * {
+  color: #9da9b6 !important;
+}
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div {
+  background: #1a2330 !important;
+  border-color: #2c3746 !important;
+}
+[data-baseweb="popover"] [role="listbox"] {
+  background: #1a2330 !important;
+  border: 1px solid #2c3746 !important;
+}
+[data-baseweb="popover"] [role="option"] {
+  background: #1a2330 !important;
+  color: #9da9b6 !important;
+}
+[data-baseweb="popover"] [role="option"][aria-selected="true"],
+[data-baseweb="popover"] [role="option"]:hover {
+  background: #243246 !important;
+}
+[data-testid="stCheckbox"] label,
+[data-testid="stCheckbox"] span {
+  color: #9da9b6 !important;
+}
+[data-testid="stButton"] button,
+[data-testid="stDownloadButton"] button {
+  background: #1a2330 !important;
+  border: 1px solid #2c3746 !important;
+  color: #9da9b6 !important;
+}
+</style>
+"""
+
+LIGHT_THEME_CSS = """
+<style>
+[data-testid="stAppViewContainer"] {
+  background: #ffffff;
+  color: #111827;
+}
+[data-testid="stSidebar"] {
+  background: #f8fafc;
+}
+[data-testid="stSidebar"] * {
+  color: #111827;
+}
+[data-testid="stMetricValue"] {
+  color: #111827;
+}
+[data-testid="stMetricLabel"] {
+  color: #4b5563;
+}
+[data-testid="stDataFrame"] {
+  background: #ffffff;
+}
+h1, h2, h3, h4, h5, h6, p, span, label, div {
+  color: #111827;
+}
+</style>
+"""
+
+PLOTLY_CHART_CONFIG = {
+    "displayModeBar": True,
+    "displaylogo": False,
+    "modeBarButtonsToAdd": ["resetScale2d", "autoScale2d"],
+}
 
 SQL_PLATFORM_QUALITY_DAILY_CACHE = """
 SELECT
@@ -392,6 +492,14 @@ def _set_symbol_query_param(symbol: str) -> None:
     st.query_params["symbol"] = symbol
 
 
+def _apply_theme(theme_mode: str) -> str:
+    if theme_mode == "Dark":
+        st.markdown(DARK_THEME_CSS, unsafe_allow_html=True)
+        return "plotly_dark"
+    st.markdown(LIGHT_THEME_CSS, unsafe_allow_html=True)
+    return "plotly_white"
+
+
 def main() -> None:
     st.set_page_config(page_title="Crypto KPI Dashboard MVP", layout="wide")
     st.title("Crypto KPI Dashboard MVP")
@@ -399,10 +507,17 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Configuration")
+        theme_mode = st.radio(
+            "Theme",
+            options=THEME_OPTIONS,
+            index=0,
+            horizontal=True,
+        )
         db_path_raw = st.text_input("Core SQLite DB path", str(DEFAULT_DB_PATH))
         if st.button("Refresh Query Cache"):
             st.cache_data.clear()
             st.success("Query cache cleared.")
+    plotly_template = _apply_theme(theme_mode)
 
     db_path = Path(db_path_raw).expanduser()
     if not db_path.exists():
@@ -505,6 +620,13 @@ def main() -> None:
     window_start_utc = _naive_utc_datetime_to_iso(window_start_dt)
     window_end_utc = _naive_utc_datetime_to_iso(window_end_dt)
 
+    run_symbols_df = _query_dataframe(
+        db_path,
+        SQL_SYMBOLS_BY_RUN,
+        params={"run_id": selected_run_id},
+    )
+    run_symbol_count = int(len(run_symbols_df))
+
     symbols_df = _query_dataframe(
         db_path,
         SQL_SYMBOLS_BY_RUN_WINDOW,
@@ -515,11 +637,7 @@ def main() -> None:
         },
     )
     if symbols_df.empty:
-        symbols_df = _query_dataframe(
-            db_path,
-            SQL_SYMBOLS_BY_RUN,
-            params={"run_id": selected_run_id},
-        )
+        symbols_df = run_symbols_df
 
     symbols = symbols_df["symbol"].astype(str).tolist()
     if not symbols:
@@ -608,12 +726,81 @@ def main() -> None:
             )
             .sort_values(by=["max_price_diff_pct", "symbol"], ascending=[False, True])
         )
-        columns_per_row = 4
+        symbol_stats_df = symbol_stats_df.reset_index(drop=True)
+        symbol_stats_df["rank_max_diff_desc"] = symbol_stats_df.index + 1
+
+        page_size_options = [6, 12, 24, 48, 96, "Alle"]
+        total_symbols = len(symbol_stats_df)
+        control_col_1, control_col_2, _ = st.columns([1.8, 1.0, 7.2], gap="small")
+        with control_col_1:
+            st.caption("Symbols per page")
+            page_size_label = st.selectbox(
+                "Symbols per page",
+                options=page_size_options,
+                index=0,
+                label_visibility="collapsed",
+            )
+
+        if page_size_label == "Alle":
+            page_count = 1
+            current_page_default = 1
+        else:
+            page_size_value = int(page_size_label)
+            page_count = max(1, (total_symbols + page_size_value - 1) // page_size_value)
+            current_page_default = 1
+
+        with control_col_2:
+            st.caption("Page")
+            current_page = st.number_input(
+                "Page",
+                min_value=1,
+                max_value=page_count,
+                value=current_page_default,
+                step=1,
+                disabled=(page_size_label == "Alle"),
+                label_visibility="collapsed",
+            )
+
+        if page_size_label == "Alle":
+            paged_symbols_df = symbol_stats_df
+            current_page = 1
+        else:
+            start_idx = (int(current_page) - 1) * page_size_value
+            end_idx = start_idx + page_size_value
+            paged_symbols_df = symbol_stats_df.iloc[start_idx:end_idx].copy()
+
+        if not paged_symbols_df.empty:
+            first_symbol_on_page = str(paged_symbols_df.iloc[0]["symbol"])
+            page_signature = "|".join(
+                [
+                    str(selected_run_id),
+                    window_start_utc,
+                    window_end_utc,
+                    str(page_size_label),
+                    str(int(current_page)),
+                ]
+            )
+            last_page_signature = str(st.session_state.get(PAGINATION_SIGNATURE_STATE_KEY, ""))
+            if page_signature != last_page_signature:
+                st.session_state[PAGINATION_SIGNATURE_STATE_KEY] = page_signature
+                if selected_symbol != first_symbol_on_page:
+                    _set_symbol_query_param(first_symbol_on_page)
+                    st.rerun()
+
+        st.caption(
+            f"Sorted by max deviation descending | Page {int(current_page)}/{int(page_count)} | "
+            f"Visible symbols: {len(paged_symbols_df)}"
+        )
+
+        columns_per_row = 3
         grid_columns = st.columns(columns_per_row)
-        for idx, symbol in enumerate(symbol_stats_df["symbol"].astype(str).tolist()):
+        for idx, symbol in enumerate(paged_symbols_df["symbol"].astype(str).tolist()):
             with grid_columns[idx % columns_per_row]:
                 symbol_points_df = symbol_violin_df[symbol_violin_df["symbol"] == symbol]
-                st.markdown(f"**{symbol}**")
+                stat_row = paged_symbols_df[paged_symbols_df["symbol"] == symbol].iloc[0]
+                st.markdown(
+                    f"**#{int(stat_row['rank_max_diff_desc'])} {symbol}**"
+                )
                 violin_figure = px.violin(
                     symbol_points_df,
                     y="price_diff_pct",
@@ -621,6 +808,7 @@ def main() -> None:
                     box=True,
                 )
                 violin_figure.update_layout(
+                    template=plotly_template,
                     height=220,
                     margin={"l": 20, "r": 20, "t": 5, "b": 10},
                     showlegend=False,
@@ -629,10 +817,10 @@ def main() -> None:
                 )
                 st.plotly_chart(
                     violin_figure,
-                    use_container_width=True,
-                    config={"displayModeBar": False},
+                    width="stretch",
+                    config=PLOTLY_CHART_CONFIG,
+                    key=f"violin_{selected_run_id}_{symbol}_{idx}",
                 )
-                stat_row = symbol_stats_df[symbol_stats_df["symbol"] == symbol].iloc[0]
                 st.caption(
                     f"n={int(stat_row['point_count'])} | "
                     f"avg={float(stat_row['avg_price_diff_pct']):.4f}% | "
@@ -642,10 +830,22 @@ def main() -> None:
                     _set_symbol_query_param(symbol)
                     st.rerun()
         with st.expander("Symbol Deviation Stats (Table)"):
-            st.dataframe(symbol_stats_df, use_container_width=True, hide_index=True)
+            st.dataframe(
+                symbol_stats_df[
+                    [
+                        "rank_max_diff_desc",
+                        "symbol",
+                        "point_count",
+                        "avg_price_diff_pct",
+                        "max_price_diff_pct",
+                    ]
+                ],
+                width="stretch",
+                hide_index=True,
+            )
 
     st.subheader("Snapshot")
-    metric_col_1, metric_col_2, metric_col_3, metric_col_4 = st.columns(4)
+    metric_col_1, metric_col_2, metric_col_3, metric_col_4, metric_col_5 = st.columns(5)
 
     latest_kpi_date = (
         str(platform_quality_df["kpi_date_utc"].iloc[0]) if not platform_quality_df.empty else "n/a"
@@ -656,8 +856,9 @@ def main() -> None:
 
     metric_col_1.metric("Selected Symbol", selected_symbol)
     metric_col_2.metric("Selected Run", selected_run_id)
-    metric_col_3.metric("Curve Exchanges", curve_exchanges)
-    metric_col_4.metric("Aligned Diff Points", deviation_points)
+    metric_col_3.metric("Run Symbols", run_symbol_count)
+    metric_col_4.metric("Curve Exchanges", curve_exchanges)
+    metric_col_5.metric("Aligned Diff Points", deviation_points)
     st.caption(
         f"Window UTC: {window_start_utc} -> {window_end_utc} | "
         f"Curve points: {curve_points} | Platform KPI date: {latest_kpi_date}"
@@ -686,7 +887,7 @@ def main() -> None:
             )
             if not selected_curve_exchanges:
                 st.warning("Select at least one exchange to render the curve.")
-                st.dataframe(exchange_point_counts, use_container_width=True, hide_index=True)
+                st.dataframe(exchange_point_counts, width="stretch", hide_index=True)
             else:
                 filtered_curve_df = price_curve_df[
                     price_curve_df["exchange_id"].astype(str).isin(selected_curve_exchanges)
@@ -701,19 +902,30 @@ def main() -> None:
                 price_curve_plot = price_curve_plot[
                     price_curve_plot["exchange_id"].astype(str).isin(selected_curve_exchanges)
                 ]
-                curve_wide = price_curve_plot.pivot_table(
-                    index="bucket_start_utc",
-                    columns="exchange_id",
-                    values="price_close",
-                    aggfunc="last",
-                )
+                price_curve_plot["exchange_id"] = price_curve_plot["exchange_id"].astype(str)
                 st.caption(
                     f"Visible exchanges: {len(selected_curve_exchanges)} / {len(available_exchanges)} "
                     f"(for symbol `{selected_symbol}` in selected window)."
                 )
-                st.line_chart(
-                    curve_wide,
-                    use_container_width=True,
+                curve_figure = px.line(
+                    price_curve_plot,
+                    x="bucket_start_utc",
+                    y="price_close",
+                    color="exchange_id",
+                    template=plotly_template,
+                )
+                curve_figure.update_layout(
+                    height=360,
+                    margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                    xaxis_title="UTC Timestamp",
+                    yaxis_title="Close Price",
+                    legend_title="Exchange",
+                )
+                st.plotly_chart(
+                    curve_figure,
+                    width="stretch",
+                    config=PLOTLY_CHART_CONFIG,
+                    key=f"curve_{selected_run_id}_{selected_symbol}",
                 )
                 st.dataframe(
                     filtered_curve_df[
@@ -727,11 +939,11 @@ def main() -> None:
                             "fill_method",
                         ]
                     ],
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                 )
                 with st.expander("Exchange Coverage in Window"):
-                    st.dataframe(exchange_point_counts, use_container_width=True, hide_index=True)
+                    st.dataframe(exchange_point_counts, width="stretch", hide_index=True)
 
     with tab_deviation:
         st.write("Price deviation across exchanges for selected symbol and selected UTC window.")
@@ -766,15 +978,43 @@ def main() -> None:
                 errors="coerce",
             )
             deviation_plot = deviation_plot.dropna(subset=["bucket_start_utc"])
-            st.line_chart(
-                deviation_plot.set_index("bucket_start_utc")[["price_diff_abs"]],
-                use_container_width=True,
+            deviation_abs_figure = px.line(
+                deviation_plot,
+                x="bucket_start_utc",
+                y="price_diff_abs",
+                template=plotly_template,
             )
-            st.line_chart(
-                deviation_plot.set_index("bucket_start_utc")[["price_diff_pct"]],
-                use_container_width=True,
+            deviation_abs_figure.update_layout(
+                height=320,
+                margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                xaxis_title="UTC Timestamp",
+                yaxis_title="Price Diff (Abs)",
             )
-            st.dataframe(price_deviation_window_df, use_container_width=True, hide_index=True)
+            st.plotly_chart(
+                deviation_abs_figure,
+                width="stretch",
+                config=PLOTLY_CHART_CONFIG,
+                key=f"deviation_abs_{selected_run_id}_{selected_symbol}",
+            )
+            deviation_pct_figure = px.line(
+                deviation_plot,
+                x="bucket_start_utc",
+                y="price_diff_pct",
+                template=plotly_template,
+            )
+            deviation_pct_figure.update_layout(
+                height=320,
+                margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                xaxis_title="UTC Timestamp",
+                yaxis_title="Price Diff (%)",
+            )
+            st.plotly_chart(
+                deviation_pct_figure,
+                width="stretch",
+                config=PLOTLY_CHART_CONFIG,
+                key=f"deviation_pct_{selected_run_id}_{selected_symbol}",
+            )
+            st.dataframe(price_deviation_window_df, width="stretch", hide_index=True)
 
     with tab_quality:
         st.write("Daily platform quality snapshot (all exchanges).")
@@ -808,15 +1048,53 @@ def main() -> None:
                 by=["disconnect_count", "exchange_id"],
                 ascending=[False, True],
             )
-            st.dataframe(quality_display, use_container_width=True, hide_index=True)
+            st.dataframe(quality_display, width="stretch", hide_index=True)
             st.write("Disconnects by exchange (sorted descending).")
-            st.bar_chart(
-                quality_by_disconnect.set_index("exchange_id")[["disconnect_count"]],
-                use_container_width=True,
+            disconnect_figure = px.bar(
+                quality_by_disconnect,
+                x="exchange_id",
+                y="disconnect_count",
+                template=plotly_template,
             )
-            st.bar_chart(
-                quality_display.set_index("exchange_id")[["min_latency_ms", "max_latency_ms"]],
-                use_container_width=True,
+            disconnect_figure.update_layout(
+                height=320,
+                margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                xaxis_title="Exchange",
+                yaxis_title="Disconnect Count",
+                showlegend=False,
+            )
+            st.plotly_chart(
+                disconnect_figure,
+                width="stretch",
+                config=PLOTLY_CHART_CONFIG,
+                key="quality_disconnect_bar",
+            )
+            latency_long_df = quality_display.melt(
+                id_vars=["exchange_id"],
+                value_vars=["min_latency_ms", "max_latency_ms"],
+                var_name="latency_type",
+                value_name="latency_ms",
+            )
+            latency_figure = px.bar(
+                latency_long_df,
+                x="exchange_id",
+                y="latency_ms",
+                color="latency_type",
+                barmode="group",
+                template=plotly_template,
+            )
+            latency_figure.update_layout(
+                height=320,
+                margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                xaxis_title="Exchange",
+                yaxis_title="Latency (ms)",
+                legend_title="Latency Metric",
+            )
+            st.plotly_chart(
+                latency_figure,
+                width="stretch",
+                config=PLOTLY_CHART_CONFIG,
+                key="quality_latency_bar",
             )
 
 
