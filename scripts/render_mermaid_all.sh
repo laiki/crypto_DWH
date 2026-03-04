@@ -16,24 +16,106 @@ if [[ ! -d "$search_root" ]]; then
   exit 1
 fi
 
+text_has_pattern() {
+  local pattern="$1"
+  local file_path="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q "$pattern" "$file_path"
+    return $?
+  fi
+  grep -Eq "$pattern" "$file_path"
+}
+
+convert_svg_to_pdf() {
+  local input_svg="$1"
+  local output_pdf="$2"
+
+  if command -v cairosvg >/dev/null 2>&1; then
+    cairosvg "$input_svg" -o "$output_pdf"
+    return $?
+  fi
+
+  if command -v rsvg-convert >/dev/null 2>&1; then
+    rsvg-convert -f pdf -o "$output_pdf" "$input_svg"
+    return $?
+  fi
+
+  if command -v inkscape >/dev/null 2>&1; then
+    inkscape "$input_svg" --export-type=pdf --export-filename="$output_pdf" >/dev/null 2>&1
+    return $?
+  fi
+
+  if command -v magick >/dev/null 2>&1; then
+    magick -density 300 "$input_svg" "$output_pdf"
+    return $?
+  fi
+
+  if command -v convert >/dev/null 2>&1; then
+    convert -density 300 "$input_svg" "$output_pdf"
+    return $?
+  fi
+
+  echo "Error: No SVG->PDF converter found (tried cairosvg, rsvg-convert, inkscape, magick, convert)." >&2
+  return 1
+}
+
 render_with_kroki() {
   local input_file="$1"
   local output_file="$2"
+  local tmp_response
+  local tmp_svg
+  local http_code
 
   if ! command -v curl >/dev/null 2>&1; then
     echo "Error: curl not found in PATH. Cannot use Kroki fallback." >&2
     return 1
   fi
 
+  tmp_response="$(mktemp)"
   case "$output_format" in
-    svg|png|pdf)
-      curl -fsSL -X POST \
+    svg|png)
+      http_code="$(
+        curl -sS -X POST \
         -H 'Content-Type: text/plain' \
         --data-binary @"$input_file" \
         "$kroki_base_url/mermaid/$output_format" \
-        -o "$output_file"
+        -o "$tmp_response" \
+        -w "%{http_code}"
+      )"
+      if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+        echo "Error: Kroki returned HTTP $http_code for \"$input_file\"." >&2
+        sed -n '1,40p' "$tmp_response" >&2
+        rm -f "$tmp_response"
+        return 1
+      fi
+      mv "$tmp_response" "$output_file"
+      ;;
+    pdf)
+      http_code="$(
+        curl -sS -X POST \
+        -H 'Content-Type: text/plain' \
+        --data-binary @"$input_file" \
+        "$kroki_base_url/mermaid/svg" \
+        -o "$tmp_response" \
+        -w "%{http_code}"
+      )"
+      if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+        echo "Error: Kroki returned HTTP $http_code for \"$input_file\"." >&2
+        sed -n '1,40p' "$tmp_response" >&2
+        rm -f "$tmp_response"
+        return 1
+      fi
+
+      tmp_svg="$(mktemp)"
+      mv "$tmp_response" "$tmp_svg"
+      if ! convert_svg_to_pdf "$tmp_svg" "$output_file"; then
+        rm -f "$tmp_svg"
+        return 1
+      fi
+      rm -f "$tmp_svg"
       ;;
     *)
+      rm -f "$tmp_response"
       echo "Error: Kroki fallback supports only svg/png/pdf, got \"$output_format\"." >&2
       return 1
       ;;
@@ -100,7 +182,7 @@ while IFS= read -r -d '' input_file; do
     if mmdc -q -p "$pup_cfg_file" -i "$input_file" -o "$output_file" >"$mmdc_log" 2>&1; then
       rendered=1
     else
-      if rg -q "Failed to launch the browser process|error while loading shared libraries|No suitable browser found" "$mmdc_log"; then
+      if text_has_pattern "Failed to launch the browser process|error while loading shared libraries|No suitable browser found" "$mmdc_log"; then
         mmdc_disabled=1
         echo "Warning: mmdc browser runtime unavailable. Switching to Kroki fallback for remaining files." >&2
       else

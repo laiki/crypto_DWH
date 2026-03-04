@@ -69,6 +69,15 @@ Last updated: 2026-03-04
      - keep current single-writer Core build path
      - prioritize observability and targeted SQL/runtime optimizations over parallel worker complexity
 
+9. Added progress + ETA logging for dashboard cache materialization.
+   - Artifacts:
+     - `scripts/5_marts/build_dashboard_cache.py`
+   - Scope:
+     - added `--progress/--no-progress`
+     - added `--progress-interval-seconds`
+     - step-based progress output with elapsed time and ETA
+     - heartbeat logging for long-running phases (mart view apply, cache table materialization, index creation, metadata counts, optional `VACUUM`)
+
 ## Completed in This Session (2026-02-22)
 1. Defined Core Layer KPI catalog.
    - Artifact: `docs/4_core/core_kpi_catalog.md`
