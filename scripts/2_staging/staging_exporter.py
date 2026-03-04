@@ -17,6 +17,8 @@ import hashlib
 import json
 import sqlite3
 import sys
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -159,6 +161,18 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=5000,
         help="Fetch chunk size for CSV/JSON streaming export.",
+    )
+    parser.add_argument(
+        "--progress",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Print periodic progress updates with elapsed time and ETA.",
+    )
+    parser.add_argument(
+        "--progress-interval-seconds",
+        type=float,
+        default=15.0,
+        help="Seconds between periodic progress updates.",
     )
     return parser.parse_args()
 
@@ -493,6 +507,7 @@ def insert_sqlite_from_sources(
     event_where: str,
     event_params: list[Any],
     include_connection_events: bool,
+    progress: ExportProgress | None = None,
 ) -> tuple[int, int]:
     output_db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(str(output_db_path))
@@ -513,6 +528,8 @@ def insert_sqlite_from_sources(
                 ).fetchone() is not None
 
                 if has_market_ticks:
+                    if progress is not None:
+                        progress.start_step(f"sqlite market_ticks | {db_path.name}")
                     market_insert_sql = (
                         "INSERT INTO market_ticks ("
                         "source_db, source_row_id, ingestion_ts_utc, exchange_id, symbol, market_type, "
@@ -523,11 +540,22 @@ def insert_sqlite_from_sources(
                         f"FROM {alias}.market_ticks "
                         f"WHERE {market_where}"
                     )
-                    connection.execute(market_insert_sql, [str(db_path)] + market_params)
+                    run_with_heartbeat(
+                        callback=lambda: connection.execute(market_insert_sql, [str(db_path)] + market_params),
+                        progress=progress,
+                        heartbeat_note="running INSERT...SELECT",
+                    )
                     inserted_market = connection.execute("SELECT changes()").fetchone()[0]
                     total_market_rows += int(inserted_market)
+                    if progress is not None:
+                        progress.finish_step(extra=f"rows={inserted_market}")
+                elif progress is not None:
+                    progress.start_step(f"sqlite market_ticks | {db_path.name}")
+                    progress.finish_step(extra="table missing, skipped")
 
                 if include_connection_events and has_connection_events:
+                    if progress is not None:
+                        progress.start_step(f"sqlite connection_events | {db_path.name}")
                     event_insert_sql = (
                         "INSERT INTO connection_events ("
                         "source_db, source_row_id, event_ts_utc, exchange_id, symbol, event_type, details_json"
@@ -536,9 +564,18 @@ def insert_sqlite_from_sources(
                         f"FROM {alias}.connection_events "
                         f"WHERE {event_where}"
                     )
-                    connection.execute(event_insert_sql, [str(db_path)] + event_params)
+                    run_with_heartbeat(
+                        callback=lambda: connection.execute(event_insert_sql, [str(db_path)] + event_params),
+                        progress=progress,
+                        heartbeat_note="running INSERT...SELECT",
+                    )
                     inserted_events = connection.execute("SELECT changes()").fetchone()[0]
                     total_event_rows += int(inserted_events)
+                    if progress is not None:
+                        progress.finish_step(extra=f"rows={inserted_events}")
+                elif include_connection_events and progress is not None:
+                    progress.start_step(f"sqlite connection_events | {db_path.name}")
+                    progress.finish_step(extra="table missing, skipped")
 
                 connection.commit()
             finally:
@@ -637,6 +674,7 @@ def write_csv_or_json_exports(
     event_params: list[Any],
     include_connection_events: bool,
     chunk_size: int,
+    progress: ExportProgress | None = None,
 ) -> tuple[int, int, list[Path], list[str], list[str], str | None, str | None]:
     output_base.parent.mkdir(parents=True, exist_ok=True)
 
@@ -679,6 +717,9 @@ def write_csv_or_json_exports(
 
     try:
         for db_path in db_paths:
+            if progress is not None:
+                progress.start_step(f"{output_format} market_ticks | {db_path.name}")
+            step_market_count = 0
             for payload in stream_market_rows(
                 db_path=db_path,
                 market_where=market_where,
@@ -699,10 +740,19 @@ def write_csv_or_json_exports(
                 asset = source_asset(payload.get("symbol"))
                 if asset:
                     exported_assets.add(asset)
+                step_market_count += 1
+                if progress is not None and (step_market_count % max(1000, chunk_size) == 0):
+                    progress.heartbeat(note=f"rows_in_step={step_market_count}")
+
+            if progress is not None:
+                progress.finish_step(extra=f"rows={step_market_count}")
 
             if not include_connection_events:
                 continue
 
+            if progress is not None:
+                progress.start_step(f"{output_format} connection_events | {db_path.name}")
+            step_event_count = 0
             for payload in stream_event_rows(
                 db_path=db_path,
                 event_where=event_where,
@@ -720,6 +770,12 @@ def write_csv_or_json_exports(
                 exchange_id = payload.get("exchange_id")
                 if isinstance(exchange_id, str) and exchange_id.strip():
                     exported_exchanges.add(exchange_id.strip())
+                step_event_count += 1
+                if progress is not None and (step_event_count % max(1000, chunk_size) == 0):
+                    progress.heartbeat(note=f"rows_in_step={step_event_count}")
+
+            if progress is not None:
+                progress.finish_step(extra=f"rows={step_event_count}")
 
     finally:
         if output_format == "csv":
@@ -790,6 +846,105 @@ def print_source_uniques_skipped(kind: str, source_uniques_mode: str) -> None:
     )
 
 
+def format_duration(seconds: float) -> str:
+    total = max(0, int(seconds))
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+class ExportProgress:
+    def __init__(self, total_steps: int, enabled: bool, interval_seconds: float) -> None:
+        self.total_steps = max(1, total_steps)
+        self.enabled = enabled
+        self.interval_seconds = max(0.1, interval_seconds)
+        self.started_monotonic = time.monotonic()
+        self.last_update_monotonic = 0.0
+        self.completed_steps = 0
+        self.current_step_label: str | None = None
+        self.current_step_started_monotonic = 0.0
+        self._lock = threading.Lock()
+
+    def _eta_seconds(self, now_monotonic: float) -> float | None:
+        if self.completed_steps <= 0:
+            return None
+        elapsed = now_monotonic - self.started_monotonic
+        avg_step = elapsed / self.completed_steps
+        remaining = max(0, self.total_steps - self.completed_steps)
+        return avg_step * remaining
+
+    def _progress_line(self, message: str, now_monotonic: float) -> str:
+        pct = min(100.0, (self.completed_steps / self.total_steps) * 100.0)
+        elapsed_txt = format_duration(now_monotonic - self.started_monotonic)
+        eta_seconds = self._eta_seconds(now_monotonic)
+        eta_txt = format_duration(eta_seconds) if eta_seconds is not None else "n/a"
+        return (
+            f"[progress] {self.completed_steps}/{self.total_steps} ({pct:.1f}%) "
+            f"| elapsed={elapsed_txt} | eta={eta_txt} | {message}"
+        )
+
+    def _emit(self, message: str, force: bool = False) -> None:
+        if not self.enabled:
+            return
+        now_monotonic = time.monotonic()
+        with self._lock:
+            if not force and (now_monotonic - self.last_update_monotonic) < self.interval_seconds:
+                return
+            print(self._progress_line(message, now_monotonic), flush=True)
+            self.last_update_monotonic = now_monotonic
+
+    def start_step(self, label: str) -> None:
+        self.current_step_label = label
+        self.current_step_started_monotonic = time.monotonic()
+        self._emit(f"started: {label}", force=True)
+
+    def heartbeat(self, note: str | None = None) -> None:
+        label = self.current_step_label or "-"
+        if note:
+            self._emit(f"working: {label} | {note}")
+            return
+        self._emit(f"working: {label}")
+
+    def finish_step(self, extra: str | None = None) -> None:
+        step_label = self.current_step_label or "-"
+        step_elapsed = 0.0
+        if self.current_step_started_monotonic > 0:
+            step_elapsed = time.monotonic() - self.current_step_started_monotonic
+        self.completed_steps = min(self.total_steps, self.completed_steps + 1)
+        suffix = f" | {extra}" if extra else ""
+        self._emit(
+            f"finished: {step_label} | step_elapsed={format_duration(step_elapsed)}{suffix}",
+            force=True,
+        )
+        self.current_step_label = None
+        self.current_step_started_monotonic = 0.0
+
+
+def run_with_heartbeat(
+    callback: Any,
+    progress: ExportProgress | None,
+    heartbeat_note: str,
+) -> Any:
+    if progress is None or not progress.enabled:
+        return callback()
+
+    stop_event = threading.Event()
+
+    def heartbeat_loop() -> None:
+        while not stop_event.wait(progress.interval_seconds):
+            progress.heartbeat(heartbeat_note)
+
+    thread = threading.Thread(target=heartbeat_loop, daemon=True)
+    thread.start()
+    try:
+        return callback()
+    finally:
+        stop_event.set()
+        thread.join(timeout=0.5)
+
+
 def main() -> None:
     args = parse_args()
 
@@ -797,6 +952,8 @@ def main() -> None:
         raise SystemExit("--hours must be > 0.")
     if args.chunk_size <= 0:
         raise SystemExit("--chunk-size must be > 0.")
+    if args.progress_interval_seconds <= 0:
+        raise SystemExit("--progress-interval-seconds must be > 0.")
 
     exchanges_filter = normalize_csv_values(args.exchanges, to_lower=True)
     assets_filter = normalize_csv_values(args.assets, to_upper=True)
@@ -923,6 +1080,19 @@ def main() -> None:
     exported_market_max_ts_utc: str | None = None
     exported_event_max_ts_utc: str | None = None
 
+    total_export_steps = len(db_paths) * (2 if include_events else 1)
+    progress = ExportProgress(
+        total_steps=total_export_steps,
+        enabled=bool(args.progress),
+        interval_seconds=args.progress_interval_seconds,
+    )
+    if progress.enabled:
+        print(
+            f"Progress tracking: enabled | interval={args.progress_interval_seconds:.1f}s | "
+            f"planned_steps={total_export_steps}",
+            flush=True,
+        )
+
     if args.output_format == "sqlite":
         output_db_path = output_base.with_suffix(".db")
         market_count, event_count = insert_sqlite_from_sources(
@@ -933,6 +1103,7 @@ def main() -> None:
             event_where=event_where,
             event_params=event_params,
             include_connection_events=include_events,
+            progress=progress,
         )
         (
             exported_exchanges,
@@ -963,6 +1134,7 @@ def main() -> None:
             event_params=event_params,
             include_connection_events=include_events,
             chunk_size=args.chunk_size,
+            progress=progress,
         )
 
     if source_uniques_mode == "full":
@@ -1046,6 +1218,8 @@ def main() -> None:
             "output_format": args.output_format,
             "include_connection_events": include_events,
             "chunk_size": args.chunk_size,
+            "progress": bool(args.progress),
+            "progress_interval_seconds": args.progress_interval_seconds,
         },
         "filters": {
             "exchanges": exchanges_filter,
