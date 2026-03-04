@@ -12,6 +12,7 @@ import argparse
 import json
 import logging
 import multiprocessing as mp
+import queue
 import sqlite3
 import sys
 import time
@@ -166,6 +167,18 @@ def parse_args() -> argparse.Namespace:
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Console log level.",
+    )
+    parser.add_argument(
+        "--progress",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Print periodic progress updates with elapsed time and ETA.",
+    )
+    parser.add_argument(
+        "--progress-interval-seconds",
+        type=float,
+        default=15.0,
+        help="Seconds between periodic progress updates.",
     )
     parser.add_argument(
         "--log-file",
@@ -772,6 +785,71 @@ def write_run_json_export(
     return json_path
 
 
+def format_duration(seconds: float) -> str:
+    total_seconds = max(0, int(seconds))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+class ProgressTracker:
+    def __init__(self, *, total_pairs: int, enabled: bool, interval_seconds: float) -> None:
+        self.total_pairs = max(1, total_pairs)
+        self.enabled = enabled
+        self.interval_seconds = max(0.1, interval_seconds)
+        self.started_monotonic = time.monotonic()
+        self.last_log_monotonic = 0.0
+        self.completed_pairs = 0
+
+    def _eta_seconds(self, now_monotonic: float) -> float | None:
+        if self.completed_pairs <= 0:
+            return None
+        elapsed = now_monotonic - self.started_monotonic
+        avg_per_pair = elapsed / float(self.completed_pairs)
+        remaining = max(0, self.total_pairs - self.completed_pairs)
+        return avg_per_pair * float(remaining)
+
+    def _log(self, message: str, *, force: bool = False) -> None:
+        if not self.enabled:
+            return
+        now_monotonic = time.monotonic()
+        if not force and (now_monotonic - self.last_log_monotonic) < self.interval_seconds:
+            return
+        pct = min(100.0, (self.completed_pairs / float(self.total_pairs)) * 100.0)
+        elapsed_txt = format_duration(now_monotonic - self.started_monotonic)
+        eta_seconds = self._eta_seconds(now_monotonic)
+        eta_txt = format_duration(eta_seconds) if eta_seconds is not None else "n/a"
+        rate_txt = "n/a"
+        elapsed_seconds = max(0.0, now_monotonic - self.started_monotonic)
+        if self.completed_pairs > 0 and elapsed_seconds > 0:
+            rate_txt = f"{(self.completed_pairs / elapsed_seconds):.2f} pair/s"
+        LOGGER.info(
+            "Progress pairs %s/%s (%.1f%%) | elapsed=%s | eta=%s | rate=%s | %s",
+            self.completed_pairs,
+            self.total_pairs,
+            pct,
+            elapsed_txt,
+            eta_txt,
+            rate_txt,
+            message,
+        )
+        self.last_log_monotonic = now_monotonic
+
+    def start(self) -> None:
+        self._log("started", force=True)
+
+    def heartbeat(self, note: str) -> None:
+        self._log(note, force=False)
+
+    def pair_started(self, pair_label: str) -> None:
+        self._log(f"started pair={pair_label}", force=False)
+
+    def pair_completed(self, pair_label: str, bins_total: int) -> None:
+        self.completed_pairs = min(self.total_pairs, self.completed_pairs + 1)
+        force = self.completed_pairs >= self.total_pairs
+        self._log(f"completed pair={pair_label} | bins_total={bins_total}", force=force)
+
+
 def process_pair(
     source_connection: sqlite3.Connection,
     profile: PairProfile,
@@ -783,6 +861,8 @@ def process_pair(
     fill_method_mode: str,
     emit_batch_size: int,
     emit_rows: Callable[[list[tuple[Any, ...]]], None],
+    progress_heartbeat: Callable[[str], None] | None = None,
+    progress_interval_seconds: float = 15.0,
 ) -> PairSummary:
     query = (
         "SELECT "
@@ -817,6 +897,20 @@ def process_pair(
     bins_forward_fill = 0
     bins_interpolation = 0
     bins_missing = 0
+    processed_ticks = 0
+    last_progress_monotonic = time.monotonic()
+
+    def _maybe_progress(note: str) -> None:
+        nonlocal last_progress_monotonic
+        if progress_heartbeat is None:
+            return
+        now_monotonic = time.monotonic()
+        if (now_monotonic - last_progress_monotonic) < progress_interval_seconds:
+            return
+        progress_heartbeat(
+            f"pair={profile.exchange_id}:{profile.symbol} | ticks={processed_ticks} | bins_total={bins_total} | {note}"
+        )
+        last_progress_monotonic = now_monotonic
 
     def _emit_if_needed(force: bool = False) -> None:
         if not rows_to_emit:
@@ -941,20 +1035,24 @@ def process_pair(
         tick_epoch_s = int(ts_epoch_s)
         tick_bin_epoch_s = floor_epoch(tick_epoch_s, bin_seconds)
         tick_price = float(effective_price)
+        processed_ticks += 1
 
         while current_bin_epoch_s < tick_bin_epoch_s:
             _finalize_current_bin(next_tick_epoch_s=tick_epoch_s, next_tick_price=tick_price)
             _emit_if_needed()
+            _maybe_progress("catching_up_bins")
             current_bin_epoch_s += bin_seconds
 
         current_bin_tick_count += 1
         current_bin_last_price = tick_price
         current_bin_last_ts_utc = str(ingestion_ts_utc)
         current_bin_last_ts_epoch_s = tick_epoch_s
+        _maybe_progress("consuming_ticks")
 
     while current_bin_epoch_s <= end_epoch_s:
         _finalize_current_bin()
         _emit_if_needed()
+        _maybe_progress("finalizing_tail_bins")
         current_bin_epoch_s += bin_seconds
 
     _emit_if_needed(force=True)
@@ -982,6 +1080,8 @@ def worker_process_loop(
     stale_after_s: int,
     fill_method_mode: str,
     insert_batch_size: int,
+    progress_enabled: bool,
+    progress_interval_seconds: float,
 ) -> None:
     source_connection = sqlite3.connect(f"file:{Path(source_db_path).resolve()}?mode=ro", uri=True)
     try:
@@ -999,6 +1099,17 @@ def worker_process_loop(
                     }
                 )
 
+            def _emit_progress(note: str) -> None:
+                if not progress_enabled:
+                    return
+                result_queue.put(
+                    {
+                        "kind": "progress",
+                        "worker_id": worker_id,
+                        "note": note,
+                    }
+                )
+
             summary = process_pair(
                 source_connection=source_connection,
                 profile=profile,
@@ -1009,6 +1120,8 @@ def worker_process_loop(
                 fill_method_mode=fill_method_mode,
                 emit_batch_size=insert_batch_size,
                 emit_rows=_emit_rows,
+                progress_heartbeat=_emit_progress if progress_enabled else None,
+                progress_interval_seconds=progress_interval_seconds,
             )
             result_queue.put(
                 {
@@ -1047,6 +1160,8 @@ def run_pairs_parallel(
     stale_after_s: int,
     fill_method_mode: str,
     insert_batch_size: int,
+    progress_tracker: ProgressTracker | None,
+    progress_interval_seconds: float,
 ) -> list[PairSummary]:
     ctx = mp.get_context("spawn")
     work_queue: mp.Queue[Any] = ctx.Queue()
@@ -1071,6 +1186,8 @@ def run_pairs_parallel(
                 stale_after_s,
                 fill_method_mode,
                 insert_batch_size,
+                bool(progress_tracker and progress_tracker.enabled),
+                progress_interval_seconds,
             ),
             name=f"cleansing-worker-{worker_id}",
         )
@@ -1084,20 +1201,48 @@ def run_pairs_parallel(
 
     summaries: list[PairSummary] = []
     completed_workers = 0
+    total_rows_inserted = 0
     while completed_workers < effective_workers:
-        message = result_queue.get()
+        if progress_tracker is not None and progress_tracker.enabled:
+            try:
+                message = result_queue.get(timeout=progress_interval_seconds)
+            except queue.Empty:
+                progress_tracker.heartbeat(
+                    f"waiting_for_worker_results | workers_done={completed_workers}/{effective_workers} "
+                    f"| rows_inserted={total_rows_inserted}"
+                )
+                continue
+        else:
+            message = result_queue.get()
         kind = message.get("kind")
         if kind == "rows":
             rows = message.get("rows", [])
             if rows:
                 insert_rows_chunk(output_connection, rows)
+                total_rows_inserted += len(rows)
+                if progress_tracker is not None:
+                    progress_tracker.heartbeat(f"rows_inserted={total_rows_inserted}")
             continue
         if kind == "summary":
             summary_payload = message.get("summary", {})
-            summaries.append(PairSummary(**summary_payload))
+            summary = PairSummary(**summary_payload)
+            summaries.append(summary)
+            if progress_tracker is not None:
+                progress_tracker.pair_completed(
+                    pair_label=f"{summary.exchange_id}:{summary.symbol}",
+                    bins_total=summary.bins_total,
+                )
+            continue
+        if kind == "progress":
+            if progress_tracker is not None:
+                worker_id = message.get("worker_id", "?")
+                note = message.get("note", "-")
+                progress_tracker.heartbeat(f"worker={worker_id} | {note}")
             continue
         if kind == "worker_done":
             completed_workers += 1
+            if progress_tracker is not None:
+                progress_tracker.heartbeat(f"worker_done={completed_workers}/{effective_workers}")
             continue
         if kind == "worker_error":
             worker_id = message.get("worker_id", "?")
@@ -1248,6 +1393,8 @@ def main() -> None:
         raise SystemExit("--worker-queue-size must be >= 0.")
     if args.dq_outlier_threshold_pct <= 0:
         raise SystemExit("--dq-outlier-threshold-pct must be > 0.")
+    if args.progress_interval_seconds <= 0:
+        raise SystemExit("--progress-interval-seconds must be > 0.")
 
     source_db_path = Path(args.input_db)
     if not source_db_path.exists():
@@ -1260,6 +1407,11 @@ def main() -> None:
     log_file_path = Path(args.log_file) if args.log_file else default_log_path_from_output_db(output_db_path)
     configure_logging(args.log_level, log_file_path)
     LOGGER.info("File logging enabled: %s", log_file_path)
+    LOGGER.info(
+        "Progress logging: %s | interval_seconds=%.1f",
+        "enabled" if args.progress else "disabled",
+        args.progress_interval_seconds,
+    )
 
     exchanges_filter = normalize_csv_values(args.exchanges, to_lower=True)
     symbols_filter = normalize_csv_values(args.symbols, to_lower=False)
@@ -1322,22 +1474,31 @@ def main() -> None:
             return
 
         LOGGER.info("Pairs selected for cleansing: %s", len(pair_profiles))
+        progress_tracker = ProgressTracker(
+            total_pairs=len(pair_profiles),
+            enabled=bool(args.progress),
+            interval_seconds=args.progress_interval_seconds,
+        )
+        progress_tracker.start()
         summaries: list[PairSummary]
         if args.workers == 1:
             summaries = []
             for index, profile in enumerate(pair_profiles, start=1):
+                pair_label = f"{profile.exchange_id}:{profile.symbol}"
                 LOGGER.info(
                     "Processing pair %s/%s: %s | source_ticks=%s | min_epoch=%s | max_epoch=%s",
                     index,
                     len(pair_profiles),
-                    f"{profile.exchange_id}:{profile.symbol}",
+                    pair_label,
                     profile.source_tick_count,
                     profile.min_epoch_s,
                     profile.max_epoch_s,
                 )
+                progress_tracker.pair_started(pair_label)
 
                 def _emit_rows_sequential(rows: list[tuple[Any, ...]]) -> None:
                     insert_rows_chunk(output_connection, rows)
+                    progress_tracker.heartbeat(f"rows_inserted_batch={len(rows)}")
 
                 summary = process_pair(
                     source_connection=source_connection,
@@ -1349,8 +1510,11 @@ def main() -> None:
                     fill_method_mode=args.fill_method,
                     emit_batch_size=args.insert_batch_size,
                     emit_rows=_emit_rows_sequential,
+                    progress_heartbeat=progress_tracker.heartbeat if progress_tracker.enabled else None,
+                    progress_interval_seconds=args.progress_interval_seconds,
                 )
                 summaries.append(summary)
+                progress_tracker.pair_completed(pair_label=pair_label, bins_total=summary.bins_total)
         else:
             LOGGER.info(
                 "Running parallel pair processing with %s workers and single-writer queue model.",
@@ -1368,6 +1532,8 @@ def main() -> None:
                 stale_after_s=args.stale_after_s,
                 fill_method_mode=args.fill_method,
                 insert_batch_size=args.insert_batch_size,
+                progress_tracker=progress_tracker,
+                progress_interval_seconds=args.progress_interval_seconds,
             )
 
         insert_pair_summaries(output_connection, run_id, summaries)
