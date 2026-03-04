@@ -86,6 +86,15 @@ Last updated: 2026-03-04
      - start-page violin/ranking now derives from the same `cleansed_market` price-curve base and applies the same observed-quality band exchange filter logic
      - added explicit UI hint that observed-quality bands are applied consistently across ranking and detail views
 
+11. Added first forecasting baseline with two scikit-learn regressors.
+   - Artifacts:
+     - `scripts/6_forecasting/train_regression_forecast.py`
+   - Scope:
+     - implemented first forecasting CLI for `Ridge` and `HistGradientBoostingRegressor`
+     - added lag and rolling feature engineering with leakage-safe target shift (`horizon_steps`)
+     - added time-aware evaluation (`TimeSeriesSplit`) and holdout metrics (`MAE`, `RMSE`, `MAPE`)
+     - writes reproducible artifacts (JSON summary + predictions CSV)
+
 ## Completed in This Session (2026-02-22)
 1. Defined Core Layer KPI catalog.
    - Artifact: `docs/4_core/core_kpi_catalog.md`

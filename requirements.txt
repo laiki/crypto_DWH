@@ -4,3 +4,4 @@ streamlit
 plotly
 cairosvg
 Pillow
+scikit-learn
