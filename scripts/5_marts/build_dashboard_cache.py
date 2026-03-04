@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Callable
 
 
 REQUIRED_VIEWS = (
@@ -31,6 +34,99 @@ CACHE_TABLES = (
     "dash_cache_symbols",
     "dash_cache_refresh_metadata",
 )
+
+
+def format_duration(seconds: float) -> str:
+    total_seconds = max(0, int(seconds))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+class CacheBuildProgress:
+    def __init__(self, *, total_steps: int, enabled: bool, interval_seconds: float) -> None:
+        self.total_steps = max(1, total_steps)
+        self.enabled = enabled
+        self.interval_seconds = max(0.1, interval_seconds)
+        self.started_monotonic = time.monotonic()
+        self.last_update_monotonic = 0.0
+        self.completed_steps = 0
+        self.current_step_label: str | None = None
+        self.current_step_started_monotonic = 0.0
+        self._lock = threading.Lock()
+
+    def _eta_seconds(self, now_monotonic: float) -> float | None:
+        if self.completed_steps <= 0:
+            return None
+        elapsed = now_monotonic - self.started_monotonic
+        avg_step_seconds = elapsed / float(self.completed_steps)
+        remaining_steps = max(0, self.total_steps - self.completed_steps)
+        return avg_step_seconds * float(remaining_steps)
+
+    def _emit(self, message: str, *, force: bool = False) -> None:
+        if not self.enabled:
+            return
+        now_monotonic = time.monotonic()
+        with self._lock:
+            if not force and (now_monotonic - self.last_update_monotonic) < self.interval_seconds:
+                return
+            progress_pct = min(100.0, (self.completed_steps / float(self.total_steps)) * 100.0)
+            elapsed_txt = format_duration(now_monotonic - self.started_monotonic)
+            eta_seconds = self._eta_seconds(now_monotonic)
+            eta_txt = format_duration(eta_seconds) if eta_seconds is not None else "n/a"
+            print(
+                f"[progress] steps {self.completed_steps}/{self.total_steps} ({progress_pct:.1f}%) "
+                f"| elapsed={elapsed_txt} | eta={eta_txt} | {message}",
+                flush=True,
+            )
+            self.last_update_monotonic = now_monotonic
+
+    def start_step(self, label: str) -> None:
+        self.current_step_label = label
+        self.current_step_started_monotonic = time.monotonic()
+        self._emit(f"started: {label}", force=True)
+
+    def heartbeat(self, note: str) -> None:
+        label = self.current_step_label or "-"
+        self._emit(f"working: {label} | {note}", force=False)
+
+    def finish_step(self, detail: str | None = None) -> None:
+        step_label = self.current_step_label or "-"
+        step_elapsed_seconds = 0.0
+        if self.current_step_started_monotonic > 0:
+            step_elapsed_seconds = time.monotonic() - self.current_step_started_monotonic
+        self.completed_steps = min(self.total_steps, self.completed_steps + 1)
+        suffix = f" | {detail}" if detail else ""
+        self._emit(
+            f"finished: {step_label} | step_elapsed={format_duration(step_elapsed_seconds)}{suffix}",
+            force=True,
+        )
+        self.current_step_label = None
+        self.current_step_started_monotonic = 0.0
+
+
+def run_with_heartbeat(
+    callback: Callable[[], Any],
+    *,
+    progress: CacheBuildProgress | None,
+    heartbeat_note: str,
+) -> Any:
+    if progress is None or not progress.enabled:
+        return callback()
+
+    stop_event = threading.Event()
+
+    def _heartbeat_loop() -> None:
+        while not stop_event.wait(progress.interval_seconds):
+            progress.heartbeat(heartbeat_note)
+
+    heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
+    heartbeat_thread.start()
+    try:
+        return callback()
+    finally:
+        stop_event.set()
+        heartbeat_thread.join(timeout=0.5)
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,6 +156,18 @@ def parse_args() -> argparse.Namespace:
         "--mart-views-sql",
         default=str(default_mart_views_sql),
         help="Path to mart dashboard views SQL file.",
+    )
+    parser.add_argument(
+        "--progress",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Print periodic progress updates with elapsed time and ETA.",
+    )
+    parser.add_argument(
+        "--progress-interval-seconds",
+        type=float,
+        default=15.0,
+        help="Seconds between periodic progress updates.",
     )
     return parser.parse_args()
 
@@ -331,42 +439,138 @@ def build_cache(
     vacuum: bool,
     apply_mart_views: bool,
     mart_views_sql_path: Path,
+    progress: CacheBuildProgress | None = None,
 ) -> dict[str, int | str | None]:
     if not db_path.exists():
         raise FileNotFoundError(f"DB path does not exist: {db_path}")
 
     with sqlite3.connect(str(db_path)) as connection:
+        if progress is not None:
+            progress.start_step("prepare connection")
         connection.execute("PRAGMA foreign_keys = OFF;")
+        if progress is not None:
+            progress.finish_step()
         if apply_mart_views:
-            apply_mart_views_sql(connection, mart_views_sql_path)
-        ensure_required_views(connection)
+            if progress is not None:
+                progress.start_step("apply mart views sql")
+            run_with_heartbeat(
+                callback=lambda: apply_mart_views_sql(connection, mart_views_sql_path),
+                progress=progress,
+                heartbeat_note="applying mart views SQL",
+            )
+            if progress is not None:
+                progress.finish_step()
 
+        if progress is not None:
+            progress.start_step("validate required views")
+        ensure_required_views(connection)
+        if progress is not None:
+            progress.finish_step()
+
+        if progress is not None:
+            progress.start_step("begin transaction")
         connection.execute("BEGIN IMMEDIATE;")
+        if progress is not None:
+            progress.finish_step()
         try:
+            if progress is not None:
+                progress.start_step("drop old cache tables")
             drop_cache_tables(connection)
-            create_cache_tables(connection)
-            create_indexes(connection)
-            summary = write_metadata(connection)
+            if progress is not None:
+                progress.finish_step()
+
+            if progress is not None:
+                progress.start_step("create cache tables")
+            run_with_heartbeat(
+                callback=lambda: create_cache_tables(connection),
+                progress=progress,
+                heartbeat_note="materializing cache tables",
+            )
+            if progress is not None:
+                progress.finish_step()
+
+            if progress is not None:
+                progress.start_step("create cache indexes")
+            run_with_heartbeat(
+                callback=lambda: create_indexes(connection),
+                progress=progress,
+                heartbeat_note="creating cache indexes",
+            )
+            if progress is not None:
+                progress.finish_step()
+
+            if progress is not None:
+                progress.start_step("write refresh metadata")
+            summary = run_with_heartbeat(
+                callback=lambda: write_metadata(connection),
+                progress=progress,
+                heartbeat_note="counting cache rows and writing metadata",
+            )
+            if progress is not None:
+                progress.finish_step()
+
+            if progress is not None:
+                progress.start_step("commit transaction")
             connection.commit()
+            if progress is not None:
+                progress.finish_step()
         except Exception:
             connection.rollback()
             raise
 
         if vacuum:
-            connection.execute("VACUUM;")
+            if progress is not None:
+                progress.start_step("vacuum db")
+            run_with_heartbeat(
+                callback=lambda: connection.execute("VACUUM;"),
+                progress=progress,
+                heartbeat_note="vacuum in progress",
+            )
+            if progress is not None:
+                progress.finish_step()
 
     return summary
 
 
 def main() -> None:
     args = parse_args()
+    if args.progress_interval_seconds <= 0:
+        raise SystemExit("--progress-interval-seconds must be > 0.")
     db_path = Path(args.db_path).expanduser().resolve()
     mart_views_sql_path = Path(args.mart_views_sql).expanduser().resolve()
+    planned_steps = [
+        "prepare connection",
+        "validate required views",
+        "begin transaction",
+        "drop old cache tables",
+        "create cache tables",
+        "create cache indexes",
+        "write refresh metadata",
+        "commit transaction",
+    ]
+    if args.apply_mart_views:
+        planned_steps.insert(1, "apply mart views sql")
+    if args.vacuum:
+        planned_steps.append("vacuum db")
+
+    progress = CacheBuildProgress(
+        total_steps=len(planned_steps),
+        enabled=bool(args.progress),
+        interval_seconds=args.progress_interval_seconds,
+    )
+    if progress.enabled:
+        print(
+            "Progress logging: enabled "
+            f"| interval_seconds={args.progress_interval_seconds:.1f} "
+            f"| planned_steps={len(planned_steps)}",
+            flush=True,
+        )
     summary = build_cache(
         db_path=db_path,
         vacuum=bool(args.vacuum),
         apply_mart_views=bool(args.apply_mart_views),
         mart_views_sql_path=mart_views_sql_path,
+        progress=progress,
     )
 
     print("Dashboard cache build completed.")
