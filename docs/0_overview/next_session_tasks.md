@@ -78,6 +78,14 @@ Last updated: 2026-03-04
      - step-based progress output with elapsed time and ETA
      - heartbeat logging for long-running phases (mart view apply, cache table materialization, index creation, metadata counts, optional `VACUUM`)
 
+10. Fixed dashboard symbol-ranking inconsistency between start page and detail chart.
+   - Artifacts:
+     - `scripts/5_marts/dashboard_mvp_app.py`
+   - Scope:
+     - root cause: start-page max deviation ranking used a different data/filter path than the selected-symbol detail chart
+     - start-page violin/ranking now derives from the same `cleansed_market` price-curve base and applies the same observed-quality band exchange filter logic
+     - added explicit UI hint that observed-quality bands are applied consistently across ranking and detail views
+
 ## Completed in This Session (2026-02-22)
 1. Defined Core Layer KPI catalog.
    - Artifact: `docs/4_core/core_kpi_catalog.md`

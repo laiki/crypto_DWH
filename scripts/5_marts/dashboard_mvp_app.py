@@ -337,6 +337,26 @@ WHERE run_id = :run_id
 ORDER BY bucket_epoch_s ASC, exchange_id ASC;
 """
 
+SQL_PRICE_CURVE_WINDOW_ALL_SYMBOLS = """
+SELECT
+    run_id,
+    exchange_id,
+    symbol,
+    bucket_start_utc,
+    bucket_epoch_s,
+    ROUND(price, 12) AS price_close,
+    fill_method
+FROM cleansed_market
+WHERE run_id = :run_id
+  AND bucket_start_utc >= :window_start_utc
+  AND bucket_start_utc <= :window_end_utc
+  AND price IS NOT NULL
+  AND is_missing = 0
+  AND is_stale = 0
+  AND symbol IS NOT NULL
+ORDER BY symbol ASC, bucket_epoch_s ASC, exchange_id ASC;
+"""
+
 SQL_PRICE_DEVIATION_WINDOW_RAW = """
 WITH filtered AS (
     SELECT
@@ -861,6 +881,51 @@ def _build_deviation_from_curve(price_curve_df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def _build_symbol_violin_from_curve(price_curve_df: pd.DataFrame) -> pd.DataFrame:
+    output_columns = [
+        "symbol",
+        "bucket_start_utc",
+        "bucket_epoch_s",
+        "exchange_count",
+        "price_diff_pct",
+    ]
+    if price_curve_df.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    working = price_curve_df.copy()
+    for column_name in ["bucket_epoch_s", "price_close"]:
+        working[column_name] = pd.to_numeric(working[column_name], errors="coerce")
+    working["symbol"] = working["symbol"].astype(str)
+    working["exchange_id"] = working["exchange_id"].astype(str)
+    working = working.dropna(
+        subset=["symbol", "bucket_start_utc", "bucket_epoch_s", "price_close", "exchange_id"]
+    )
+    if working.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    working["bucket_epoch_s"] = working["bucket_epoch_s"].astype(int)
+    group_columns = ["symbol", "bucket_start_utc", "bucket_epoch_s"]
+    agg_df = (
+        working.groupby(group_columns, as_index=False)
+        .agg(
+            exchange_count=("exchange_id", "nunique"),
+            max_price=("price_close", "max"),
+            min_price=("price_close", "min"),
+        )
+    )
+    agg_df = agg_df[agg_df["exchange_count"] >= 2].copy()
+    if agg_df.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    agg_df["price_diff_pct"] = ((agg_df["max_price"] - agg_df["min_price"]) / agg_df["min_price"]) * 100.0
+    agg_df.loc[agg_df["min_price"] <= 0.0, "price_diff_pct"] = pd.NA
+    agg_df["price_diff_pct"] = agg_df["price_diff_pct"].round(9)
+    agg_df = agg_df[agg_df["price_diff_pct"].notna()].copy()
+    return agg_df[output_columns].sort_values(
+        by=["symbol", "bucket_epoch_s"], ascending=[True, True]
+    ).reset_index(drop=True)
+
+
 def _apply_theme(theme_mode: str) -> str:
     if theme_mode == "Dark":
         st.markdown(DARK_THEME_CSS, unsafe_allow_html=True)
@@ -1204,33 +1269,41 @@ def main() -> None:
         "window_start_utc": window_start_utc,
         "window_end_utc": window_end_utc,
     }
-    if has_symbol_deviation_cache:
-        symbol_violin_df = _query_dataframe(
-            db_path,
-            SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_CACHE,
-            params=symbol_violin_params,
-        )
-    elif has_symbol_deviation_view:
-        symbol_violin_df = _query_dataframe(
-            db_path,
-            SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_VIEW,
-            params=symbol_violin_params,
-        )
-    else:
-        symbol_violin_df = _query_dataframe(
-            db_path,
-            SQL_SYMBOL_DEVIATION_VIOLIN_WINDOW_RAW,
-            params=symbol_violin_params,
-        )
+    symbol_violin_curve_df = _query_dataframe(
+        db_path,
+        SQL_PRICE_CURVE_WINDOW_ALL_SYMBOLS,
+        params=symbol_violin_params,
+    )
     if not symbol_observed_quality_df.empty:
-        symbol_violin_df = symbol_violin_df[
-            symbol_violin_df["symbol"].astype(str).isin(eligible_observed_symbols)
+        symbol_violin_curve_df = symbol_violin_curve_df[
+            symbol_violin_curve_df["symbol"].astype(str).isin(eligible_observed_symbols)
         ].copy()
+        if not filtered_symbol_observed_quality_df.empty:
+            allowed_pair_keys = set(
+                (
+                    filtered_symbol_observed_quality_df["symbol"].astype(str)
+                    + "|"
+                    + filtered_symbol_observed_quality_df["exchange_id"].astype(str)
+                ).tolist()
+            )
+            pair_keys = (
+                symbol_violin_curve_df["symbol"].astype(str)
+                + "|"
+                + symbol_violin_curve_df["exchange_id"].astype(str)
+            )
+            symbol_violin_curve_df = symbol_violin_curve_df[pair_keys.isin(allowed_pair_keys)].copy()
+        else:
+            symbol_violin_curve_df = symbol_violin_curve_df.iloc[0:0].copy()
+
+    symbol_violin_df = _build_symbol_violin_from_curve(symbol_violin_curve_df)
 
     st.subheader("Symbol Start Page: Price Deviation Violin Grid")
     st.caption(
         "Each violin shows the distribution of bucket-level percentage close-price deviation across exchanges "
         "for the selected run and UTC window."
+    )
+    st.caption(
+        "Observed coverage quality bands are applied consistently to symbol ranking and detail charts."
     )
     if symbol_violin_df.empty:
         st.info("No aligned multi-exchange points available for violin plots in the selected run/window.")
