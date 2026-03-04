@@ -129,7 +129,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--list-only",
         action="store_true",
-        help="Only print unique exchange/asset lists and exit.",
+        help="Only print scope/window information and optional source unique lists, then exit.",
+    )
+    parser.add_argument(
+        "--source-uniques-mode",
+        choices=["off", "fast", "full"],
+        default="fast",
+        help=(
+            "How to populate source uniques: "
+            "'off' skips source uniques, "
+            "'fast' derives source uniques from exported rows, "
+            "'full' computes exact uniques from source window."
+        ),
     )
     parser.add_argument(
         "--print-unique-exchanges",
@@ -343,6 +354,54 @@ def source_asset(symbol: Any) -> str | None:
 
 def connect_readonly(db_path: Path) -> sqlite3.Connection:
     return sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+
+
+def collect_source_max_timestamps(
+    db_paths: list[Path],
+    exchanges_filter: list[str],
+    assets_filter: list[str],
+    include_connection_events: bool,
+) -> tuple[str | None, str | None]:
+    market_where, market_params = build_market_where_clause(
+        lower_bound_utc=None,
+        upper_bound_utc=None,
+        lower_inclusive=True,
+        exchanges=exchanges_filter,
+        assets=assets_filter,
+    )
+    event_where, event_params = build_event_where_clause(
+        lower_bound_utc=None,
+        upper_bound_utc=None,
+        lower_inclusive=True,
+        exchanges=exchanges_filter,
+        assets=assets_filter,
+    )
+
+    market_max_utc: str | None = None
+    event_max_utc: str | None = None
+
+    for db_path in db_paths:
+        connection = connect_readonly(db_path)
+        try:
+            if table_exists(connection, "market_ticks"):
+                market_row = connection.execute(
+                    f"SELECT ingestion_ts_utc FROM market_ticks WHERE {market_where} ORDER BY id DESC LIMIT 1",
+                    market_params,
+                ).fetchone()
+                if market_row is not None and isinstance(market_row[0], str) and market_row[0]:
+                    market_max_utc = max_iso_value(market_max_utc, market_row[0])
+
+            if include_connection_events and table_exists(connection, "connection_events"):
+                event_row = connection.execute(
+                    f"SELECT event_ts_utc FROM connection_events WHERE {event_where} ORDER BY id DESC LIMIT 1",
+                    event_params,
+                ).fetchone()
+                if event_row is not None and isinstance(event_row[0], str) and event_row[0]:
+                    event_max_utc = max_iso_value(event_max_utc, event_row[0])
+        finally:
+            connection.close()
+
+    return market_max_utc, event_max_utc
 
 
 def collect_source_uniques(db_paths: list[Path], market_where: str, market_params: list[Any]) -> tuple[list[str], list[str]]:
@@ -724,6 +783,13 @@ def print_list(title: str, values: list[str]) -> None:
     print("  " + ", ".join(values))
 
 
+def print_source_uniques_skipped(kind: str, source_uniques_mode: str) -> None:
+    print(
+        f"Unique {kind} in source window: skipped "
+        f"(source-uniques-mode={source_uniques_mode}; use --source-uniques-mode full for exact source uniques)."
+    )
+
+
 def main() -> None:
     args = parse_args()
 
@@ -740,11 +806,24 @@ def main() -> None:
         raise SystemExit(f"No worker DB files found for input glob: {args.input_glob}")
 
     run_started_utc = datetime.now(timezone.utc)
-    window_end_utc = run_started_utc
-    window_end_utc_iso = utc_iso(window_end_utc)
+    include_events = not args.skip_connection_events
+    source_market_max_utc, source_event_max_utc = collect_source_max_timestamps(
+        db_paths=db_paths,
+        exchanges_filter=exchanges_filter,
+        assets_filter=assets_filter,
+        include_connection_events=include_events,
+    )
+    window_end_utc_iso = source_market_max_utc
+    if window_end_utc_iso is None:
+        window_end_utc_iso = source_event_max_utc if include_events else None
+    if window_end_utc_iso is None:
+        raise SystemExit(
+            "No source timestamps found for selected filters. "
+            "Cannot derive staging window end from source data."
+        )
+    window_end_utc = datetime.fromisoformat(window_end_utc_iso)
     window_start_default_utc = window_start_iso(window_end_utc, args.hours)
     incremental_enabled = bool(args.incremental)
-    include_events = not args.skip_connection_events
     state_path = Path(args.state_path)
     state_key = state_profile_key(
         custom_key=args.state_key,
@@ -790,10 +869,12 @@ def main() -> None:
         assets=assets_filter,
     )
 
-    source_exchanges, source_assets = collect_source_uniques(db_paths, market_where, market_params)
+    source_uniques_mode = args.source_uniques_mode
 
     print(f"Worker DB files used: {len(db_paths)}")
     print(f"Export mode: {'incremental' if incremental_enabled else 'window'}")
+    print(f"Source uniques mode: {source_uniques_mode}")
+    print(f"Window anchor UTC (source max): {window_end_utc_iso}")
     print(f"Window default start UTC: {window_start_default_utc}")
     print(f"Window end UTC: {window_end_utc_iso}")
     print(
@@ -813,12 +894,19 @@ def main() -> None:
         print(f"Exchange filter: {', '.join(exchanges_filter)}")
     if assets_filter:
         print(f"Asset filter: {', '.join(assets_filter)}")
-    if args.print_unique_exchanges:
-        print_list("Unique exchanges in source window", source_exchanges)
-    if args.print_unique_assets:
-        print_list("Unique assets in source window", source_assets)
 
     if args.list_only:
+        if source_uniques_mode == "full":
+            source_exchanges, source_assets = collect_source_uniques(db_paths, market_where, market_params)
+            if args.print_unique_exchanges:
+                print_list("Unique exchanges in source window", source_exchanges)
+            if args.print_unique_assets:
+                print_list("Unique assets in source window", source_assets)
+        else:
+            if args.print_unique_exchanges:
+                print_source_uniques_skipped("exchanges", source_uniques_mode)
+            if args.print_unique_assets:
+                print_source_uniques_skipped("assets", source_uniques_mode)
         print("List-only mode enabled. No export files were created.")
         return
 
@@ -828,6 +916,8 @@ def main() -> None:
     run_id = base_name
 
     output_files: list[Path]
+    source_exchanges: list[str] = []
+    source_assets: list[str] = []
     exported_exchanges: list[str]
     exported_assets: list[str]
     exported_market_max_ts_utc: str | None = None
@@ -875,6 +965,12 @@ def main() -> None:
             chunk_size=args.chunk_size,
         )
 
+    if source_uniques_mode == "full":
+        source_exchanges, source_assets = collect_source_uniques(db_paths, market_where, market_params)
+    elif source_uniques_mode == "fast":
+        source_exchanges = list(exported_exchanges)
+        source_assets = list(exported_assets)
+
     new_market_watermark_utc: str | None = None
     new_event_watermark_utc: str | None = None
     state_updated = False
@@ -920,6 +1016,11 @@ def main() -> None:
         },
         "window": {
             "hours": args.hours,
+            "anchor": {
+                "strategy": "source_max_timestamp",
+                "market_ticks_max_utc": source_market_max_utc,
+                "connection_events_max_utc": source_event_max_utc,
+            },
             "default_start_utc": window_start_default_utc,
             "end_utc": window_end_utc_iso,
         },
@@ -951,6 +1052,7 @@ def main() -> None:
             "assets": assets_filter,
         },
         "uniques": {
+            "collection_mode": source_uniques_mode,
             "source": {
                 "exchanges": source_exchanges,
                 "assets": source_assets,
@@ -992,6 +1094,16 @@ def main() -> None:
     print(f"Export format: {args.output_format}")
     print(f"Exported market_ticks rows: {market_count}")
     print(f"Exported connection_events rows: {event_count}")
+    if args.print_unique_exchanges:
+        if source_uniques_mode == "off":
+            print_source_uniques_skipped("exchanges", source_uniques_mode)
+        else:
+            print_list("Unique exchanges in source window", source_exchanges)
+    if args.print_unique_assets:
+        if source_uniques_mode == "off":
+            print_source_uniques_skipped("assets", source_uniques_mode)
+        else:
+            print_list("Unique assets in source window", source_assets)
     print_list("Unique exchanges exported", exported_exchanges)
     print_list("Unique assets exported", exported_assets)
     if incremental_enabled:

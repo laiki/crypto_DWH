@@ -1,6 +1,6 @@
 # Next Session Tasks
 
-Last updated: 2026-02-23
+Last updated: 2026-02-27
 
 ## Completed in This Session (2026-02-22)
 1. Defined Core Layer KPI catalog.
@@ -73,21 +73,88 @@ Dashboard delivery is now prioritized before forecasting so that already collect
      - `scripts/5_marts/README.md`
      - `requirements.txt`
 
-## Next Priority 1 (Dashboard Hardening)
-1. Add dashboard data-access and query integration tests.
-   - Scope: verify expected columns, null-handling, and default filter/sort behavior from mart queries.
-   - Output: repeatable smoke/integration tests for dashboard SQL access layer.
-   - Done when: broken mart contract causes deterministic test failure.
+## Completed in This Session (2026-02-27)
+1. Extended dashboard filtering across all major tabs.
+   - Artifacts:
+     - `scripts/5_marts/dashboard_mvp_app.py`
+   - Scope:
+     - column-based filters for Price Curve, Price Deviation, and Platform Quality
+     - dual-axis Price Deviation chart (absolute + percentage in one chart)
+     - dark-mode refinements and pagination behavior fixes
 
-2. Define dashboard refresh and release workflow.
+2. Added observed coverage quality KPI for symbol comparison robustness.
+   - Artifacts:
+     - `scripts/5_marts/dashboard_mvp_app.py`
+   - Scope:
+     - observed-vs-max ratio per symbol/exchange grouped into bands
+       (`0-50%`, `50-75%`, `75-90%`, `90-100%`)
+     - sidebar band filter (default now `90-100%`)
+     - symbols with `<= 1` remaining exchange after band filter are excluded
+     - sidebar shows filtered symbol count (`symbols=<n>`)
+
+3. Added dedicated mart base view for observed quality inputs.
+   - Artifacts:
+     - `scripts/5_marts/mart_dashboard_views.sql`
+     - `scripts/5_marts/dashboard_query_templates.sql`
+     - `scripts/5_marts/build_dashboard_cache.py`
+     - `scripts/5_marts/README.md`
+   - View:
+     - `vw_mart_dashboard_symbol_observed_quality_base`
+   - Scope:
+     - stable mart-level base for observed flag extraction
+     - dashboard uses view with fallback to raw query for backward compatibility
+
+4. Added dedicated documentation for the new mart use case.
+   - Artifacts:
+     - `docs/5_marts/symbol_observed_quality_mart_use_case.md`
+     - `docs/5_marts/mart_kpi_extracts.md`
+     - `docs/5_marts/dashboard_mvp_scope.md`
+
+5. Added DEBUG tick receive logging in ingestion runtime.
+   - Artifact:
+     - `scripts/1_ingestion/ingest_all_exchanges_ws.py`
+   - Scope:
+     - for every received tick (when log level is DEBUG), log:
+       - `ingestion_ts_utc`
+       - `exchange_id`
+       - `symbol`
+       - selected `price`
+   - Goal:
+     - support trace-level investigation of source-vs-manual price discrepancies.
+
+## Open Operational Topic
+1. Cache rebuild can fail on dropping `dash_cache_price_deviation_daily_latest`
+   with `sqlite3.OperationalError: unable to open database file`.
+   - Scope: isolate SQLite/environment cause and make cache refresh robust.
+   - Done when: cache build runs reproducibly without manual intervention.
+
+## Next Priority 1 (Dashboard Data Drill-Down)
+1. Add raw ingestion data drill-down in Price Curve tab (on demand).
+   - Scope:
+     - configurable ingestion DB path in dashboard config
+     - load only when user explicitly requests it (button)
+     - plot raw series for selected symbol/exchanges/time range as `exchange_raw`
+     - overlay in existing chart when possible, fallback chart below if required
+   - Done when: user can inspect cleaned vs raw series directly per symbol/exchange.
+
+2. Investigate ingestion/source discrepancy for extreme spreads via debug traces.
+   - Scope:
+     - collect DEBUG logs for affected windows across exchanges
+     - correlate logged tick timestamps/prices with stored raw rows and dashboard views
+     - verify symbol mapping and selected source price field semantics (`last` vs `close`)
+   - Done when:
+     - root cause location is identified (source payload, mapping, runtime, or storage).
+
+3. Add fast sanity checks for observed-quality mart contract.
+   - Scope:
+     - verify required columns and non-null assumptions
+     - verify band allocation rules for boundary values
+   - Done when: mart contract breaks are caught by deterministic tests.
+
+4. Define dashboard refresh and release workflow.
    - Scope: sequence `core_pipeline` + mart SQL apply + dashboard cache refresh for daily operation.
    - Output: short runbook with command sequence and failure handling.
    - Done when: dashboard refresh is reproducible and operationally documented.
-
-3. Add dashboard UX/data fallback handling for empty or partially missing KPI snapshots.
-   - Scope: graceful panel behavior for missing symbol data and absent latest-day KPI rows.
-   - Output: explicit UI states and operator hints for recovery.
-   - Done when: dashboard remains usable even with incomplete daily ingestion coverage.
 
 ## Next Priority 2
 1. Align forecasting feature contract with Core/Cleansing outputs.

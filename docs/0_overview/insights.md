@@ -78,3 +78,19 @@
   - Runtime is similar to the unique-list-only mode (`--list-only`).
 - Impact:
   - Current staging export throughput is low and can become a bottleneck for iterative analysis runs.
+
+## Data Quality Investigation
+
+### 2026-02-27 - Raw vs Pipeline Check for Extreme Spread
+- Context:
+  - Extreme spread analysis for `TRUMP/USDC` between `hyperliquid` and `backpack`.
+  - Dashboard comparison used raw ingestion data and pipeline-processed data for the same symbol/time window.
+- Observation:
+  - No discrepancy was found between raw ingestion values and pipeline output for `hyperliquid`.
+  - Therefore, the pipeline transformation is unlikely to be the source of the `~51k%` spread.
+  - A manual external check indicated values for `hyperliquid` that differ from stored ingestion values.
+- Impact:
+  - The issue is likely in source ingestion interpretation, source payload semantics, symbol mapping, or stream/runtime behavior before ETL processing.
+- Decision:
+  - Use DEBUG-level ingestion logging for all received ticks to capture timestamp and selected price per message.
+  - Analyze CCXT communication/log traces for the affected window to identify where divergence begins.

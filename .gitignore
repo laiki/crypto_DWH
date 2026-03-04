@@ -4,6 +4,7 @@ data/*.db-shm
 data/*.db-wal
 data/*.db
 data/*.log
+node_modules/
 /data/**/*.log
 /data/**/*.db
 /data/**/*.db-shm
