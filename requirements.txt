@@ -1,5 +1,6 @@
 ccxt
 pandas
+numpy
 streamlit
 plotly
 cairosvg

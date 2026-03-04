@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Train baseline regression forecasts on cleansed crypto time series.
 
@@ -18,21 +18,31 @@ import json
 import math
 import re
 import sqlite3
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-import pandas as pd
-from sklearn.base import clone
-from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.linear_model import Ridge
-from sklearn.metrics import mean_absolute_error
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+try:
+    import numpy as np
+    import pandas as pd
+    from sklearn.base import clone
+    from sklearn.ensemble import HistGradientBoostingRegressor
+    from sklearn.linear_model import Ridge
+    from sklearn.metrics import mean_absolute_error
+    from sklearn.metrics import mean_squared_error
+    from sklearn.model_selection import TimeSeriesSplit
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+except ModuleNotFoundError as exc:
+    missing = exc.name or "unknown"
+    raise SystemExit(
+        "Missing dependency "
+        f"'{missing}' for interpreter '{sys.executable}'. "
+        "Install dependencies with: "
+        f"'{sys.executable} -m pip install -r requirements.txt'"
+    ) from exc
 
 
 SCRIPT_PATH = Path(__file__).resolve()
