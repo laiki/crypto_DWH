@@ -59,11 +59,47 @@ convert_svg_to_pdf() {
   return 1
 }
 
+convert_png_to_pdf() {
+  local input_png="$1"
+  local output_pdf="$2"
+
+  if command -v magick >/dev/null 2>&1; then
+    magick "$input_png" "$output_pdf"
+    return $?
+  fi
+
+  if command -v convert >/dev/null 2>&1; then
+    convert "$input_png" "$output_pdf"
+    return $?
+  fi
+
+  if command -v python >/dev/null 2>&1; then
+    if python - "$input_png" "$output_pdf" <<'PY'
+import sys
+try:
+    from PIL import Image
+except Exception:
+    raise SystemExit(2)
+
+src, dst = sys.argv[1], sys.argv[2]
+img = Image.open(src).convert("RGB")
+img.save(dst, "PDF", resolution=300.0)
+PY
+    then
+      return 0
+    fi
+  fi
+
+  echo "Error: No PNG->PDF converter found (tried magick, convert, python+Pillow)." >&2
+  return 1
+}
+
 render_with_kroki() {
   local input_file="$1"
   local output_file="$2"
   local tmp_response
   local tmp_svg
+  local tmp_png
   local http_code
 
   if ! command -v curl >/dev/null 2>&1; then
@@ -108,11 +144,38 @@ render_with_kroki() {
 
       tmp_svg="$(mktemp)"
       mv "$tmp_response" "$tmp_svg"
-      if ! convert_svg_to_pdf "$tmp_svg" "$output_file"; then
+
+      # Mermaid often emits labels via foreignObject; cairosvg drops those in PDF.
+      # If detected, render PNG and convert PNG->PDF to preserve visible text.
+      if text_has_pattern "<foreignObject" "$tmp_svg"; then
+        echo "Info: Detected foreignObject labels in \"$input_file\". Using PNG-based PDF fallback to preserve text." >&2
+        tmp_png="$(mktemp)"
+        http_code="$(
+          curl -sS -X POST \
+          -H 'Content-Type: text/plain' \
+          --data-binary @"$input_file" \
+          "$kroki_base_url/mermaid/png" \
+          -o "$tmp_png" \
+          -w "%{http_code}"
+        )"
+        if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+          echo "Error: Kroki returned HTTP $http_code for PNG fallback of \"$input_file\"." >&2
+          sed -n '1,40p' "$tmp_png" >&2
+          rm -f "$tmp_svg" "$tmp_png"
+          return 1
+        fi
+        if ! convert_png_to_pdf "$tmp_png" "$output_file"; then
+          rm -f "$tmp_svg" "$tmp_png"
+          return 1
+        fi
+        rm -f "$tmp_svg" "$tmp_png"
+      else
+        if ! convert_svg_to_pdf "$tmp_svg" "$output_file"; then
+          rm -f "$tmp_svg"
+          return 1
+        fi
         rm -f "$tmp_svg"
-        return 1
       fi
-      rm -f "$tmp_svg"
       ;;
     *)
       rm -f "$tmp_response"
