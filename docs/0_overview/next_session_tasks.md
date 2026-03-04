@@ -52,6 +52,23 @@ Last updated: 2026-03-04
      - added `node_modules/` to ignore list
      - removed accidentally staged `node_modules` entries from index
 
+7. Added progress + ETA logging for Core build execution.
+   - Artifacts:
+     - `scripts/4_core/build_core_db.py`
+   - Scope:
+     - added `--progress/--no-progress`
+     - added `--progress-interval-seconds`
+     - step-based progress output with elapsed time and ETA
+     - heartbeat logging for long-running SQL phases (`COUNT`, `INSERT ... SELECT`, optional `VACUUM`)
+
+8. Evaluated parallel queue-worker copy pattern for Core build and deferred implementation.
+   - Reason:
+     - SQLite output target is single-writer constrained
+     - existing table copy path uses efficient in-engine `INSERT ... SELECT`
+   - Decision:
+     - keep current single-writer Core build path
+     - prioritize observability and targeted SQL/runtime optimizations over parallel worker complexity
+
 ## Completed in This Session (2026-02-22)
 1. Defined Core Layer KPI catalog.
    - Artifact: `docs/4_core/core_kpi_catalog.md`

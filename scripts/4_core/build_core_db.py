@@ -426,6 +426,9 @@ def main() -> int:
     args = parse_args()
     started = time.monotonic()
     started_utc = utc_now()
+    if args.progress_interval_seconds <= 0:
+        print("--progress-interval-seconds must be > 0.", file=sys.stderr)
+        return 1
 
     try:
         staging_db_path, cleansing_db_path, input_mode = resolve_input_paths(args)
@@ -465,6 +468,30 @@ def main() -> int:
             return 1
         remove_sqlite_artifacts(output_db_path)
 
+    planned_steps = [
+        "prepare sources",
+        "copy market_ticks",
+        "copy connection_events",
+        "copy cleansed_market",
+        "apply core views",
+        "write build metadata",
+    ]
+    if args.vacuum:
+        planned_steps.append("vacuum output db")
+    planned_steps.append("commit")
+    progress = BuildProgress(
+        total_steps=len(planned_steps),
+        enabled=bool(args.progress),
+        interval_seconds=args.progress_interval_seconds,
+    )
+    if progress.enabled:
+        print(
+            "Progress logging: enabled "
+            f"| interval_seconds={args.progress_interval_seconds:.1f} "
+            f"| planned_steps={len(planned_steps)}",
+            flush=True,
+        )
+
     connection = sqlite3.connect(str(output_db_path))
     market_rows = 0
     event_rows = 0
@@ -474,6 +501,7 @@ def main() -> int:
     exit_code = 0
 
     try:
+        progress.start_step("prepare sources")
         connection.execute("PRAGMA journal_mode=WAL;")
         connection.execute("PRAGMA synchronous=NORMAL;")
 
@@ -481,6 +509,7 @@ def main() -> int:
         missing_tables = missing_required_tables(connection)
         if missing_tables:
             raise RuntimeError("Missing required source tables: " + ", ".join(missing_tables))
+        progress.finish_step()
 
         market_conditions: list[str] = []
         event_conditions: list[str] = []
@@ -505,30 +534,48 @@ def main() -> int:
         event_where = build_where_clause(event_conditions)
         cleansing_where = build_where_clause(cleansing_conditions)
 
+        progress.start_step("copy market_ticks")
         market_rows = copy_table_from_source(
             connection,
             source_schema=STAGING_SCHEMA,
             table_name="market_ticks",
             where_clause=market_where,
             where_params=params_market,
+            progress=progress,
         )
+        progress.finish_step(detail=f"rows={market_rows}")
+
+        progress.start_step("copy connection_events")
         event_rows = copy_table_from_source(
             connection,
             source_schema=STAGING_SCHEMA,
             table_name="connection_events",
             where_clause=event_where,
             where_params=params_event,
+            progress=progress,
         )
+        progress.finish_step(detail=f"rows={event_rows}")
+
+        progress.start_step("copy cleansed_market")
         cleansing_rows = copy_table_from_source(
             connection,
             source_schema=CLEANSING_SCHEMA,
             table_name="cleansed_market",
             where_clause=cleansing_where,
             where_params=params_cleansing,
+            progress=progress,
         )
+        progress.finish_step(detail=f"rows={cleansing_rows}")
 
-        created_core_views_count = apply_views_sql(connection, views_sql_path)
+        progress.start_step("apply core views")
+        created_core_views_count = run_with_heartbeat(
+            callback=lambda: apply_views_sql(connection, views_sql_path),
+            progress=progress,
+            heartbeat_note="applying view SQL script",
+        )
+        progress.finish_step(detail=f"views={created_core_views_count}")
 
+        progress.start_step("write build metadata")
         runtime_seconds = round(time.monotonic() - started, 3)
         build_id = f"core_build_{started_utc.strftime('%Y%m%d_%H%M%S')}"
         write_build_metadata(
@@ -548,11 +595,20 @@ def main() -> int:
             created_core_views_count=created_core_views_count,
             runtime_seconds=runtime_seconds,
         )
+        progress.finish_step()
 
         if args.vacuum:
-            connection.execute("VACUUM")
+            progress.start_step("vacuum output db")
+            run_with_heartbeat(
+                callback=lambda: connection.execute("VACUUM"),
+                progress=progress,
+                heartbeat_note="vacuum in progress",
+            )
+            progress.finish_step()
 
+        progress.start_step("commit")
         connection.commit()
+        progress.finish_step()
     except Exception as exc:  # noqa: BLE001
         connection.rollback()
         error_message = repr(exc)
