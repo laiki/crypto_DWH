@@ -23,7 +23,9 @@ from plotly.subplots import make_subplots
 import streamlit as st
 
 
-DEFAULT_DB_PATH = Path(os.getenv("CORE_DB_PATH", "scripts/data/core_kpi.db"))
+SCRIPT_FILE_PATH = Path(__file__).resolve()
+REPO_ROOT = SCRIPT_FILE_PATH.parents[2]
+DEFAULT_DB_PATH = Path(os.getenv("CORE_DB_PATH", "data/core/core_kpi.db"))
 DEFAULT_INGESTION_DB_PATH = Path(os.getenv("INGESTION_DB_PATH", "scripts/data/"))
 THEME_OPTIONS = ("Dark", "Light")
 PAGINATION_SIGNATURE_STATE_KEY = "violin_page_signature_v1"
@@ -126,6 +128,11 @@ PLOTLY_CHART_CONFIG = {
     "displaylogo": False,
     "modeBarButtonsToAdd": ["resetScale2d", "autoScale2d"],
 }
+
+CORE_DB_FALLBACK_RELATIVE_PATHS = (
+    Path("data/core/core_kpi.db"),
+    Path("scripts/data/core/core_kpi.db"),
+)
 
 SQL_PLATFORM_QUALITY_DAILY_CACHE = """
 SELECT
@@ -862,6 +869,41 @@ def _apply_theme(theme_mode: str) -> str:
     return "plotly_white"
 
 
+def _deduplicate_paths(paths: list[Path]) -> list[Path]:
+    unique_paths: list[Path] = []
+    seen: set[str] = set()
+    for path_candidate in paths:
+        normalized = str(path_candidate)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        unique_paths.append(path_candidate)
+    return unique_paths
+
+
+def _resolve_core_db_path(db_path_raw: str) -> tuple[Path, list[Path]]:
+    raw_value = (db_path_raw or "").strip()
+    requested_path = Path(raw_value if raw_value else str(DEFAULT_DB_PATH)).expanduser()
+
+    candidates: list[Path] = []
+    if requested_path.is_absolute():
+        candidates.append(requested_path)
+    else:
+        candidates.append((Path.cwd() / requested_path).resolve())
+        candidates.append((REPO_ROOT / requested_path).resolve())
+
+    for rel_path in CORE_DB_FALLBACK_RELATIVE_PATHS:
+        candidates.append((Path.cwd() / rel_path).resolve())
+        candidates.append((REPO_ROOT / rel_path).resolve())
+
+    ordered_candidates = _deduplicate_paths(candidates)
+    for candidate in ordered_candidates:
+        if candidate.is_file():
+            return candidate, ordered_candidates
+
+    return ordered_candidates[0], ordered_candidates
+
+
 def main() -> None:
     st.set_page_config(page_title="Crypto KPI Dashboard MVP", layout="wide")
     st.title("Crypto KPI Dashboard MVP")
@@ -885,11 +927,14 @@ def main() -> None:
             st.success("Query cache cleared.")
     plotly_template = _apply_theme(theme_mode)
 
-    db_path = Path(db_path_raw).expanduser()
+    db_path, db_path_candidates = _resolve_core_db_path(db_path_raw)
     ingestion_db_path = Path(ingestion_db_path_raw).expanduser()
     ingestion_db_files = _discover_ingestion_db_files(ingestion_db_path)
-    if not db_path.exists():
+    if not db_path.is_file():
         st.error(f"Database path does not exist: {db_path}")
+        st.caption("Checked candidates in this order:")
+        for candidate in db_path_candidates:
+            st.code(str(candidate))
         st.stop()
 
     existing_objects = _get_existing_objects(db_path)
@@ -905,6 +950,7 @@ def main() -> None:
         st.stop()
 
     with st.sidebar:
+        st.caption(f"Resolved Core DB: {db_path}")
         if has_platform_quality_cache:
             st.success("Platform quality source: cache table")
         elif has_quality_view:
