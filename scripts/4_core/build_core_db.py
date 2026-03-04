@@ -16,11 +16,12 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import threading
 import time
 from datetime import date
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 STAGING_SCHEMA = "staging_src"
@@ -32,6 +33,99 @@ REQUIRED_TABLES_BY_SCHEMA = {
 }
 
 CORE_VIEW_PREFIX = "vw_core_"
+
+
+def format_duration(seconds: float) -> str:
+    total_seconds = max(0, int(seconds))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+class BuildProgress:
+    def __init__(self, *, total_steps: int, enabled: bool, interval_seconds: float) -> None:
+        self.total_steps = max(1, total_steps)
+        self.enabled = enabled
+        self.interval_seconds = max(0.1, interval_seconds)
+        self.started_monotonic = time.monotonic()
+        self.last_update_monotonic = 0.0
+        self.completed_steps = 0
+        self.current_step_label: str | None = None
+        self.current_step_started_monotonic = 0.0
+        self._lock = threading.Lock()
+
+    def _eta_seconds(self, now_monotonic: float) -> float | None:
+        if self.completed_steps <= 0:
+            return None
+        elapsed = now_monotonic - self.started_monotonic
+        avg_step_seconds = elapsed / float(self.completed_steps)
+        remaining_steps = max(0, self.total_steps - self.completed_steps)
+        return avg_step_seconds * float(remaining_steps)
+
+    def _emit(self, message: str, *, force: bool = False) -> None:
+        if not self.enabled:
+            return
+        now_monotonic = time.monotonic()
+        with self._lock:
+            if not force and (now_monotonic - self.last_update_monotonic) < self.interval_seconds:
+                return
+            pct = min(100.0, (self.completed_steps / float(self.total_steps)) * 100.0)
+            elapsed_txt = format_duration(now_monotonic - self.started_monotonic)
+            eta_seconds = self._eta_seconds(now_monotonic)
+            eta_txt = format_duration(eta_seconds) if eta_seconds is not None else "n/a"
+            print(
+                f"[progress] steps {self.completed_steps}/{self.total_steps} ({pct:.1f}%) "
+                f"| elapsed={elapsed_txt} | eta={eta_txt} | {message}",
+                flush=True,
+            )
+            self.last_update_monotonic = now_monotonic
+
+    def start_step(self, label: str) -> None:
+        self.current_step_label = label
+        self.current_step_started_monotonic = time.monotonic()
+        self._emit(f"started: {label}", force=True)
+
+    def heartbeat(self, note: str) -> None:
+        label = self.current_step_label or "-"
+        self._emit(f"working: {label} | {note}", force=False)
+
+    def finish_step(self, detail: str | None = None) -> None:
+        step_label = self.current_step_label or "-"
+        step_elapsed_seconds = 0.0
+        if self.current_step_started_monotonic > 0:
+            step_elapsed_seconds = time.monotonic() - self.current_step_started_monotonic
+        self.completed_steps = min(self.total_steps, self.completed_steps + 1)
+        suffix = f" | {detail}" if detail else ""
+        self._emit(
+            f"finished: {step_label} | step_elapsed={format_duration(step_elapsed_seconds)}{suffix}",
+            force=True,
+        )
+        self.current_step_label = None
+        self.current_step_started_monotonic = 0.0
+
+
+def run_with_heartbeat(
+    callback: Callable[[], Any],
+    *,
+    progress: BuildProgress | None,
+    heartbeat_note: str,
+) -> Any:
+    if progress is None or not progress.enabled:
+        return callback()
+
+    stop_event = threading.Event()
+
+    def _heartbeat_loop() -> None:
+        while not stop_event.wait(progress.interval_seconds):
+            progress.heartbeat(heartbeat_note)
+
+    heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
+    heartbeat_thread.start()
+    try:
+        return callback()
+    finally:
+        stop_event.set()
+        heartbeat_thread.join(timeout=0.5)
 
 
 def utc_now() -> datetime:
@@ -64,14 +158,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build Core SQLite database from staging and cleansing DBs and apply KPI views.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument(
-        "--db-path",
-        default=None,
-        help=(
-            "Legacy single-DB mode. DB must contain market_ticks, connection_events, and cleansed_market. "
-            "Cannot be combined with --staging-db/--cleansing-db."
-        ),
     )
     parser.add_argument(
         "--staging-db",
@@ -118,18 +204,24 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Run VACUUM on output DB after build.",
     )
+    parser.add_argument(
+        "--progress",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Print periodic progress updates with elapsed time and ETA.",
+    )
+    parser.add_argument(
+        "--progress-interval-seconds",
+        type=float,
+        default=15.0,
+        help="Seconds between periodic progress updates.",
+    )
     return parser.parse_args()
 
 
 def resolve_input_paths(args: argparse.Namespace) -> tuple[Path, Path, str]:
-    if args.db_path:
-        if args.staging_db or args.cleansing_db:
-            raise SystemExit("Use either --db-path OR (--staging-db and --cleansing-db), not both.")
-        db_path = Path(args.db_path)
-        return db_path, db_path, "single_db_legacy"
-
     if not args.staging_db or not args.cleansing_db:
-        raise SystemExit("Provide both --staging-db and --cleansing-db (or use legacy --db-path).")
+        raise SystemExit("Provide both --staging-db and --cleansing-db.")
 
     return Path(args.staging_db), Path(args.cleansing_db), "split_db"
 
@@ -205,6 +297,7 @@ def copy_table_from_source(
     table_name: str,
     where_clause: str,
     where_params: list[Any],
+    progress: BuildProgress | None = None,
 ) -> int:
     table_ident = quote_ident(table_name)
     source_table = f"{source_schema}.{table_ident}"
@@ -216,14 +309,24 @@ def copy_table_from_source(
     connection.execute(source_table_ddl)
 
     count_sql = f"SELECT COUNT(*) FROM {source_table}{where_clause}"
-    source_count_row = connection.execute(count_sql, where_params).fetchone()
+    source_count_row = run_with_heartbeat(
+        callback=lambda: connection.execute(count_sql, where_params).fetchone(),
+        progress=progress,
+        heartbeat_note=f"counting rows in {source_schema}.{table_name}",
+    )
     source_count = int(source_count_row[0]) if source_count_row is not None else 0
 
     insert_sql = f"INSERT INTO {table_ident} SELECT * FROM {source_table}{where_clause}"
-    connection.execute(insert_sql, where_params)
+    run_with_heartbeat(
+        callback=lambda: connection.execute(insert_sql, where_params),
+        progress=progress,
+        heartbeat_note=f"copying rows from {source_schema}.{table_name}",
+    )
 
     for index_ddl in source_index_ddls:
         connection.execute(index_ddl)
+        if progress is not None:
+            progress.heartbeat(f"applied index on {table_name}")
 
     return source_count
 

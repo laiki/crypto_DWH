@@ -82,14 +82,6 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--db-path",
-        default=None,
-        help=(
-            "Legacy single-DB mode. DB must contain market_ticks, connection_events, and cleansed_market. "
-            "Cannot be combined with --staging-db/--cleansing-db."
-        ),
-    )
-    parser.add_argument(
         "--staging-db",
         default=None,
         help="Path to staging SQLite DB (must contain market_ticks and connection_events).",
@@ -145,14 +137,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_input_paths(args: argparse.Namespace) -> tuple[Path, Path, str]:
-    if args.db_path:
-        if args.staging_db or args.cleansing_db:
-            raise SystemExit("Use either --db-path OR (--staging-db and --cleansing-db), not both.")
-        db_path = Path(args.db_path)
-        return db_path, db_path, "single_db_legacy"
-
     if not args.staging_db or not args.cleansing_db:
-        raise SystemExit("Provide both --staging-db and --cleansing-db (or use legacy --db-path).")
+        raise SystemExit("Provide both --staging-db and --cleansing-db.")
 
     return Path(args.staging_db), Path(args.cleansing_db), "split_db"
 

@@ -43,8 +43,6 @@ Validation script expects:
 - cleansing DB with:
   - `cleansed_market`
 
-Legacy single-DB mode is still available via `--db-path`.
-
 ## View Set
 `core_kpi_views.sql` creates these stable view names:
 - `vw_core_latency_samples`

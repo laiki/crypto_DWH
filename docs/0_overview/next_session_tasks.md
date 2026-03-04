@@ -1,6 +1,56 @@
 # Next Session Tasks
 
-Last updated: 2026-02-27
+Last updated: 2026-03-04
+
+## Completed in This Session (2026-03-04)
+1. Made staging window anchoring robust against ingestion gaps.
+   - Artifacts:
+     - `scripts/2_staging/staging_exporter.py`
+   - Scope:
+     - default export window end now anchors to latest available source timestamp
+       (instead of command runtime timestamp)
+     - metadata now includes anchor strategy and detected source max timestamps
+
+2. Added faster source-uniques handling for staging exports.
+   - Artifacts:
+     - `scripts/2_staging/staging_exporter.py`
+   - Scope:
+     - added `--source-uniques-mode` (`off`, `fast`, `full`)
+     - `--list-only` no longer runs expensive unique scans by default
+
+3. Added progress + ETA logging for staging exports.
+   - Artifacts:
+     - `scripts/2_staging/staging_exporter.py`
+   - Scope:
+     - added `--progress/--no-progress`
+     - added `--progress-interval-seconds`
+     - periodic heartbeats during long-running export operations
+
+4. Added progress + ETA logging for cleansing resampling.
+   - Artifacts:
+     - `scripts/3_cleansing/cleansing_resample.py`
+   - Scope:
+     - added `--progress/--no-progress`
+     - added `--progress-interval-seconds`
+     - progress reporting for single-worker and multi-worker processing
+     - normalized elapsed/ETA display to `HH:MM:SS` and added processing rate output
+
+5. Removed Legacy single-DB Core compatibility path.
+   - Artifacts:
+     - `scripts/4_core/build_core_db.py`
+     - `scripts/4_core/core_validation_runner.py`
+     - `scripts/4_core/README.md`
+   - Scope:
+     - removed `--db-path` legacy mode from both scripts
+     - input resolution now requires `--staging-db` and `--cleansing-db`
+     - removed legacy mention from Core README
+
+6. Fixed accidental dependency folder tracking in Git.
+   - Artifacts:
+     - `.gitignore`
+   - Scope:
+     - added `node_modules/` to ignore list
+     - removed accidentally staged `node_modules` entries from index
 
 ## Completed in This Session (2026-02-22)
 1. Defined Core Layer KPI catalog.
