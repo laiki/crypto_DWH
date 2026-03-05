@@ -95,6 +95,9 @@ This project is licensed under the MIT License. See `LICENSE` for details.
 Detailed English documentation for all ingestion/orchestration scripts is available at:
 - `scripts/1_ingestion/README.md`
 
+Central end-to-end runbook (all phases):
+- `docs/0_overview/README.md`
+
 ## Staging Exporter
 The staging exporter creates a bounded staging snapshot from worker ingestion databases.
 

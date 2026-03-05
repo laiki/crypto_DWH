@@ -24,6 +24,18 @@ Last updated: 2026-03-05
        - RSI(14), ROC(10), Bollinger Bands (lower/middle/upper/bandwidth)
      - recorded package dependency centrally via `requirements.txt`
 
+3. Added central end-to-end operations runbook for full pipeline execution.
+   - Artifacts:
+     - `docs/0_overview/README.md`
+     - `README.md`
+     - `diagrams/0_overview/uml_flow_end_to_end_pipeline_subgraphs.mmd`
+   - Scope:
+     - documents complete execution chain from ingestion to dashboard/presentation
+     - includes staged hourly-slice workflow (`--hours 1` with `--start-relative-from-hour`)
+     - documents forecasting cutoff behavior and training-source implications (staging slices vs worker raw DBs)
+     - includes full command variant for execution from `scripts/` directory
+     - adds LR directed end-to-end Mermaid flow with per-phase subgraphs and script-level nodes
+
 ## Completed in This Session (2026-03-04)
 1. Made staging window anchoring robust against ingestion gaps.
    - Artifacts:
