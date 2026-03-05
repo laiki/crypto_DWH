@@ -1,21 +1,21 @@
 flowchart TD
     subgraph SRC["Source Data"]
-        STAGING["Staging Export DBs\n(worker-derived history)"]
-        CLEAN["Cleansing DB\n(reference run window)"]
+        STAGING["Staging Export DBs<br/>(worker-derived history)"]
+        CLEAN["Cleansing DB<br/>(reference run window)"]
     end
 
     subgraph TRAIN["Forecast Training Domain"]
         ORCH["Forecast Training Orchestrator"]
-        CUT["Cutoff Resolver\n(min cleansing bucket_start_utc)"]
-        RES["In-Memory Resampler\n(target cadence, e.g. 60s)"]
+        CUT["Cutoff Resolver<br/>(min cleansing bucket_start_utc)"]
+        RES["In-Memory Resampler<br/>(target cadence, e.g. 60s)"]
         FEAT["Feature Engineering"]
-        MODELS["Model Trainers\nRidge + HistGradientBoosting"]
-        EVAL["Evaluator\n(TimeSeriesSplit + Holdout)"]
+        MODELS["Model Trainers<br/>Ridge + HistGradientBoosting"]
+        EVAL["Evaluator<br/>(TimeSeriesSplit + Holdout)"]
     end
 
     subgraph OUT["Artifacts"]
-        REGDB["forecasting_registry.db\n(run + model metadata + metrics)"]
-        MODELFS["Model Filesystem\njoblib artifacts"]
+        REGDB["forecasting_registry.db<br/>(run + model metadata + metrics)"]
+        MODELFS["Model Filesystem<br/>joblib artifacts"]
     end
 
     CLEAN --> CUT
@@ -28,5 +28,5 @@ flowchart TD
     EVAL --> REGDB
     MODELS --> MODELFS
 
-    NOTE["Design rule:\nno persistent resampled training DB"]
+    NOTE["Design rule:<br/>no persistent resampled training DB"]
     RES -.-> NOTE

@@ -26,6 +26,7 @@ This ensures no training sample overlaps with the period used by current cleansi
 - Registry DB:
   - `data/forecasting/forecasting_registry.db`
   - stores model path, config, metrics, status, hashes, and run context
+  - `model_artifacts` view exposes per-model test score (`test_score_r2`) for dashboard/model QA
 
 ## Processing Pattern (per exchange/symbol)
 1. Read raw staging rows before cutoff.

@@ -5,11 +5,11 @@ flowchart LR
     classDef file fill:#f1f8e9,stroke:#558b2f,stroke-width:1px,color:#1b3a0f
 
     OP[Operator]:::ext
-    STG[(Staging DB\nmarket_ticks)]:::store
+    STG[(Staging DB<br/>market_ticks)]:::store
 
-    CFG[Runtime Config\nworkers, bin_seconds,\nfill_method, dq flags]:::proc
+    CFG[Runtime Config<br/>workers, bin_seconds,<br/>fill_method, dq flags]:::proc
     RES[Resampling Engine]:::proc
-    FILL[Fill Strategy Engine\nobserved/ffill/interp/missing]:::proc
+    FILL[Fill Strategy Engine<br/>observed/ffill/interp/missing]:::proc
     DQ[Data Quality Engine]:::proc
     WR[Single Writer]:::proc
     META[Run Metadata Builder]:::proc

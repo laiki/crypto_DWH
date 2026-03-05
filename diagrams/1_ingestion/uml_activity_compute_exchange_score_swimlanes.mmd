@@ -7,9 +7,9 @@ flowchart LR
 
     subgraph L2[Profiler]
         C{Profiling supported?}
-        C1[Return score = 0.0\nstatus = excluded_unsupported]
+        C1[Return score = 0.0<br/>status = excluded_unsupported]
         D{Profiling error present?}
-        D1[Return score = 0.0\nstatus = excluded_error]
+        D1[Return score = 0.0<br/>status = excluded_error]
         E[Compute duration and rate metrics]
         F[Compute raw_score = bytes_per_sec + 2000 * reconnects_per_min]
         G[Apply lower bound: score >= 1.0]

@@ -1,6 +1,28 @@
 # Next Session Tasks
 
-Last updated: 2026-03-04
+Last updated: 2026-03-05
+
+## Completed in This Session (2026-03-05)
+1. Extended forecasting model registry with explicit test-score persistence for model artifacts.
+   - Artifacts:
+     - `scripts/6_forecasting/train_staging_models_and_forecasts.py`
+     - `docs/6_forecasting/forecasting_training_architecture.md`
+     - `diagrams/6_forecasting/uml_er_forecasting_model_registry.mmd`
+   - Scope:
+     - added `holdout_r2` and `cv_mean_r2` columns in `forecast_model_registry` with migration for existing DBs
+     - `model_artifacts` view now exposes `test_score_r2` (mapped from holdout `R²`) for dashboard/model QA
+     - metric computation and fallback structures now include `r2`
+
+2. Added `pandas-ta` based feature engineering on top of price-only time series.
+   - Artifacts:
+     - `scripts/6_forecasting/train_staging_models_and_forecasts.py`
+     - `requirements.txt`
+   - Scope:
+     - added dependency import `pandas_ta as pta`
+     - extended `build_feature_table(...)` with leakage-safe TA features derived from `price.shift(1)`:
+       - SMA / EMA per configured rolling windows
+       - RSI(14), ROC(10), Bollinger Bands (lower/middle/upper/bandwidth)
+     - recorded package dependency centrally via `requirements.txt`
 
 ## Completed in This Session (2026-03-04)
 1. Made staging window anchoring robust against ingestion gaps.
@@ -88,7 +110,7 @@ Last updated: 2026-03-04
 
 11. Added first forecasting baseline with two scikit-learn regressors.
    - Artifacts:
-     - `scripts/6_forecasting/train_regression_forecast.py`
+     - `scripts/6_forecasting/train_staging_models_and_forecasts.py`
    - Scope:
      - implemented first forecasting CLI for `Ridge` and `HistGradientBoostingRegressor`
      - added lag and rolling feature engineering with leakage-safe target shift (`horizon_steps`)

@@ -10,7 +10,7 @@ sequenceDiagram
     OP->>EXP: Run with --incremental --hours X
     EXP->>ST: Load state profile (state-key)
     ST-->>EXP: previous watermarks (market/events)
-    EXP->>EXP: Compute query bounds\nlower from watermark/default\nupper from run start
+    EXP->>EXP: Compute query bounds<br/>lower from watermark/default<br/>upper from run start
 
     loop each worker source DB
         EXP->>SRC: Query rows in bounds (+filters exchanges/assets)

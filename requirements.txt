@@ -6,3 +6,4 @@ plotly
 cairosvg
 Pillow
 scikit-learn
+pandas-ta

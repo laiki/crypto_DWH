@@ -17,9 +17,9 @@ flowchart TB
     class ORCH,PROBE,SHARD proc
 
     subgraph ING[Ingestion Plane]
-        W1[Worker Process 1\nasyncio + ws tasks]
-        W2[Worker Process 2\nasyncio + ws tasks]
-        WN[Worker Process N\nasyncio + ws tasks]
+        W1[Worker Process 1<br/>asyncio + ws tasks]
+        W2[Worker Process 2<br/>asyncio + ws tasks]
+        WN[Worker Process N<br/>asyncio + ws tasks]
 
         Q1[[In-Memory Queue]]
         Q2[[In-Memory Queue]]

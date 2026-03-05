@@ -2,12 +2,12 @@ flowchart TD
     A([Start per exchange]) --> B[Input profiling metrics and status]
     B --> C{Profiling supported?}
     C -- No --> C1[Set score = 0.0]
-    C1 --> C2[Mark exchange as excluded\nreason = unsupported]
+    C1 --> C2[Mark exchange as excluded<br/>reason = unsupported]
     C2 --> Z([Persist result and end])
 
     C -- Yes --> D{Profiling error present?}
     D -- Yes --> D1[Set score = 0.0]
-    D1 --> D2[Mark exchange as excluded\nreason = profiling_error]
+    D1 --> D2[Mark exchange as excluded<br/>reason = profiling_error]
     D2 --> Z
 
     D -- No --> E[Compute duration_s]

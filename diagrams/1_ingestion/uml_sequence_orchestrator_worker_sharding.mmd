@@ -12,16 +12,16 @@ sequenceDiagram
     participant DBN as worker_N_crypto_ws_ticks.db
 
     OP->>ORCH: Start orchestrator
-    ORCH->>ORCH: Build exchange candidate set\n(apply include/exclude flags)
+    ORCH->>ORCH: Build exchange candidate set<br/>(apply include/exclude flags)
 
     loop For each candidate exchange
         ORCH->>CCXT: load_markets() + short profiling session
         CCXT-->>ORCH: ticks, bytes, reconnect/error counters
-        ORCH->>ORCH: Compute exchange score\n(bytes_per_sec + reconnect penalty)
+        ORCH->>ORCH: Compute exchange score<br/>(bytes_per_sec + reconnect penalty)
     end
 
     ORCH->>ORCH: Sort exchanges by score (desc)
-    ORCH->>ORCH: Greedy bin-packing to workers\n(assign next exchange to lightest worker)
+    ORCH->>ORCH: Greedy bin-packing to workers<br/>(assign next exchange to lightest worker)
     ORCH->>PLAN: Persist worker->exchange mapping and scores
 
     par Spawn worker 1
