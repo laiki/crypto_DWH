@@ -1,0 +1,61 @@
+flowchart TD
+    subgraph PH1["Phase 1: Ingestion"]
+        A1["orchestrator_auto_shard.py"]
+        A2["ingest_all_exchanges_ws.py"]
+        A1 --> A2
+    end
+
+    subgraph PH2["Phase 2: Staging"]
+        B1["staging_exporter.py"]
+    end
+
+    subgraph PH3["Phase 3: Cleansing"]
+        C1["cleansing_resample.py"]
+    end
+
+    subgraph PH4["Phase 4: Core"]
+        D1["build_core_db.py"]
+        D2["core_pipeline.py (optional)"]
+        D3["core_validation_runner.py (optional)"]
+    end
+
+    subgraph PH5["Phase 5: Marts"]
+        E1["build_dashboard_cache.py"]
+    end
+
+    subgraph PH6["Phase 6: Forecasting"]
+        F1["train_staging_models_and_forecasts.py"]
+    end
+
+    subgraph PH7["Phase 7: Presentation"]
+        G1["dashboard_mvp_app.py"]
+    end
+
+    RAW[("worker_*.db")]
+    STG[("staging_export_*.db")]
+    CLN[("cleaned_*.db")]
+    CORE[("core_kpi_*.db")]
+    MOD[("models/*.joblib")]
+
+    A2 --> RAW
+    RAW --> B1
+    B1 --> STG
+    STG --> C1
+    C1 --> CLN
+
+    STG --> D1
+    CLN --> D1
+    D2 --> D1
+    D1 --> D3
+    D1 --> CORE
+
+    CORE --> E1
+    E1 --> CORE
+
+    RAW --> F1
+    CLN --> F1
+    CORE --> F1
+    F1 --> MOD
+    F1 --> CORE
+
+    CORE --> G1

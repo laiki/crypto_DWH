@@ -19,3 +19,5 @@ scripts/**/__pycache__/
 scripts/**/logs/
 *.json
 *.png
+
+*.joblib
