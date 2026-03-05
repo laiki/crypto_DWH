@@ -1,0 +1,52 @@
+erDiagram
+    TRAINING_RUNS ||--o{ MODEL_ARTIFACTS : has
+    MODEL_ARTIFACTS ||--o{ MODEL_METRICS : reports
+    MODEL_ARTIFACTS ||--o{ MODEL_DATA_SPLITS : uses
+
+    TRAINING_RUNS {
+        string run_id PK
+        string staging_db_path
+        string cleansing_db_path
+        string cleansing_run_id
+        string training_cutoff_utc
+        string cadence
+        string started_utc
+        string finished_utc
+        string status
+    }
+
+    MODEL_ARTIFACTS {
+        string model_id PK
+        string run_id FK
+        string exchange_id
+        string symbol
+        string model_type
+        string artifact_path
+        string artifact_sha256
+        string feature_config_json
+        int horizon_steps
+        int train_rows
+        int test_rows
+        string created_utc
+        string status
+    }
+
+    MODEL_METRICS {
+        int metric_id PK
+        string model_id FK
+        string split_name
+        float mae
+        float rmse
+        float mape
+        int fold_index
+    }
+
+    MODEL_DATA_SPLITS {
+        int split_id PK
+        string model_id FK
+        int split_index
+        string train_start_utc
+        string train_end_utc
+        string test_start_utc
+        string test_end_utc
+    }

@@ -95,6 +95,30 @@ Last updated: 2026-03-04
      - added time-aware evaluation (`TimeSeriesSplit`) and holdout metrics (`MAE`, `RMSE`, `MAPE`)
      - writes reproducible artifacts (JSON summary + predictions CSV)
 
+12. Documented staging-based forecasting architecture with strict cleansing cutoff.
+   - Artifacts:
+     - `docs/6_forecasting/forecasting_training_architecture.md`
+     - `diagrams/6_forecasting/uml_architecture_forecasting_training_staging_cutoff.mmd`
+     - `diagrams/6_forecasting/uml_deployment_forecasting_training_runtime.mmd`
+     - `diagrams/6_forecasting/uml_er_forecasting_model_registry.mmd`
+     - `diagrams/6_forecasting/uml_sequence_forecasting_staging_cutoff_training.mmd`
+   - Scope:
+     - defined model-training separation from staging export operations
+     - defined in-memory per-series resampling without persistent training-resample DB
+     - defined leakage guardrail: training data strictly before first timestamp of selected cleansing run
+     - defined artifact strategy: model files on filesystem + metadata/metrics in dedicated registry DB
+
+13. Extended staging exporter with relative window offset for deterministic backfill slices.
+   - Artifacts:
+     - `scripts/2_staging/staging_exporter.py`
+     - `docs/2_staging/staging_run_contract.md`
+   - Scope:
+     - added `--start-relative-from-hour` to shift window end from source max timestamp
+     - supports patterns like `--hours 1 --start-relative-from-hour 2` => window `[t-3h, t-2h]`
+     - output base name now includes offset marker (`..._last_<hours>h_from_<offset>h`) when offset is used
+     - documented new metadata fields (`window.start_relative_from_hour`, `window.anchor.source_max_utc`)
+     - disallowed combination of relative offset with incremental mode to avoid ambiguous watermark semantics
+
 ## Completed in This Session (2026-02-22)
 1. Defined Core Layer KPI catalog.
    - Artifact: `docs/4_core/core_kpi_catalog.md`

@@ -12,6 +12,8 @@ For each export run, the exporter writes:
 
 Example:
 - `data/staging/staging_export_20260221_103000_last_24h_metadata.json`
+- with relative offset:
+  - `data/staging/staging_export_20260221_103000_last_1h_from_2h_metadata.json`
 
 ## Contract Identity
 - `contract_name`: fixed value `staging_export_run_metadata`
@@ -28,8 +30,10 @@ Example:
   - `incremental`: boolean flag whether incremental mode was enabled.
 - `window`:
   - `hours`: configured export window in hours.
+  - `start_relative_from_hour`: relative offset from source max timestamp used as window end anchor.
   - `default_start_utc`: default lower bound from the configured hour window.
   - `end_utc`: upper bound of extracted data window.
+  - `anchor.source_max_utc`: effective max timestamp found in source scope before applying offset.
 - `query_bounds`:
   - `market_ticks.lower_utc`: effective lower bound for market ticks query.
   - `market_ticks.lower_inclusive`: lower bound inclusiveness for market ticks.
@@ -75,6 +79,7 @@ Example:
 ## Validation Rules
 - `run_started_utc <= run_finished_utc`
 - `window.default_start_utc <= window.end_utc`
+- `window.start_relative_from_hour >= 0`
 - `query_bounds.market_ticks.lower_utc <= query_bounds.market_ticks.upper_utc`
 - `query_bounds.connection_events.lower_utc <= query_bounds.connection_events.upper_utc`
 - `source.worker_db_count == len(source.worker_db_files)`

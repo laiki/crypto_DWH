@@ -1,0 +1,31 @@
+sequenceDiagram
+    autonumber
+    actor OP as Operator/Scheduler
+    participant JOB as Forecast Training Job
+    participant CDB as Cleansing DB
+    participant SDB as Staging DB
+    participant RES as In-Memory Resampler
+    participant TRN as Model Trainer
+    participant FS as Model Filesystem
+    participant REG as Forecast Registry DB
+
+    OP->>JOB: Start training run (batch)
+    JOB->>CDB: Query MIN(bucket_start_utc) for selected cleansing run
+    CDB-->>JOB: training_cutoff_utc
+    JOB->>SDB: Discover exchange/symbol scope before cutoff
+    SDB-->>JOB: series list
+
+    loop each exchange/symbol series
+        JOB->>SDB: Load raw rows where ts < training_cutoff_utc
+        SDB-->>JOB: raw staging rows
+        JOB->>RES: Resample to target cadence (e.g. 60s)
+        RES-->>JOB: ephemeral training frame
+        JOB->>TRN: Train Ridge + HistGBR on same frame
+        TRN-->>JOB: fitted models + metrics
+        JOB->>FS: Persist model artifacts (joblib)
+        FS-->>JOB: artifact paths + hashes
+        JOB->>REG: Persist run/model metadata + metrics
+        REG-->>JOB: model registry ids
+    end
+
+    JOB-->>OP: Training summary (success/failure counts)

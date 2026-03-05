@@ -1,0 +1,20 @@
+flowchart LR
+    subgraph HOST["Execution Host (VM/Server)"]
+        SCHED["Scheduler / Cron"]
+        TRAINJOB["Forecast Training Job\n(train_model_registry.py)"]
+        TMP["Ephemeral Memory Workspace\n(per-series resampled frame)"]
+    end
+
+    subgraph DATA["Data Layer"]
+        STAGEDB["Staging DB Files\n(data/staging/*.db)"]
+        CLEANDB["Cleansing DB\n(data/cleansing/*.db)"]
+        REGDB["Forecast Registry DB\n(data/forecasting/forecasting_registry.db)"]
+        MODELSTORE["Model Artifact Store\n(data/forecasting/models/)"]
+    end
+
+    SCHED --> TRAINJOB
+    TRAINJOB --> STAGEDB
+    TRAINJOB --> CLEANDB
+    TRAINJOB --> TMP
+    TRAINJOB --> REGDB
+    TRAINJOB --> MODELSTORE

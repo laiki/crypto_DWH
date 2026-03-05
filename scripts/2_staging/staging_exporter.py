@@ -72,6 +72,16 @@ def parse_args() -> argparse.Namespace:
         help="Export window in hours (e.g. 24, 12, 1.5).",
     )
     parser.add_argument(
+        "--start-relative-from-hour",
+        type=float,
+        default=0.0,
+        help=(
+            "Shift export window end backwards by N hours from source max timestamp. "
+            "Example: --hours 1 --start-relative-from-hour 2 exports [t-3h, t-2h] "
+            "where t is source max timestamp."
+        ),
+    )
+    parser.add_argument(
         "--input-glob",
         default="data/worker_*_crypto_ws_ticks.db",
         help="Glob pattern for worker DB files.",
@@ -212,9 +222,17 @@ def hours_label(hours: float) -> str:
 def utc_iso(timestamp: datetime) -> str:
     return timestamp.astimezone(timezone.utc).isoformat(timespec="milliseconds")
 
-def output_base_name(output_prefix: str, hours: float, run_started_utc: datetime) -> str:
+def output_base_name(
+    output_prefix: str,
+    hours: float,
+    start_relative_from_hour: float,
+    run_started_utc: datetime,
+) -> str:
     now_utc = run_started_utc.astimezone(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return f"{output_prefix}_{now_utc}_last_{hours_label(hours)}h"
+    base = f"{output_prefix}_{now_utc}_last_{hours_label(hours)}h"
+    if start_relative_from_hour > 0:
+        base = f"{base}_from_{hours_label(start_relative_from_hour)}h"
+    return base
 
 
 def window_start_iso(window_end_utc: datetime, hours: float) -> str:
@@ -950,10 +968,17 @@ def main() -> None:
 
     if args.hours <= 0:
         raise SystemExit("--hours must be > 0.")
+    if args.start_relative_from_hour < 0:
+        raise SystemExit("--start-relative-from-hour must be >= 0.")
     if args.chunk_size <= 0:
         raise SystemExit("--chunk-size must be > 0.")
     if args.progress_interval_seconds <= 0:
         raise SystemExit("--progress-interval-seconds must be > 0.")
+    if args.incremental and args.start_relative_from_hour > 0:
+        raise SystemExit(
+            "--start-relative-from-hour cannot be combined with --incremental. "
+            "Use window mode for deterministic backfill windows."
+        )
 
     exchanges_filter = normalize_csv_values(args.exchanges, to_lower=True)
     assets_filter = normalize_csv_values(args.assets, to_upper=True)
@@ -970,15 +995,17 @@ def main() -> None:
         assets_filter=assets_filter,
         include_connection_events=include_events,
     )
-    window_end_utc_iso = source_market_max_utc
-    if window_end_utc_iso is None:
-        window_end_utc_iso = source_event_max_utc if include_events else None
-    if window_end_utc_iso is None:
+    source_anchor_end_utc_iso = source_market_max_utc
+    if source_anchor_end_utc_iso is None:
+        source_anchor_end_utc_iso = source_event_max_utc if include_events else None
+    if source_anchor_end_utc_iso is None:
         raise SystemExit(
             "No source timestamps found for selected filters. "
             "Cannot derive staging window end from source data."
         )
-    window_end_utc = datetime.fromisoformat(window_end_utc_iso)
+    source_anchor_end_utc = datetime.fromisoformat(source_anchor_end_utc_iso)
+    window_end_utc = source_anchor_end_utc - timedelta(hours=args.start_relative_from_hour)
+    window_end_utc_iso = utc_iso(window_end_utc)
     window_start_default_utc = window_start_iso(window_end_utc, args.hours)
     incremental_enabled = bool(args.incremental)
     state_path = Path(args.state_path)
@@ -1031,7 +1058,8 @@ def main() -> None:
     print(f"Worker DB files used: {len(db_paths)}")
     print(f"Export mode: {'incremental' if incremental_enabled else 'window'}")
     print(f"Source uniques mode: {source_uniques_mode}")
-    print(f"Window anchor UTC (source max): {window_end_utc_iso}")
+    print(f"Window anchor UTC (source max): {source_anchor_end_utc_iso}")
+    print(f"Window end relative offset hours: {args.start_relative_from_hour}")
     print(f"Window default start UTC: {window_start_default_utc}")
     print(f"Window end UTC: {window_end_utc_iso}")
     print(
@@ -1068,7 +1096,12 @@ def main() -> None:
         return
 
     output_dir = Path(args.output_dir)
-    base_name = output_base_name(args.output_prefix, args.hours, run_started_utc)
+    base_name = output_base_name(
+        args.output_prefix,
+        args.hours,
+        args.start_relative_from_hour,
+        run_started_utc,
+    )
     output_base = output_dir / base_name
     run_id = base_name
 
@@ -1188,10 +1221,12 @@ def main() -> None:
         },
         "window": {
             "hours": args.hours,
+            "start_relative_from_hour": args.start_relative_from_hour,
             "anchor": {
                 "strategy": "source_max_timestamp",
                 "market_ticks_max_utc": source_market_max_utc,
                 "connection_events_max_utc": source_event_max_utc,
+                "source_max_utc": source_anchor_end_utc_iso,
             },
             "default_start_utc": window_start_default_utc,
             "end_utc": window_end_utc_iso,
@@ -1220,6 +1255,7 @@ def main() -> None:
             "chunk_size": args.chunk_size,
             "progress": bool(args.progress),
             "progress_interval_seconds": args.progress_interval_seconds,
+            "start_relative_from_hour": args.start_relative_from_hour,
         },
         "filters": {
             "exchanges": exchanges_filter,
