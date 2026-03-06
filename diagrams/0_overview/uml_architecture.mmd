@@ -1,146 +1,30 @@
-classDiagram
-direction TB
+flowchart LR
+    classDef proc fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef db fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+    classDef meta fill:#fff8e1,stroke:#f9a825,stroke-width:1px,color:#4e3600
 
-class ExchangeAPI {
-  <<external>>
-  +name: str
-  +symbolFormat: str
-}
+    EX[(Exchanges)]:::db --> ING[1_ingestion ingest_all_exchanges_ws.py]:::proc
+    ORCH[1_ingestion orchestrator_auto_shard.py]:::proc --> ING
 
-class CCXTAdapter {
-  <<ingestion>>
-  +load_markets()
-  +fetch_ticker()
-  +fetch_order_book()
-}
+    ING --> PART[(VAULT partitions<br/>exchange/date/hour)]:::db
+    ING --> MAN[(VAULT manifest<br/>vault_manifest.db)]:::meta
 
-class IngestionService {
-  <<service>>
-  +collect_realtime_ticks()
-  +add_ingest_timestamp()
-}
+    PART --> STG[2_staging staging_exporter.py]:::proc
+    MAN --> STG
 
-class RawSQLite {
-  <<database>>
-  +raw_ticks
-  +connection_events
-}
+    STG --> STGDB[(Staging export DB)]:::db
+    STGDB --> CLN[3_cleansing cleansing_resample.py]:::proc
+    CLN --> CLNDB[(Cleansing DB)]:::db
 
-class StagingExporter {
-  <<batch>>
-  +export_last_24h_per_exchange()
-}
+    STGDB --> CORE[4_core build_core_db.py]:::proc
+    CLNDB --> CORE
+    CORE --> COREDB[(Core DB)]:::db
 
-class StagingDB {
-  <<database>>
-  +staging_ticks
-}
+    COREDB --> MART[5_marts build_dashboard_cache.py]:::proc
+    MART --> DASH[5_marts dashboard_mvp_app.py]:::proc
 
-class CleansingJob {
-  <<batch>>
-  +fill_missing_points()
-  +flag_outliers()
-}
-
-class CoreModelBuilder {
-  <<batch>>
-  +compute_update_frequency()
-  +compute_latency()
-  +compute_disconnects_per_day()
-}
-
-class CoreDWH {
-  <<database>>
-  +dim_exchange
-  +dim_asset
-  +fact_market_tick
-  +fact_kpi_daily
-}
-
-class MartBuilder {
-  <<batch>>
-  +build_price_comparison_mart()
-  +build_platform_quality_mart()
-}
-
-class MartPriceComparison {
-  <<mart>>
-  +max_price_diff_by_asset
-  +price_spread_timeseries
-}
-
-class MartPlatformQuality {
-  <<mart>>
-  +latency_min_max_by_exchange
-  +disconnects_by_exchange
-}
-
-class ForecastTrainer {
-  <<ml>>
-  +train_sklearn_models()
-  +train_foundation_models()
-  +evaluate_mae_rmse_mape()
-}
-
-class ModelRegistry {
-  <<artifact>>
-  +model_name
-  +exchange
-  +asset
-  +version
-  +metrics
-}
-
-class DashboardAPI {
-  <<service>>
-  +get_last_24h_price()
-  +get_max_price_diff()
-  +get_latency_kpis()
-  +get_forecast()
-}
-
-class DashboardUI {
-  <<ui>>
-  +select_asset()
-  +render_24h_chart()
-  +render_kpi_panels()
-}
-
-class SchedulerCron {
-  <<scheduler>>
-  +daily_staging_export()
-  +nightly_core_marts_refresh()
-  +forecast_retraining()
-}
-
-class SymbolMapper {
-  <<shared>>
-  +normalize_symbol(exchangeSymbol)
-  +map_to_canonical_asset()
-}
-
-ExchangeAPI --> CCXTAdapter : market data
-CCXTAdapter --> SymbolMapper : raw symbols
-SymbolMapper --> IngestionService : canonical symbol
-CCXTAdapter --> IngestionService : ticker stream
-IngestionService --> RawSQLite : write raw ticks
-
-SchedulerCron --> StagingExporter : trigger daily
-RawSQLite --> StagingExporter : read last 24h
-StagingExporter --> StagingDB : write staging
-
-StagingDB --> CleansingJob : input
-CleansingJob --> CoreModelBuilder : cleaned data
-CoreModelBuilder --> CoreDWH : write facts/dims
-
-CoreDWH --> MartBuilder : source
-MartBuilder --> MartPriceComparison : publish
-MartBuilder --> MartPlatformQuality : publish
-
-CoreDWH --> ForecastTrainer : train data
-ForecastTrainer --> ModelRegistry : register models
-
-MartPriceComparison --> DashboardAPI : read
-MartPlatformQuality --> DashboardAPI : read
-ModelRegistry --> DashboardAPI : forecast read
-DashboardAPI --> DashboardUI : charts + kpis
+    PART --> FC[6_forecasting train_staging_models_and_forecasts.py]:::proc
+    MAN --> FC
+    CLNDB --> FC
+    FC --> COREDB
+    FC --> MODELS[(Model artifacts)]:::db

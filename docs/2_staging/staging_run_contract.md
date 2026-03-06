@@ -1,91 +1,56 @@
-# Staging Run Contract
+# Staging Run Contract (VAULT 2.0)
 
 ## Purpose
-This document defines the metadata contract written by:
+This contract defines the audit metadata persisted by:
 - `scripts/2_staging/staging_exporter.py`
 
-The metadata file is used for auditability, reproducibility, and downstream validation.
+The contract is stored inside the staging SQLite output itself.
 
-## File
-For each export run, the exporter writes:
-- `<export_base>_metadata.json`
+## Storage Location
+Per export DB:
+- table: `staging_export_run_metadata`
 
-Example:
-- `data/staging/staging_export_20260221_103000_last_24h_metadata.json`
+Example output DB name:
+- `data/staging/staging_export_20260306_120000_last_1h.db`
 - with relative offset:
-  - `data/staging/staging_export_20260221_103000_last_1h_from_2h_metadata.json`
+  - `data/staging/staging_export_20260306_120000_last_1h_from_2h.db`
 
-## Contract Identity
-- `contract_name`: fixed value `staging_export_run_metadata`
-- `contract_version`: current value `1.0.0`
-
-## Required Fields
-- `run_id`:
-  - Unique run identifier derived from export base name.
-- `run_started_utc`:
-  - UTC timestamp when the run started.
-- `run_finished_utc`:
-  - UTC timestamp when the run finished.
-- `mode`:
-  - `incremental`: boolean flag whether incremental mode was enabled.
-- `window`:
-  - `hours`: configured export window in hours.
-  - `start_relative_from_hour`: relative offset from source max timestamp used as window end anchor.
-  - `default_start_utc`: default lower bound from the configured hour window.
-  - `end_utc`: upper bound of extracted data window.
-  - `anchor.source_max_utc`: effective max timestamp found in source scope before applying offset.
-- `query_bounds`:
-  - `market_ticks.lower_utc`: effective lower bound for market ticks query.
-  - `market_ticks.lower_inclusive`: lower bound inclusiveness for market ticks.
-  - `market_ticks.upper_utc`: effective upper bound for market ticks query.
-  - `connection_events.lower_utc`: effective lower bound for event query.
-  - `connection_events.lower_inclusive`: lower bound inclusiveness for events.
-  - `connection_events.upper_utc`: effective upper bound for event query.
-  - `connection_events.included`: whether events were included in export.
-- `source`:
-  - `input_glob`: source DB glob pattern.
-  - `worker_db_count`: number of source DB files used.
-  - `worker_db_files`: explicit source DB file list.
-- `options`:
-  - `output_format`: `sqlite`, `csv`, or `json`.
-  - `include_connection_events`: boolean.
-  - `chunk_size`: chunk size for streaming export formats.
-- `filters`:
-  - `exchanges`: normalized exchange filters (lowercase).
-  - `assets`: normalized asset filters (uppercase base assets).
-- `uniques`:
-  - `source.exchanges`: unique exchanges found in source window.
-  - `source.assets`: unique assets found in source window.
-  - `exported.exchanges`: unique exchanges in exported result.
-  - `exported.assets`: unique assets in exported result.
-- `watermarks`:
-  - `previous.market_ticks_ingestion_ts_utc`: market watermark loaded from state before run.
-  - `previous.connection_events_event_ts_utc`: event watermark loaded from state before run.
-  - `exported_max.market_ticks_ingestion_ts_utc`: max market timestamp in exported result.
-  - `exported_max.connection_events_event_ts_utc`: max event timestamp in exported result.
-  - `new.market_ticks_ingestion_ts_utc`: resulting market watermark after run.
-  - `new.connection_events_event_ts_utc`: resulting event watermark after run.
-- `state`:
-  - `path`: state file path used by the exporter.
-  - `key`: state profile key used for this run.
-  - `update_requested`: whether state update was requested.
-  - `updated`: whether the state file was updated.
-- `row_counts`:
-  - `market_ticks`: number of exported market rows.
-  - `connection_events`: number of exported event rows.
-- `output_files`:
-  - List of created data output files for this run.
+## Required Columns (`staging_export_run_metadata`)
+- `run_id`: unique run identifier.
+- `created_utc`: UTC timestamp when metadata row was written.
+- `vault_root`: resolved VAULT root path.
+- `manifest_db`: resolved manifest DB path.
+- `layer`: exported VAULT layer (for example `ingestion`).
+- `hours`: requested export window in hours.
+- `start_relative_from_hour`: relative offset from source max timestamp.
+- `window_start_epoch_s`: effective lower bound (inclusive).
+- `window_end_epoch_s`: effective upper bound (inclusive).
+- `window_start_utc`: ISO-8601 UTC string for lower bound.
+- `window_end_utc`: ISO-8601 UTC string for upper bound.
+- `exchange_filter_csv`: normalized exchange filter CSV (lowercase, possibly empty).
+- `asset_filter_csv`: normalized asset filter CSV (lowercase, possibly empty).
+- `symbol_filter_csv`: normalized symbol filter CSV (lowercase, possibly empty).
+- `partitions_selected`: number of selected source partitions.
+- `market_rows`: copied row count for `market_ticks`.
+- `connection_event_rows`: copied row count for `connection_events`.
+- `runtime_seconds`: measured export runtime.
 
 ## Validation Rules
-- `run_started_utc <= run_finished_utc`
-- `window.default_start_utc <= window.end_utc`
-- `window.start_relative_from_hour >= 0`
-- `query_bounds.market_ticks.lower_utc <= query_bounds.market_ticks.upper_utc`
-- `query_bounds.connection_events.lower_utc <= query_bounds.connection_events.upper_utc`
-- `source.worker_db_count == len(source.worker_db_files)`
-- `row_counts.market_ticks >= 0`
-- `row_counts.connection_events >= 0`
+- `hours > 0`
+- `start_relative_from_hour >= 0`
+- `window_start_epoch_s <= window_end_epoch_s`
+- `partitions_selected >= 0`
+- `market_rows >= 0`
+- `connection_event_rows >= 0`
+- `runtime_seconds >= 0`
 
-## Compatibility Policy
-- Minor contract changes add fields but keep existing fields stable.
-- Breaking changes must increment major version and be documented here.
+## Behavioral Contract
+1. Source max timestamp is resolved from manifest scope after applying exchange/asset/symbol filters.
+2. Export window is derived from source max timestamp, `hours`, and `start_relative_from_hour`.
+3. Only manifest-pruned partitions that overlap the window are read.
+4. Output includes source provenance (`source_partition_id`, `source_db_path`, `source_row_id`) per exported row.
+5. No state file and no incremental watermark profile is used in VAULT 2.0 staging exporter.
+
+## Versioning Policy
+- Additive metadata fields are allowed without breaking downstream consumers.
+- Breaking semantic changes require contract document update and downstream review.

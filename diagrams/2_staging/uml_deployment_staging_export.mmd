@@ -8,19 +8,19 @@ flowchart TB
         SQL[[SQLite Engine]]
     end
 
-    subgraph OLTP["Raw OLTP Sources"]
-        WDB[(worker_*_crypto_ws_ticks.db)]
-        STATE[(staging_export_state.json)]
+    subgraph VAULT["VAULT Source"]
+        MAN[(meta/vault_manifest.db)]
+        PART[(ingestion partitions)]
     end
 
     subgraph STG["Staging Zone"]
         SDB[(staging_export_*.db)]
-        META[[staging_export_*_metadata.json]]
+        META[(staging_export_run_metadata table)]
     end
 
     CRON --> EXP
     EXP --> SQL
-    SQL --> WDB
-    EXP --> STATE
+    SQL --> MAN
+    SQL --> PART
     SQL --> SDB
     EXP --> META

@@ -1,31 +1,33 @@
 sequenceDiagram
     autonumber
-    actor OP as Operator/Scheduler
-    participant JOB as Forecast Training Job
+    actor OP as Operator or Scheduler
+    participant JOB as train_staging_models_and_forecasts.py
     participant CDB as Cleansing DB
-    participant SDB as Staging DB
+    participant MAN as vault_manifest.db
+    participant PART as VAULT partition DBs
     participant RES as In-Memory Resampler
     participant TRN as Model Trainer
+    participant CORE as Forecast DB (core_kpi)
     participant FS as Model Filesystem
-    participant REG as Forecast Registry DB
 
-    OP->>JOB: Start training run (batch)
-    JOB->>CDB: Query MIN(bucket_start_utc) for selected cleansing run
-    CDB-->>JOB: training_cutoff_utc
-    JOB->>SDB: Discover exchange/symbol scope before cutoff
-    SDB-->>JOB: series list
+    OP->>JOB: Start training run
+    JOB->>CDB: Query cleansing_run_id and training cutoff
+    CDB-->>JOB: cleansing scope and cutoff timestamp
+    JOB->>MAN: Discover pair scope and matching partitions before cutoff
+    MAN-->>JOB: pruned partition list per pair
 
-    loop each exchange/symbol series
-        JOB->>SDB: Load raw rows where ts < training_cutoff_utc
-        SDB-->>JOB: raw staging rows
-        JOB->>RES: Resample to target cadence (e.g. 60s)
-        RES-->>JOB: ephemeral training frame
-        JOB->>TRN: Train Ridge + HistGBR on same frame
-        TRN-->>JOB: fitted models + metrics
-        JOB->>FS: Persist model artifacts (joblib)
-        FS-->>JOB: artifact paths + hashes
-        JOB->>REG: Persist run/model metadata + metrics
-        REG-->>JOB: model registry ids
+    loop each exchange and symbol pair
+        JOB->>PART: Load raw history rows ts < cutoff
+        PART-->>JOB: raw history rows
+        JOB->>RES: Resample to bin_seconds
+        RES-->>JOB: training frame
+        JOB->>TRN: Train Ridge and HistGBR for both horizons
+        TRN-->>JOB: fitted models and metrics
+        JOB->>FS: Persist model artifacts
+        FS-->>JOB: artifact paths
+        JOB->>CDB: Load cleansing rows for inference horizon alignment
+        CDB-->>JOB: inference rows
+        JOB->>CORE: Upsert model registry rows and predictions
     end
 
-    JOB-->>OP: Training summary (success/failure counts)
+    JOB-->>OP: Training summary and run status

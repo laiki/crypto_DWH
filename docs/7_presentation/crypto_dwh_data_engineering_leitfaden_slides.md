@@ -74,7 +74,7 @@ Nach dieser Session koennt ihr:
 # OLTP vs OLAP im Projekt
 
 ## OLTP-Zone (schreibintensiv)
-- `worker_*_crypto_ws_ticks.db`
+- `vault2/ingestion/exchange=<id>/date=<YYYY-MM-DD>/hour=<HH>/part_*.db`
 - viele Inserts, laufender Betrieb, technische Rohdaten
 
 ## OLAP-Zone (lese- und analyseintensiv)

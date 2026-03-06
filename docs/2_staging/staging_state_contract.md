@@ -1,38 +1,19 @@
-# Staging State Contract
+# Staging State Contract (Deprecated in VAULT 2.0)
 
-## Purpose
-This document defines the persistent watermark state used by:
-- `scripts/2_staging/staging_exporter.py`
+## Status
+This document is intentionally kept as a deprecation marker.
 
-The state enables incremental extraction across runs.
+`staging_export_state.json` is not used anymore in VAULT 2.0.
 
-## File
-Default path:
-- `data/staging/staging_export_state.json`
+## What Changed
+- Old architecture used an incremental state file with watermarks.
+- VAULT 2.0 staging exporter resolves windows from manifest metadata and explicit CLI parameters.
+- Export reproducibility is tracked in table `staging_export_run_metadata` inside each staging output DB.
 
-## Contract Identity
-- `contract_name`: fixed value `staging_export_state`
-- `contract_version`: current value `1.0.0`
+## Current Source of Truth
+Use:
+- `docs/2_staging/staging_run_contract.md`
+- `scripts/2_staging/staging_exporter.py --help`
 
-## Top-Level Structure
-- `profiles`: object keyed by `state_key`
-
-Each profile contains:
-- `updated_utc`: last update timestamp
-- `source.input_glob`: input source glob used for this profile
-- `filters.exchanges`: normalized exchange filter list
-- `filters.assets`: normalized asset filter list
-- `watermark.market_ticks_ingestion_ts_utc`: last processed market timestamp
-- `watermark.connection_events_event_ts_utc`: last processed event timestamp
-
-## State Key
-- If `--state-key` is set, that value is used directly.
-- Otherwise, a deterministic default key is derived from:
-  - `input_glob`
-  - exchange filters
-  - asset filters
-
-## Update Behavior
-- In incremental mode, the exporter calculates new watermarks per table.
-- If `--update-state` is enabled, the corresponding profile is written back.
-- If `--no-update-state` is set, state is read but not modified.
+## Removal Policy
+This deprecated contract can be removed once all historical references are cleaned from archived presentation material.

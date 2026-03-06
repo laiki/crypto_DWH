@@ -81,4 +81,4 @@ Dimension candidates:
 - `dim_time_bucket`
 - optional later: `dim_run`
 
-This path preserves current dashboard compatibility and supports model training pipelines without redesign.
+This path keeps dashboard semantics stable and supports model training pipelines without redesign.

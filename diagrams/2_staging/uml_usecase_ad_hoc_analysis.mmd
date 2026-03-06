@@ -7,34 +7,32 @@ flowchart LR
     B[Data Engineer]:::actor
 
     U1((Export last X hours)):::usecase
-    U2((Filter by exchange)):::usecase
-    U3((Filter by asset/symbol)):::usecase
-    U4((List unique exchanges/assets)):::usecase
-    U5((Generate staging snapshot<br/>sqlite/csv/json)):::usecase
-    U6((Run SQL KPI snippets)):::usecase
-    U7((Inspect latency/disconnect intervals)):::usecase
-    U8((Prepare dataset for cleansing/core)):::usecase
+    U2((Apply exchange, asset, symbol scope)):::usecase
+    U3((Use relative offset windows)):::usecase
+    U4((Inspect selected partition count)):::usecase
+    U5((Generate staging SQLite snapshot)):::usecase
+    U6((Run ad hoc SQL checks)):::usecase
+    U7((Prepare input for cleansing and core)):::usecase
 
-    D1[(worker_*.db)]:::data
-    D2[(staging_export_*.db)]:::data
-    D3[(metadata/state json)]:::data
+    D1[(vault_manifest.db)]:::data
+    D2[(vault partitions)]:::data
+    D3[(staging_export_*.db)]:::data
 
     A --> U1
     A --> U2
     A --> U3
-    A --> U4
     A --> U6
-    A --> U7
+    B --> U4
     B --> U5
-    B --> U8
+    B --> U7
 
     U1 --> U5
     U2 --> U5
     U3 --> U5
     U4 --> U5
-    U5 --> D2
-    U5 --> D3
     D1 --> U5
-    D2 --> U6
-    D2 --> U7
-    D2 --> U8
+    D2 --> U5
+
+    U5 --> D3
+    D3 --> U6
+    D3 --> U7

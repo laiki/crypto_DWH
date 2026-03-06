@@ -323,3 +323,74 @@ Dashboard delivery is now prioritized before forecasting so that already collect
    - Scope: define feature tables, label windows, and train/validation split timestamps per exchange/symbol.
    - Output: short feature contract document for model training.
    - Done when: forecasting scripts can consume stable feature inputs.
+
+## Update 2026-03-06 (VAULT 2.0 Hard Cut)
+1. Implemented VAULT 2.0 ingestion storage and removed monolithic worker DB write path.
+   - Artifacts:
+     - `scripts/1_ingestion/ingest_all_exchanges_ws.py`
+     - `scripts/1_ingestion/orchestrator_auto_shard.py`
+   - Scope:
+     - partitioned SQLite writes by `exchange/date/hour`
+     - manifest maintenance in `<vault-root>/meta/vault_manifest.db`
+     - worker command forwarding switched to `--vault-root` and `--vault-layer`
+
+2. Replaced staging exporter with manifest-pruned VAULT 2.0 exporter.
+   - Artifact:
+     - `scripts/2_staging/staging_exporter.py`
+   - Scope:
+     - no legacy worker DB input mode
+     - source window resolved from manifest and filter scope
+     - output remains staging SQLite DB for downstream cleansing/core
+
+3. Switched forecasting training history source to VAULT 2.0 manifest and partitions.
+   - Artifact:
+     - `scripts/6_forecasting/train_staging_models_and_forecasts.py`
+   - Scope:
+     - removed `--staging-glob`
+     - added `--vault-root`, `--manifest-db`, `--vault-layer`
+     - per-pair training data loading now prunes partitions via manifest before cutoff
+
+4. Updated runbook and script documentation to VAULT 2.0 commands and paths.
+   - Artifacts:
+     - `docs/0_overview/README.md`
+     - `scripts/1_ingestion/README.md`
+     - `scripts/6_forecasting/README.md`
+
+## Update 2026-03-06 (VAULT 2.0 Docs and Diagram Alignment)
+1. Removed remaining legacy architecture guidance from operational docs.
+   - Artifacts:
+     - `docs/1_ingestion/multiprocess_ingestion_layout.md`
+     - `docs/2_staging/staging_run_contract.md`
+     - `docs/4_core/core_validation_runbook.md`
+   - Scope:
+     - ingestion layout now documents direct VAULT partition and manifest writes
+     - staging contract now documents `staging_export_run_metadata` table in output DB
+     - removed obsolete Core validation legacy invocation snippet
+
+2. Added explicit deprecation marker for staging state-file contract.
+   - Artifact:
+     - `docs/2_staging/staging_state_contract.md`
+   - Scope:
+     - marks `staging_export_state.json` as removed in VAULT 2.0
+     - redirects to active staging run contract
+
+3. Refreshed end-to-end and phase diagrams to VAULT 2.0 data flow.
+   - Artifacts:
+     - `diagrams/0_overview/uml_flow_end_to_end_pipeline_subgraphs.mmd`
+     - `diagrams/0_overview/uml_flow_end_to_end_pipeline_simple_subgraphs.mmd`
+     - `diagrams/1_ingestion/uml_architecture_ingestion_multiprocess.mmd`
+     - `diagrams/1_ingestion/uml_deployment_ingestion_multiprocess.mmd`
+     - `diagrams/2_staging/uml_sequence_staging_incremental_export.mmd`
+     - `diagrams/2_staging/uml_deployment_staging_export.mmd`
+     - `diagrams/2_staging/uml_er_staging_export.mmd`
+     - `diagrams/2_staging/uml_usecase_ad_hoc_analysis.mmd`
+     - `diagrams/6_forecasting/uml_architecture_forecasting_training_staging_cutoff.mmd`
+     - `diagrams/6_forecasting/uml_sequence_forecasting_staging_cutoff_training.mmd`
+     - `diagrams/6_forecasting/uml_er_forecasting_model_registry.mmd`
+     - `diagrams/6_forecasting/uml_deployment_forecasting_training_runtime.mmd`
+
+4. Removed remaining compatibility wording in mart docs where no longer required.
+   - Artifacts:
+     - `docs/5_marts/mart_kpi_extracts.md`
+     - `docs/5_marts/symbol_deviation_mart_use_case.md`
+     - `docs/7_presentation/crypto_dwh_data_engineering_leitfaden_slides.md`

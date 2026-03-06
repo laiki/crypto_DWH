@@ -2,24 +2,22 @@ sequenceDiagram
     autonumber
     actor OP as Operator
     participant EXP as staging_exporter.py
-    participant ST as staging_export_state.json
-    participant SRC as worker_*.db
-    participant OUT as staging_export_*.db/csv/json
-    participant META as staging_export_*_metadata.json
+    participant MAN as vault_manifest.db
+    participant PART as VAULT partition DBs
+    participant OUT as staging_export_*.db
 
-    OP->>EXP: Run with --incremental --hours X
-    EXP->>ST: Load state profile (state-key)
-    ST-->>EXP: previous watermarks (market/events)
-    EXP->>EXP: Compute query bounds<br/>lower from watermark/default<br/>upper from run start
+    OP->>EXP: Run with --hours H and --start-relative-from-hour O
+    EXP->>MAN: Resolve source max timestamp with scope filters
+    MAN-->>EXP: source_max_epoch_s
+    EXP->>EXP: Compute window [source_max - O - H, source_max - O]
+    EXP->>MAN: Select overlapping partitions for layer and scope
+    MAN-->>EXP: partition list
 
-    loop each worker source DB
-        EXP->>SRC: Query rows in bounds (+filters exchanges/assets)
-        SRC-->>EXP: market_ticks + connection_events
+    loop each selected partition
+        EXP->>PART: Attach partition DB
+        PART-->>EXP: market_ticks and connection_events rows in window
+        EXP->>OUT: Insert rows with source provenance columns
     end
 
-    EXP->>EXP: Build unique exchanges/assets
-    EXP->>OUT: Write export payload (sqlite/csv/json)
-    EXP->>EXP: Compute exported max timestamps
-    EXP->>ST: Update watermarks (if --update-state)
-    EXP->>META: Write run metadata (bounds, filters, rows, uniques, state info)
-    EXP-->>OP: Print summary + output paths
+    EXP->>OUT: Insert staging_export_run_metadata row
+    EXP-->>OP: Print summary and output DB path

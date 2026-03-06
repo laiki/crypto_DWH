@@ -1,53 +1,70 @@
 erDiagram
-    TRAINING_RUNS ||--o{ MODEL_ARTIFACTS : has
-    MODEL_ARTIFACTS ||--o{ MODEL_METRICS : reports
-    MODEL_ARTIFACTS ||--o{ MODEL_DATA_SPLITS : uses
+    FORECAST_TRAINING_RUNS ||--o{ FORECAST_MODEL_REGISTRY : contains
+    FORECAST_MODEL_REGISTRY ||--o{ FORECAST_PREDICTIONS : produces
 
-    TRAINING_RUNS {
-        string run_id PK
-        string staging_db_path
+    FORECAST_TRAINING_RUNS {
+        string training_run_id PK
+        datetime started_utc
+        datetime finished_utc
+        string status
+        string staging_glob
+        int staging_db_count
         string cleansing_db_path
         string cleansing_run_id
+        string forecast_db_path
         string training_cutoff_utc
-        string cadence
-        string started_utc
-        string finished_utc
-        string status
+        int bin_seconds
+        int secondary_horizon_multiple
+        string lag_steps_csv
+        string rolling_windows_csv
+        int series_total
+        int series_trained
+        int models_trained
+        int predictions_written
+        string notes_json
     }
 
-    MODEL_ARTIFACTS {
-        string model_id PK
-        string run_id FK
+    FORECAST_MODEL_REGISTRY {
+        int model_id PK
+        string training_run_id FK
         string exchange_id
         string symbol
-        string model_type
-        string artifact_path
-        string artifact_sha256
-        string feature_config_json
+        string model_name
         int horizon_steps
+        int horizon_seconds
+        string artifact_path
+        string feature_config_json
         int train_rows
         int test_rows
-        float test_score_r2
-        string created_utc
+        int cv_fold_count
+        float holdout_mae
+        float holdout_rmse
+        float holdout_mape
+        float holdout_r2
+        float cv_mean_mae
+        float cv_mean_rmse
+        float cv_mean_mape
+        float cv_mean_r2
+        datetime created_utc
         string status
+        string error_message
     }
 
-    MODEL_METRICS {
-        int metric_id PK
-        string model_id FK
-        string split_name
-        float mae
-        float rmse
-        float mape
-        int fold_index
-    }
-
-    MODEL_DATA_SPLITS {
-        int split_id PK
-        string model_id FK
-        int split_index
-        string train_start_utc
-        string train_end_utc
-        string test_start_utc
-        string test_end_utc
+    FORECAST_PREDICTIONS {
+        int prediction_id PK
+        int model_id FK
+        string training_run_id FK
+        string cleansing_run_id
+        string exchange_id
+        string symbol
+        string model_name
+        int horizon_seconds
+        string forecast_generated_bucket_start_utc
+        bigint forecast_generated_bucket_epoch_s
+        string target_bucket_start_utc
+        bigint target_bucket_epoch_s
+        float predicted_price
+        float actual_price
+        float abs_error
+        datetime generated_at_utc
     }

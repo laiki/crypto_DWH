@@ -10,36 +10,33 @@ flowchart TB
     class EX ext
 
     subgraph CTRL[Control Plane]
-        ORCH[Orchestrator Process]
-        PROBE[Capability Probe]
+        ORCH[orchestrator_auto_shard.py]
+        PROBE[Capability Probe + Profiling]
         SHARD[Shard Planner]
     end
     class ORCH,PROBE,SHARD proc
 
-    subgraph ING[Ingestion Plane]
-        W1[Worker Process 1<br/>asyncio + ws tasks]
-        W2[Worker Process 2<br/>asyncio + ws tasks]
-        WN[Worker Process N<br/>asyncio + ws tasks]
+    subgraph ING[Ingestion Workers]
+        W1[Worker 1 ingest_all_exchanges_ws.py]
+        W2[Worker 2 ingest_all_exchanges_ws.py]
+        WN[Worker N ingest_all_exchanges_ws.py]
 
-        Q1[[In-Memory Queue]]
-        Q2[[In-Memory Queue]]
-        QN[[In-Memory Queue]]
+        Q1[[Writer Queue]]
+        Q2[[Writer Queue]]
+        QN[[Writer Queue]]
 
-        DB1[(worker_1_raw.db)]
-        DB2[(worker_2_raw.db)]
-        DBN[(worker_n_raw.db)]
+        PW1[Partition Writer]
+        PW2[Partition Writer]
+        PWN[Partition Writer]
     end
-    class W1,W2,WN proc
+    class W1,W2,WN,PW1,PW2,PWN proc
     class Q1,Q2,QN q
-    class DB1,DB2,DBN db
 
-    subgraph CONS[Consolidation Plane]
-        MERGE[Incremental Merger Job]
-        RAW[(raw_ingestion.db)]
-        STATE[(merge_state.db)]
+    subgraph VAULT[VAULT 2.0 Storage]
+        PART[(Partition DBs by exchange/date/hour)]
+        MAN[(vault_manifest.db)]
     end
-    class MERGE proc
-    class RAW,STATE db
+    class PART,MAN db
 
     ORCH --> PROBE
     PROBE --> SHARD
@@ -51,15 +48,17 @@ flowchart TB
     EX --> W2
     EX --> WN
 
-    W1 --> Q1 --> DB1
-    W2 --> Q2 --> DB2
-    WN --> QN --> DBN
+    W1 --> Q1 --> PW1
+    W2 --> Q2 --> PW2
+    WN --> QN --> PWN
 
-    DB1 --> MERGE
-    DB2 --> MERGE
-    DBN --> MERGE
-    STATE --> MERGE
-    MERGE --> RAW
+    PW1 --> PART
+    PW2 --> PART
+    PWN --> PART
+
+    PW1 --> MAN
+    PW2 --> MAN
+    PWN --> MAN
 
     ORCH -. restart policy .-> W1
     ORCH -. restart policy .-> W2

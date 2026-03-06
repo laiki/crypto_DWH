@@ -13,11 +13,9 @@ flowchart TB
         LOG[(logs/worker_*.log)]
     end
 
-    subgraph RAW["Raw OLTP Storage"]
-        DB1[(worker_0_crypto_ws_ticks.db)]
-        DB2[(worker_1_crypto_ws_ticks.db)]
-        DBN[(worker_n_crypto_ws_ticks.db)]
-        MERGE[(raw_ingestion.db optional)]
+    subgraph VAULT["VAULT Root"]
+        MAN[(meta/vault_manifest.db)]
+        P1[(ingestion/exchange=.../date=.../hour=.../part_*.db)]
     end
 
     BIN --> W1
@@ -29,10 +27,10 @@ flowchart TB
     ORCH --> WN
     ORCH --> LOG
 
-    W1 --> DB1
-    W2 --> DB2
-    WN --> DBN
+    W1 --> P1
+    W2 --> P1
+    WN --> P1
 
-    DB1 -. incremental merge .-> MERGE
-    DB2 -. incremental merge .-> MERGE
-    DBN -. incremental merge .-> MERGE
+    W1 --> MAN
+    W2 --> MAN
+    WN --> MAN

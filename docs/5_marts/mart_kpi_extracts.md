@@ -87,7 +87,7 @@ Goal:
 ### Panel 3c: Symbol Observed Coverage Quality (Window)
 - source priority:
   - mart view: `vw_mart_dashboard_symbol_observed_quality_base`
-  - fallback: raw query over `cleansed_market` (for backward compatibility)
+  - fallback: raw query over `cleansed_market`
 - required filters:
   - `run_id = :run_id`
   - `bucket_start_utc BETWEEN :window_start_utc AND :window_end_utc`

@@ -203,9 +203,9 @@ def parse_args() -> argparse.Namespace:
         help="Optional watch_ticker symbol stream cap passed to workers.",
     )
     parser.add_argument(
-        "--worker-db-template",
-        default="data/worker_{worker_id}_crypto_ws_ticks.db",
-        help="Output DB path template per worker.",
+        "--vault-root",
+        default="data/vault2",
+        help="Shared VAULT 2.0 root directory forwarded to worker ingestion processes.",
     )
     parser.add_argument(
         "--logs-dir",
@@ -580,7 +580,7 @@ def build_shard_plan(
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     for worker_id in range(workers):
-        db_path = args.worker_db_template.format(worker_id=worker_id)
+        db_path = str(Path(args.vault_root).resolve())
         log_path = str(logs_dir / f"worker_{worker_id}.log")
         bins.append(
             WorkerPlan(
@@ -602,8 +602,10 @@ def build_shard_plan(
         command = [
             sys.executable,
             str(ingestion_script_path),
-            "--db-path",
-            plan.db_path,
+            "--vault-root",
+            args.vault_root,
+            "--vault-layer",
+            "ingestion",
             "--exchanges",
             ",".join(plan.exchanges),
             "--log-level",

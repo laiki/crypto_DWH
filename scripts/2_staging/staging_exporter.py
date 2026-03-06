@@ -1,202 +1,88 @@
 #!/usr/bin/env python3
 """
-Export a configurable time window from worker SQLite databases into a staging export.
+Export a configurable time window from VAULT 2.0 partitioned ingestion storage into a staging SQLite DB.
 
-Supported output formats:
-- sqlite (default): one SQLite file with both tables.
-- csv: one CSV per table.
-- json: one JSON array file per table.
+This exporter is intentionally VAULT-2.0-only (no legacy worker DB compatibility).
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
-import glob
-import hashlib
-import json
+import logging
 import sqlite3
-import sys
-import threading
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+LOGGER = logging.getLogger("staging_exporter")
 
-MARKET_TICK_COLUMNS = [
-    "ingestion_ts_utc",
-    "exchange_id",
-    "symbol",
-    "market_type",
-    "price",
-    "bid",
-    "ask",
-    "last",
-    "open",
-    "high",
-    "low",
-    "base_volume",
-    "quote_volume",
-    "exchange_ts_ms",
-    "exchange_ts_utc",
-    "raw_json",
-]
 
-CONNECTION_EVENT_COLUMNS = [
-    "event_ts_utc",
-    "exchange_id",
-    "symbol",
-    "event_type",
-    "details_json",
-]
-
-STAGING_METADATA_CONTRACT_NAME = "staging_export_run_metadata"
-STAGING_METADATA_CONTRACT_VERSION = "1.0.0"
-STAGING_STATE_CONTRACT_NAME = "staging_export_state"
-STAGING_STATE_CONTRACT_VERSION = "1.0.0"
+@dataclass(frozen=True)
+class PartitionItem:
+    partition_id: str
+    db_path: str
+    exchange_id_norm: str
+    ts_min_epoch_s: int
+    ts_max_epoch_s: int
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Export the last N hours from worker SQLite databases into staging output "
-            "(sqlite/csv/json), with optional exchange and asset filters."
-        ),
+        description="Export a VAULT 2.0 time window into staging SQLite output.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument("--vault-root", default="data/vault2", help="VAULT 2.0 root directory.")
     parser.add_argument(
-        "--hours",
-        type=float,
-        required=True,
-        help="Export window in hours (e.g. 24, 12, 1.5).",
+        "--manifest-db",
+        default=None,
+        help="Optional manifest DB path. Default: <vault-root>/meta/vault_manifest.db",
     )
+    parser.add_argument("--layer", default="ingestion", help="Manifest layer to export from.")
+    parser.add_argument("--hours", type=float, required=True, help="Export window in hours.")
     parser.add_argument(
         "--start-relative-from-hour",
         type=float,
         default=0.0,
         help=(
             "Shift export window end backwards by N hours from source max timestamp. "
-            "Example: --hours 1 --start-relative-from-hour 2 exports [t-3h, t-2h] "
-            "where t is source max timestamp."
+            "Example: --hours 1 --start-relative-from-hour 2 exports [t-3h, t-2h]."
         ),
     )
-    parser.add_argument(
-        "--input-glob",
-        default="data/worker_*_crypto_ws_ticks.db",
-        help="Glob pattern for worker DB files.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        default="data/staging",
-        help="Output directory for staging exports.",
-    )
-    parser.add_argument(
-        "--output-prefix",
-        default="staging_export",
-        help="Output filename prefix.",
-    )
-    parser.add_argument(
-        "--output-format",
-        choices=["sqlite", "csv", "json"],
-        default="sqlite",
-        help="Export format.",
-    )
-    parser.add_argument(
-        "--exchanges",
-        default=None,
-        help="Optional comma-separated exchange IDs filter (e.g. binance,kraken).",
-    )
-    parser.add_argument(
-        "--assets",
-        default=None,
-        help="Optional comma-separated base assets filter (e.g. BTC,ETH,SOL).",
-    )
-    parser.add_argument(
-        "--skip-connection-events",
-        action="store_true",
-        help="Skip exporting connection_events.",
-    )
-    parser.add_argument(
-        "--incremental",
-        action="store_true",
-        help="Enable incremental export mode based on persisted per-table watermark state.",
-    )
-    parser.add_argument(
-        "--state-path",
-        default="data/staging/staging_export_state.json",
-        help="Path to incremental watermark state JSON file.",
-    )
-    parser.add_argument(
-        "--state-key",
-        default=None,
-        help="Optional custom key for state profile. Default: hash derived from source glob and filters.",
-    )
-    parser.add_argument(
-        "--update-state",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Persist updated watermark state after successful incremental export.",
-    )
-    parser.add_argument(
-        "--list-only",
-        action="store_true",
-        help="Only print scope/window information and optional source unique lists, then exit.",
-    )
-    parser.add_argument(
-        "--source-uniques-mode",
-        choices=["off", "fast", "full"],
-        default="fast",
-        help=(
-            "How to populate source uniques: "
-            "'off' skips source uniques, "
-            "'fast' derives source uniques from exported rows, "
-            "'full' computes exact uniques from source window."
-        ),
-    )
-    parser.add_argument(
-        "--print-unique-exchanges",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Print unique exchange list from selected worker DBs and time window.",
-    )
-    parser.add_argument(
-        "--print-unique-assets",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Print unique asset list from selected worker DBs and time window.",
-    )
-    parser.add_argument(
-        "--chunk-size",
-        type=int,
-        default=5000,
-        help="Fetch chunk size for CSV/JSON streaming export.",
-    )
-    parser.add_argument(
-        "--progress",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Print periodic progress updates with elapsed time and ETA.",
-    )
+    parser.add_argument("--output-dir", default="data/staging", help="Output directory for staging DB.")
+    parser.add_argument("--output-prefix", default="staging_export", help="Output file prefix.")
+    parser.add_argument("--output-db", default=None, help="Optional explicit output DB path.")
+    parser.add_argument("--exchanges", default=None, help="Optional comma-separated exchange filter.")
+    parser.add_argument("--assets", default=None, help="Optional comma-separated base-asset filter.")
+    parser.add_argument("--symbols", default=None, help="Optional comma-separated exact symbol filter.")
+    parser.add_argument("--skip-connection-events", action="store_true", help="Skip connection_events export.")
+    parser.add_argument("--list-only", action="store_true", help="Print selected scope/window and exit.")
+    parser.add_argument("--chunk-size", type=int, default=50000, help="Chunk size for inserts.")
+    parser.add_argument("--progress", action=argparse.BooleanOptionalAction, default=True, help="Enable progress logs.")
     parser.add_argument(
         "--progress-interval-seconds",
         type=float,
         default=15.0,
-        help="Seconds between periodic progress updates.",
+        help="Seconds between progress logs.",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Console log level.",
     )
     return parser.parse_args()
 
 
-def normalize_csv_values(raw: str | None, *, to_lower: bool = False, to_upper: bool = False) -> list[str]:
+def normalize_csv(raw: str | None, *, lower: bool = False, upper: bool = False) -> list[str]:
     if raw is None:
         return []
-    values = [item.strip() for item in raw.split(",")]
-    values = [item for item in values if item]
-    if to_lower:
+    values = [item.strip() for item in raw.split(",") if item.strip()]
+    if lower:
         values = [item.lower() for item in values]
-    if to_upper:
+    if upper:
         values = [item.upper() for item in values]
-    # Keep deterministic order while preserving first occurrence.
     seen: set[str] = set()
     ordered: list[str] = []
     for value in values:
@@ -207,262 +93,124 @@ def normalize_csv_values(raw: str | None, *, to_lower: bool = False, to_upper: b
     return ordered
 
 
-def worker_db_paths(input_glob: str) -> list[Path]:
-    matches = sorted(Path(path) for path in glob.glob(input_glob))
-    return [path for path in matches if path.is_file() and path.suffix.lower() == ".db"]
+def configure_logging(level_name: str) -> None:
+    logging.basicConfig(
+        level=getattr(logging, level_name),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
 
 
 def hours_label(hours: float) -> str:
     if float(hours).is_integer():
         return str(int(hours))
-    text = f"{hours:.3f}".rstrip("0").rstrip(".")
-    return text.replace(".", "p")
+    return f"{hours:.3f}".rstrip("0").rstrip(".").replace(".", "p")
 
 
-def utc_iso(timestamp: datetime) -> str:
-    return timestamp.astimezone(timezone.utc).isoformat(timespec="milliseconds")
-
-def output_base_name(
-    output_prefix: str,
-    hours: float,
-    start_relative_from_hour: float,
-    run_started_utc: datetime,
-) -> str:
-    now_utc = run_started_utc.astimezone(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    base = f"{output_prefix}_{now_utc}_last_{hours_label(hours)}h"
+def output_base_name(prefix: str, hours: float, start_relative_from_hour: float) -> str:
+    now_utc = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    name = f"{prefix}_{now_utc}_last_{hours_label(hours)}h"
     if start_relative_from_hour > 0:
-        base = f"{base}_from_{hours_label(start_relative_from_hour)}h"
-    return base
+        name = f"{name}_from_{hours_label(start_relative_from_hour)}h"
+    return name
 
 
-def window_start_iso(window_end_utc: datetime, hours: float) -> str:
-    timestamp = window_end_utc - timedelta(hours=hours)
-    return utc_iso(timestamp)
-
-
-def sqlite_asset_expr(column_name: str) -> str:
-    return (
-        "upper("
-        f"CASE WHEN instr({column_name}, '/') > 0 "
-        f"THEN substr({column_name}, 1, instr({column_name}, '/') - 1) "
-        f"ELSE {column_name} END"
-        ")"
-    )
-
-
-def max_iso_value(left: str | None, right: str | None) -> str | None:
-    if left is None:
-        return right
-    if right is None:
-        return left
-    return max(left, right)
-
-
-def build_market_where_clause(
-    lower_bound_utc: str | None,
-    upper_bound_utc: str | None,
-    lower_inclusive: bool,
-    exchanges: list[str],
-    assets: list[str],
-) -> tuple[str, list[Any]]:
-    conditions: list[str] = []
-    params: list[Any] = []
-    if lower_bound_utc is not None:
-        lower_op = ">=" if lower_inclusive else ">"
-        conditions.append(f"ingestion_ts_utc {lower_op} ?")
-        params.append(lower_bound_utc)
-    if upper_bound_utc is not None:
-        conditions.append("ingestion_ts_utc <= ?")
-        params.append(upper_bound_utc)
-    if exchanges:
-        placeholders = ",".join("?" for _ in exchanges)
-        conditions.append(f"lower(exchange_id) IN ({placeholders})")
-        params.extend(exchanges)
-    if assets:
-        placeholders = ",".join("?" for _ in assets)
-        conditions.append(f"{sqlite_asset_expr('symbol')} IN ({placeholders})")
-        params.extend(assets)
-    if not conditions:
-        conditions.append("1=1")
-    return " AND ".join(conditions), params
-
-
-def build_event_where_clause(
-    lower_bound_utc: str | None,
-    upper_bound_utc: str | None,
-    lower_inclusive: bool,
-    exchanges: list[str],
-    assets: list[str],
-) -> tuple[str, list[Any]]:
-    conditions: list[str] = []
-    params: list[Any] = []
-    if lower_bound_utc is not None:
-        lower_op = ">=" if lower_inclusive else ">"
-        conditions.append(f"event_ts_utc {lower_op} ?")
-        params.append(lower_bound_utc)
-    if upper_bound_utc is not None:
-        conditions.append("event_ts_utc <= ?")
-        params.append(upper_bound_utc)
-    if exchanges:
-        placeholders = ",".join("?" for _ in exchanges)
-        conditions.append(f"lower(exchange_id) IN ({placeholders})")
-        params.extend(exchanges)
-    if assets:
-        placeholders = ",".join("?" for _ in assets)
-        conditions.append(f"{sqlite_asset_expr('symbol')} IN ({placeholders})")
-        params.extend(assets)
-    if not conditions:
-        conditions.append("1=1")
-    return " AND ".join(conditions), params
-
-
-def state_profile_key(
-    custom_key: str | None,
-    input_glob: str,
-    exchanges_filter: list[str],
-    assets_filter: list[str],
-) -> str:
-    if custom_key is not None and custom_key.strip():
-        return custom_key.strip()
-
-    descriptor = {
-        "input_glob": input_glob,
-        "exchanges": exchanges_filter,
-        "assets": assets_filter,
-    }
-    digest = hashlib.sha256(
-        json.dumps(descriptor, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    ).hexdigest()[:16]
-    return f"default_{digest}"
-
-
-def load_state_document(state_path: Path) -> dict[str, Any]:
-    if not state_path.exists():
-        return {
-            "contract_name": STAGING_STATE_CONTRACT_NAME,
-            "contract_version": STAGING_STATE_CONTRACT_VERSION,
-            "profiles": {},
-        }
-    try:
-        raw = json.loads(state_path.read_text(encoding="utf-8"))
-    except Exception as exc:  # noqa: BLE001
-        raise SystemExit(f"Failed to read state file: {state_path} | error={exc!r}") from exc
-
-    if not isinstance(raw, dict):
-        raise SystemExit(f"Invalid state file format: {state_path} (expected JSON object).")
-
-    profiles = raw.get("profiles")
-    if not isinstance(profiles, dict):
-        raw["profiles"] = {}
-
-    raw["contract_name"] = STAGING_STATE_CONTRACT_NAME
-    raw["contract_version"] = STAGING_STATE_CONTRACT_VERSION
-    return raw
-
-
-def write_state_document(state_path: Path, payload: dict[str, Any]) -> None:
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    state_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
-
-
-def table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
-    row = connection.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
-        (table_name,),
-    ).fetchone()
-    return row is not None
-
-
-def source_asset(symbol: Any) -> str | None:
-    if not isinstance(symbol, str):
-        return None
-    value = symbol.strip()
-    if not value:
-        return None
-    if "/" in value:
-        return value.split("/", 1)[0].upper()
-    return value.upper()
+def output_db_path(args: argparse.Namespace) -> Path:
+    if args.output_db:
+        return Path(args.output_db)
+    out_dir = Path(args.output_dir)
+    return out_dir / f"{output_base_name(args.output_prefix, args.hours, args.start_relative_from_hour)}.db"
 
 
 def connect_readonly(db_path: Path) -> sqlite3.Connection:
     return sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
 
 
-def collect_source_max_timestamps(
-    db_paths: list[Path],
+def placeholders(count: int) -> str:
+    return ",".join("?" for _ in range(count))
+
+
+def resolve_source_max_epoch(
+    manifest_connection: sqlite3.Connection,
+    *,
+    layer: str,
     exchanges_filter: list[str],
     assets_filter: list[str],
-    include_connection_events: bool,
-) -> tuple[str | None, str | None]:
-    market_where, market_params = build_market_where_clause(
-        lower_bound_utc=None,
-        upper_bound_utc=None,
-        lower_inclusive=True,
-        exchanges=exchanges_filter,
-        assets=assets_filter,
+    symbols_filter: list[str],
+) -> int | None:
+    conditions = ["pr.layer = ?"]
+    params: list[Any] = [layer]
+
+    if exchanges_filter:
+        conditions.append(f"pp.exchange_id_norm IN ({placeholders(len(exchanges_filter))})")
+        params.extend(exchanges_filter)
+    if assets_filter:
+        conditions.append(f"pp.asset_norm IN ({placeholders(len(assets_filter))})")
+        params.extend(assets_filter)
+    if symbols_filter:
+        conditions.append(f"pp.symbol_norm IN ({placeholders(len(symbols_filter))})")
+        params.extend(symbols_filter)
+
+    sql = (
+        "SELECT MAX(pp.ts_max_epoch_s) "
+        "FROM partition_pairs pp "
+        "JOIN partition_registry pr ON pr.partition_id = pp.partition_id "
+        f"WHERE {' AND '.join(conditions)}"
     )
-    event_where, event_params = build_event_where_clause(
-        lower_bound_utc=None,
-        upper_bound_utc=None,
-        lower_inclusive=True,
-        exchanges=exchanges_filter,
-        assets=assets_filter,
+    row = manifest_connection.execute(sql, params).fetchone()
+    if row is None or row[0] is None:
+        return None
+    return int(row[0])
+
+
+def select_partitions(
+    manifest_connection: sqlite3.Connection,
+    *,
+    layer: str,
+    window_start_epoch_s: int,
+    window_end_epoch_s: int,
+    exchanges_filter: list[str],
+    assets_filter: list[str],
+    symbols_filter: list[str],
+) -> list[PartitionItem]:
+    conditions = [
+        "pr.layer = ?",
+        "pr.ts_max_epoch_s >= ?",
+        "pr.ts_min_epoch_s <= ?",
+    ]
+    params: list[Any] = [layer, window_start_epoch_s, window_end_epoch_s]
+
+    if exchanges_filter:
+        conditions.append(f"pp.exchange_id_norm IN ({placeholders(len(exchanges_filter))})")
+        params.extend(exchanges_filter)
+    if assets_filter:
+        conditions.append(f"pp.asset_norm IN ({placeholders(len(assets_filter))})")
+        params.extend(assets_filter)
+    if symbols_filter:
+        conditions.append(f"pp.symbol_norm IN ({placeholders(len(symbols_filter))})")
+        params.extend(symbols_filter)
+
+    sql = (
+        "SELECT DISTINCT "
+        "pr.partition_id, pr.db_path, pr.exchange_id_norm, pr.ts_min_epoch_s, pr.ts_max_epoch_s "
+        "FROM partition_registry pr "
+        "JOIN partition_pairs pp ON pp.partition_id = pr.partition_id "
+        f"WHERE {' AND '.join(conditions)} "
+        "ORDER BY pr.exchange_id_norm ASC, pr.ts_min_epoch_s ASC"
     )
-
-    market_max_utc: str | None = None
-    event_max_utc: str | None = None
-
-    for db_path in db_paths:
-        connection = connect_readonly(db_path)
-        try:
-            if table_exists(connection, "market_ticks"):
-                market_row = connection.execute(
-                    f"SELECT ingestion_ts_utc FROM market_ticks WHERE {market_where} ORDER BY id DESC LIMIT 1",
-                    market_params,
-                ).fetchone()
-                if market_row is not None and isinstance(market_row[0], str) and market_row[0]:
-                    market_max_utc = max_iso_value(market_max_utc, market_row[0])
-
-            if include_connection_events and table_exists(connection, "connection_events"):
-                event_row = connection.execute(
-                    f"SELECT event_ts_utc FROM connection_events WHERE {event_where} ORDER BY id DESC LIMIT 1",
-                    event_params,
-                ).fetchone()
-                if event_row is not None and isinstance(event_row[0], str) and event_row[0]:
-                    event_max_utc = max_iso_value(event_max_utc, event_row[0])
-        finally:
-            connection.close()
-
-    return market_max_utc, event_max_utc
+    rows = manifest_connection.execute(sql, params).fetchall()
+    return [
+        PartitionItem(
+            partition_id=str(row[0]),
+            db_path=str(row[1]),
+            exchange_id_norm=str(row[2]),
+            ts_min_epoch_s=int(row[3]),
+            ts_max_epoch_s=int(row[4]),
+        )
+        for row in rows
+    ]
 
 
-def collect_source_uniques(db_paths: list[Path], market_where: str, market_params: list[Any]) -> tuple[list[str], list[str]]:
-    unique_exchanges: set[str] = set()
-    unique_assets: set[str] = set()
-
-    for db_path in db_paths:
-        connection = connect_readonly(db_path)
-        try:
-            if not table_exists(connection, "market_ticks"):
-                continue
-
-            exchange_query = f"SELECT DISTINCT exchange_id FROM market_ticks WHERE {market_where}"
-            for (exchange_id,) in connection.execute(exchange_query, market_params):
-                if isinstance(exchange_id, str) and exchange_id.strip():
-                    unique_exchanges.add(exchange_id.strip())
-
-            symbol_query = f"SELECT DISTINCT symbol FROM market_ticks WHERE {market_where}"
-            for (symbol,) in connection.execute(symbol_query, market_params):
-                asset = source_asset(symbol)
-                if asset:
-                    unique_assets.add(asset)
-        finally:
-            connection.close()
-
-    return sorted(unique_exchanges), sorted(unique_assets)
-
-
-def ensure_sqlite_output_schema(connection: sqlite3.Connection) -> None:
+def ensure_output_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(
         """
         PRAGMA journal_mode=WAL;
@@ -470,11 +218,16 @@ def ensure_sqlite_output_schema(connection: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS market_ticks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_db TEXT NOT NULL,
+            source_partition_id TEXT NOT NULL,
+            source_db_path TEXT NOT NULL,
             source_row_id INTEGER NOT NULL,
             ingestion_ts_utc TEXT NOT NULL,
+            ingestion_ts_epoch_s INTEGER NOT NULL,
             exchange_id TEXT NOT NULL,
+            exchange_id_norm TEXT NOT NULL,
             symbol TEXT NOT NULL,
+            symbol_norm TEXT NOT NULL,
+            asset_norm TEXT NOT NULL,
             market_type TEXT,
             price REAL,
             bid REAL,
@@ -490,481 +243,188 @@ def ensure_sqlite_output_schema(connection: sqlite3.Connection) -> None:
             raw_json TEXT NOT NULL
         );
 
-        CREATE INDEX IF NOT EXISTS idx_market_ticks_time_ex_symbol
-            ON market_ticks(ingestion_ts_utc, exchange_id, symbol);
+        CREATE INDEX IF NOT EXISTS idx_market_ticks_pair_ts
+            ON market_ticks(exchange_id_norm, symbol_norm, ingestion_ts_epoch_s);
 
-        CREATE INDEX IF NOT EXISTS idx_market_ticks_source
-            ON market_ticks(source_db, source_row_id);
+        CREATE INDEX IF NOT EXISTS idx_market_ticks_time
+            ON market_ticks(ingestion_ts_epoch_s);
 
         CREATE TABLE IF NOT EXISTS connection_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_db TEXT NOT NULL,
+            source_partition_id TEXT NOT NULL,
+            source_db_path TEXT NOT NULL,
             source_row_id INTEGER NOT NULL,
             event_ts_utc TEXT NOT NULL,
+            event_ts_epoch_s INTEGER NOT NULL,
             exchange_id TEXT NOT NULL,
+            exchange_id_norm TEXT NOT NULL,
             symbol TEXT,
+            symbol_norm TEXT,
+            asset_norm TEXT,
             event_type TEXT NOT NULL,
             details_json TEXT
         );
 
-        CREATE INDEX IF NOT EXISTS idx_connection_events_time_ex
-            ON connection_events(event_ts_utc, exchange_id);
+        CREATE INDEX IF NOT EXISTS idx_connection_events_ex_ts
+            ON connection_events(exchange_id_norm, event_ts_epoch_s);
 
-        CREATE INDEX IF NOT EXISTS idx_connection_events_source
-            ON connection_events(source_db, source_row_id);
+        CREATE TABLE IF NOT EXISTS staging_export_run_metadata (
+            run_id TEXT PRIMARY KEY,
+            created_utc TEXT NOT NULL,
+            vault_root TEXT NOT NULL,
+            manifest_db TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            hours REAL NOT NULL,
+            start_relative_from_hour REAL NOT NULL,
+            window_start_epoch_s INTEGER NOT NULL,
+            window_end_epoch_s INTEGER NOT NULL,
+            window_start_utc TEXT NOT NULL,
+            window_end_utc TEXT NOT NULL,
+            exchange_filter_csv TEXT NOT NULL,
+            asset_filter_csv TEXT NOT NULL,
+            symbol_filter_csv TEXT NOT NULL,
+            partitions_selected INTEGER NOT NULL,
+            market_rows INTEGER NOT NULL,
+            connection_event_rows INTEGER NOT NULL,
+            runtime_seconds REAL NOT NULL
+        );
         """
     )
     connection.commit()
 
 
-def insert_sqlite_from_sources(
-    db_paths: list[Path],
-    output_db_path: Path,
-    market_where: str,
-    market_params: list[Any],
-    event_where: str,
-    event_params: list[Any],
+def format_hhmmss(total_seconds: float) -> str:
+    value = max(0, int(total_seconds))
+    hours = value // 3600
+    minutes = (value % 3600) // 60
+    seconds = value % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def export_to_sqlite(
+    *,
+    partitions: list[PartitionItem],
+    out_db_path: Path,
+    window_start_epoch_s: int,
+    window_end_epoch_s: int,
+    exchanges_filter: list[str],
+    assets_filter: list[str],
+    symbols_filter: list[str],
     include_connection_events: bool,
-    progress: ExportProgress | None = None,
+    progress_enabled: bool,
+    progress_interval_seconds: float,
 ) -> tuple[int, int]:
-    output_db_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(str(output_db_path))
-    total_market_rows = 0
-    total_event_rows = 0
+    out_db_path.parent.mkdir(parents=True, exist_ok=True)
+    output_connection = sqlite3.connect(str(out_db_path))
     try:
-        ensure_sqlite_output_schema(connection)
+        ensure_output_schema(output_connection)
 
-        for index, db_path in enumerate(db_paths):
-            alias = f"src{index}"
-            connection.execute(f"ATTACH DATABASE ? AS {alias}", (str(db_path),))
+        market_rows_total = 0
+        event_rows_total = 0
+
+        started = time.monotonic()
+        last_log = started - progress_interval_seconds
+
+        for idx, partition in enumerate(partitions, start=1):
+            alias = "src"
+            output_connection.execute(f"ATTACH DATABASE ? AS {alias}", (partition.db_path,))
             try:
-                has_market_ticks = connection.execute(
-                    f"SELECT 1 FROM {alias}.sqlite_master WHERE type='table' AND name='market_ticks' LIMIT 1"
-                ).fetchone() is not None
-                has_connection_events = connection.execute(
-                    f"SELECT 1 FROM {alias}.sqlite_master WHERE type='table' AND name='connection_events' LIMIT 1"
-                ).fetchone() is not None
+                market_conditions = [
+                    "ingestion_ts_epoch_s >= ?",
+                    "ingestion_ts_epoch_s <= ?",
+                ]
+                market_params: list[Any] = [window_start_epoch_s, window_end_epoch_s]
+                if exchanges_filter:
+                    market_conditions.append(f"exchange_id_norm IN ({placeholders(len(exchanges_filter))})")
+                    market_params.extend(exchanges_filter)
+                if assets_filter:
+                    market_conditions.append(f"asset_norm IN ({placeholders(len(assets_filter))})")
+                    market_params.extend(assets_filter)
+                if symbols_filter:
+                    market_conditions.append(f"symbol_norm IN ({placeholders(len(symbols_filter))})")
+                    market_params.extend(symbols_filter)
 
-                if has_market_ticks:
-                    if progress is not None:
-                        progress.start_step(f"sqlite market_ticks | {db_path.name}")
-                    market_insert_sql = (
-                        "INSERT INTO market_ticks ("
-                        "source_db, source_row_id, ingestion_ts_utc, exchange_id, symbol, market_type, "
-                        "price, bid, ask, last, open, high, low, base_volume, quote_volume, "
-                        "exchange_ts_ms, exchange_ts_utc, raw_json"
-                        ") "
-                        f"SELECT ?, id, {', '.join(MARKET_TICK_COLUMNS)} "
-                        f"FROM {alias}.market_ticks "
-                        f"WHERE {market_where}"
-                    )
-                    run_with_heartbeat(
-                        callback=lambda: connection.execute(market_insert_sql, [str(db_path)] + market_params),
-                        progress=progress,
-                        heartbeat_note="running INSERT...SELECT",
-                    )
-                    inserted_market = connection.execute("SELECT changes()").fetchone()[0]
-                    total_market_rows += int(inserted_market)
-                    if progress is not None:
-                        progress.finish_step(extra=f"rows={inserted_market}")
-                elif progress is not None:
-                    progress.start_step(f"sqlite market_ticks | {db_path.name}")
-                    progress.finish_step(extra="table missing, skipped")
+                market_sql = (
+                    "INSERT INTO market_ticks ("
+                    "source_partition_id, source_db_path, source_row_id, ingestion_ts_utc, ingestion_ts_epoch_s, "
+                    "exchange_id, exchange_id_norm, symbol, symbol_norm, asset_norm, market_type, price, bid, ask, "
+                    "last, open, high, low, base_volume, quote_volume, exchange_ts_ms, exchange_ts_utc, raw_json"
+                    ") "
+                    "SELECT ?, ?, id, ingestion_ts_utc, ingestion_ts_epoch_s, "
+                    "exchange_id, exchange_id_norm, symbol, symbol_norm, asset_norm, market_type, price, bid, ask, "
+                    "last, open, high, low, base_volume, quote_volume, exchange_ts_ms, exchange_ts_utc, raw_json "
+                    f"FROM {alias}.market_ticks WHERE {' AND '.join(market_conditions)}"
+                )
+                output_connection.execute(market_sql, [partition.partition_id, partition.db_path] + market_params)
+                inserted_market = int(output_connection.execute("SELECT changes()").fetchone()[0])
+                market_rows_total += inserted_market
 
-                if include_connection_events and has_connection_events:
-                    if progress is not None:
-                        progress.start_step(f"sqlite connection_events | {db_path.name}")
-                    event_insert_sql = (
+                inserted_events = 0
+                if include_connection_events:
+                    event_conditions = [
+                        "event_ts_epoch_s >= ?",
+                        "event_ts_epoch_s <= ?",
+                    ]
+                    event_params: list[Any] = [window_start_epoch_s, window_end_epoch_s]
+                    if exchanges_filter:
+                        event_conditions.append(f"exchange_id_norm IN ({placeholders(len(exchanges_filter))})")
+                        event_params.extend(exchanges_filter)
+                    if assets_filter:
+                        event_conditions.append(f"asset_norm IN ({placeholders(len(assets_filter))})")
+                        event_params.extend(assets_filter)
+                    if symbols_filter:
+                        event_conditions.append(f"symbol_norm IN ({placeholders(len(symbols_filter))})")
+                        event_params.extend(symbols_filter)
+
+                    event_sql = (
                         "INSERT INTO connection_events ("
-                        "source_db, source_row_id, event_ts_utc, exchange_id, symbol, event_type, details_json"
+                        "source_partition_id, source_db_path, source_row_id, event_ts_utc, event_ts_epoch_s, "
+                        "exchange_id, exchange_id_norm, symbol, symbol_norm, asset_norm, event_type, details_json"
                         ") "
-                        f"SELECT ?, id, {', '.join(CONNECTION_EVENT_COLUMNS)} "
-                        f"FROM {alias}.connection_events "
-                        f"WHERE {event_where}"
+                        "SELECT ?, ?, id, event_ts_utc, event_ts_epoch_s, exchange_id, exchange_id_norm, "
+                        "symbol, symbol_norm, asset_norm, event_type, details_json "
+                        f"FROM {alias}.connection_events WHERE {' AND '.join(event_conditions)}"
                     )
-                    run_with_heartbeat(
-                        callback=lambda: connection.execute(event_insert_sql, [str(db_path)] + event_params),
-                        progress=progress,
-                        heartbeat_note="running INSERT...SELECT",
-                    )
-                    inserted_events = connection.execute("SELECT changes()").fetchone()[0]
-                    total_event_rows += int(inserted_events)
-                    if progress is not None:
-                        progress.finish_step(extra=f"rows={inserted_events}")
-                elif include_connection_events and progress is not None:
-                    progress.start_step(f"sqlite connection_events | {db_path.name}")
-                    progress.finish_step(extra="table missing, skipped")
+                    output_connection.execute(event_sql, [partition.partition_id, partition.db_path] + event_params)
+                    inserted_events = int(output_connection.execute("SELECT changes()").fetchone()[0])
+                    event_rows_total += inserted_events
 
-                connection.commit()
+                output_connection.commit()
+
+                if progress_enabled:
+                    now = time.monotonic()
+                    if (now - last_log >= progress_interval_seconds) or idx == len(partitions):
+                        elapsed = now - started
+                        pct = idx / max(1, len(partitions)) * 100.0
+                        rate = idx / max(elapsed, 1e-9)
+                        remaining = max(0, len(partitions) - idx)
+                        eta = remaining / max(rate, 1e-9)
+                        LOGGER.info(
+                            "Progress partitions %s/%s (%.1f%%) | elapsed=%s eta=%s | "
+                            "market_rows=%s event_rows=%s | last=%s rows(m/e)=%s/%s",
+                            idx,
+                            len(partitions),
+                            pct,
+                            format_hhmmss(elapsed),
+                            format_hhmmss(eta),
+                            market_rows_total,
+                            event_rows_total,
+                            partition.partition_id,
+                            inserted_market,
+                            inserted_events,
+                        )
+                        last_log = now
             finally:
-                connection.execute(f"DETACH DATABASE {alias}")
+                output_connection.execute(f"DETACH DATABASE {alias}")
+
+        return market_rows_total, event_rows_total
     finally:
-        connection.close()
-
-    return total_market_rows, total_event_rows
-
-
-def stream_market_rows(
-    db_path: Path,
-    market_where: str,
-    market_params: list[Any],
-    chunk_size: int,
-) -> Any:
-    connection = connect_readonly(db_path)
-    try:
-        if not table_exists(connection, "market_ticks"):
-            return
-        sql = (
-            "SELECT id, "
-            + ", ".join(MARKET_TICK_COLUMNS)
-            + f" FROM market_ticks WHERE {market_where}"
-        )
-        cursor = connection.execute(sql, market_params)
-        while True:
-            rows = cursor.fetchmany(chunk_size)
-            if not rows:
-                break
-            for row in rows:
-                source_row_id = row[0]
-                payload = dict(zip(MARKET_TICK_COLUMNS, row[1:]))
-                payload["source_db"] = str(db_path)
-                payload["source_row_id"] = source_row_id
-                yield payload
-    finally:
-        connection.close()
-
-
-def stream_event_rows(
-    db_path: Path,
-    event_where: str,
-    event_params: list[Any],
-    chunk_size: int,
-) -> Any:
-    connection = connect_readonly(db_path)
-    try:
-        if not table_exists(connection, "connection_events"):
-            return
-        sql = (
-            "SELECT id, "
-            + ", ".join(CONNECTION_EVENT_COLUMNS)
-            + f" FROM connection_events WHERE {event_where}"
-        )
-        cursor = connection.execute(sql, event_params)
-        while True:
-            rows = cursor.fetchmany(chunk_size)
-            if not rows:
-                break
-            for row in rows:
-                source_row_id = row[0]
-                payload = dict(zip(CONNECTION_EVENT_COLUMNS, row[1:]))
-                payload["source_db"] = str(db_path)
-                payload["source_row_id"] = source_row_id
-                yield payload
-    finally:
-        connection.close()
-
-
-class JsonArrayWriter:
-    def __init__(self, output_path: Path) -> None:
-        self.output_path = output_path
-        self._file = output_path.open("w", encoding="utf-8")
-        self._first = True
-        self._file.write("[\n")
-
-    def write(self, payload: dict[str, Any]) -> None:
-        if not self._first:
-            self._file.write(",\n")
-        self._file.write(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
-        self._first = False
-
-    def close(self) -> None:
-        self._file.write("\n]\n")
-        self._file.close()
-
-
-def write_csv_or_json_exports(
-    db_paths: list[Path],
-    output_base: Path,
-    output_format: str,
-    market_where: str,
-    market_params: list[Any],
-    event_where: str,
-    event_params: list[Any],
-    include_connection_events: bool,
-    chunk_size: int,
-    progress: ExportProgress | None = None,
-) -> tuple[int, int, list[Path], list[str], list[str], str | None, str | None]:
-    output_base.parent.mkdir(parents=True, exist_ok=True)
-
-    output_files: list[Path] = []
-    exported_exchanges: set[str] = set()
-    exported_assets: set[str] = set()
-    market_count = 0
-    event_count = 0
-    max_market_ts_utc: str | None = None
-    max_event_ts_utc: str | None = None
-
-    market_fields = ["source_db", "source_row_id"] + MARKET_TICK_COLUMNS
-    event_fields = ["source_db", "source_row_id"] + CONNECTION_EVENT_COLUMNS
-
-    market_path = output_base.with_name(f"{output_base.name}_market_ticks.{output_format}")
-    output_files.append(market_path)
-
-    if output_format == "csv":
-        market_writer_file = market_path.open("w", encoding="utf-8", newline="")
-        market_writer = csv.DictWriter(market_writer_file, fieldnames=market_fields)
-        market_writer.writeheader()
-        market_writer_obj: Any = market_writer
-    else:
-        market_writer_file = JsonArrayWriter(market_path)
-        market_writer_obj = market_writer_file
-
-    event_writer_file: Any = None
-    event_writer_obj: Any = None
-    if include_connection_events:
-        event_path = output_base.with_name(f"{output_base.name}_connection_events.{output_format}")
-        output_files.append(event_path)
-        if output_format == "csv":
-            event_writer_file = event_path.open("w", encoding="utf-8", newline="")
-            event_writer = csv.DictWriter(event_writer_file, fieldnames=event_fields)
-            event_writer.writeheader()
-            event_writer_obj = event_writer
-        else:
-            event_writer_file = JsonArrayWriter(event_path)
-            event_writer_obj = event_writer_file
-
-    try:
-        for db_path in db_paths:
-            if progress is not None:
-                progress.start_step(f"{output_format} market_ticks | {db_path.name}")
-            step_market_count = 0
-            for payload in stream_market_rows(
-                db_path=db_path,
-                market_where=market_where,
-                market_params=market_params,
-                chunk_size=chunk_size,
-            ):
-                if output_format == "csv":
-                    market_writer_obj.writerow(payload)
-                else:
-                    market_writer_obj.write(payload)
-                market_count += 1
-                tick_ts = payload.get("ingestion_ts_utc")
-                if isinstance(tick_ts, str) and tick_ts:
-                    max_market_ts_utc = max_iso_value(max_market_ts_utc, tick_ts)
-                exchange_id = payload.get("exchange_id")
-                if isinstance(exchange_id, str) and exchange_id.strip():
-                    exported_exchanges.add(exchange_id.strip())
-                asset = source_asset(payload.get("symbol"))
-                if asset:
-                    exported_assets.add(asset)
-                step_market_count += 1
-                if progress is not None and (step_market_count % max(1000, chunk_size) == 0):
-                    progress.heartbeat(note=f"rows_in_step={step_market_count}")
-
-            if progress is not None:
-                progress.finish_step(extra=f"rows={step_market_count}")
-
-            if not include_connection_events:
-                continue
-
-            if progress is not None:
-                progress.start_step(f"{output_format} connection_events | {db_path.name}")
-            step_event_count = 0
-            for payload in stream_event_rows(
-                db_path=db_path,
-                event_where=event_where,
-                event_params=event_params,
-                chunk_size=chunk_size,
-            ):
-                if output_format == "csv":
-                    event_writer_obj.writerow(payload)
-                else:
-                    event_writer_obj.write(payload)
-                event_count += 1
-                event_ts = payload.get("event_ts_utc")
-                if isinstance(event_ts, str) and event_ts:
-                    max_event_ts_utc = max_iso_value(max_event_ts_utc, event_ts)
-                exchange_id = payload.get("exchange_id")
-                if isinstance(exchange_id, str) and exchange_id.strip():
-                    exported_exchanges.add(exchange_id.strip())
-                step_event_count += 1
-                if progress is not None and (step_event_count % max(1000, chunk_size) == 0):
-                    progress.heartbeat(note=f"rows_in_step={step_event_count}")
-
-            if progress is not None:
-                progress.finish_step(extra=f"rows={step_event_count}")
-
-    finally:
-        if output_format == "csv":
-            market_writer_file.close()
-            if event_writer_file is not None:
-                event_writer_file.close()
-        else:
-            market_writer_file.close()
-            if event_writer_file is not None:
-                event_writer_file.close()
-
-    return (
-        market_count,
-        event_count,
-        output_files,
-        sorted(exported_exchanges),
-        sorted(exported_assets),
-        max_market_ts_utc,
-        max_event_ts_utc,
-    )
-
-
-def collect_exported_summary_from_sqlite(
-    output_db_path: Path,
-    include_connection_events: bool,
-) -> tuple[list[str], list[str], str | None, str | None]:
-    connection = sqlite3.connect(str(output_db_path))
-    try:
-        exchanges = [
-            exchange_id
-            for (exchange_id,) in connection.execute("SELECT DISTINCT exchange_id FROM market_ticks ORDER BY exchange_id")
-        ]
-        assets_set: set[str] = set()
-        for (symbol,) in connection.execute("SELECT DISTINCT symbol FROM market_ticks ORDER BY symbol"):
-            asset = source_asset(symbol)
-            if asset:
-                assets_set.add(asset)
-        market_max_row = connection.execute("SELECT MAX(ingestion_ts_utc) FROM market_ticks").fetchone()
-        max_market_ts_utc = market_max_row[0] if market_max_row is not None else None
-
-        max_event_ts_utc: str | None = None
-        if include_connection_events:
-            event_max_row = connection.execute("SELECT MAX(event_ts_utc) FROM connection_events").fetchone()
-            max_event_ts_utc = event_max_row[0] if event_max_row is not None else None
-
-        return exchanges, sorted(assets_set), max_market_ts_utc, max_event_ts_utc
-    finally:
-        connection.close()
-
-
-def write_metadata(metadata_path: Path, payload: dict[str, Any]) -> None:
-    metadata_path.parent.mkdir(parents=True, exist_ok=True)
-    metadata_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
-
-
-def print_list(title: str, values: list[str]) -> None:
-    print(f"{title} ({len(values)}):")
-    if not values:
-        print("  -")
-        return
-    print("  " + ", ".join(values))
-
-
-def print_source_uniques_skipped(kind: str, source_uniques_mode: str) -> None:
-    print(
-        f"Unique {kind} in source window: skipped "
-        f"(source-uniques-mode={source_uniques_mode}; use --source-uniques-mode full for exact source uniques)."
-    )
-
-
-def format_duration(seconds: float) -> str:
-    total = max(0, int(seconds))
-    hours, rem = divmod(total, 3600)
-    minutes, secs = divmod(rem, 60)
-    if hours > 0:
-        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-    return f"{minutes:02d}:{secs:02d}"
-
-
-class ExportProgress:
-    def __init__(self, total_steps: int, enabled: bool, interval_seconds: float) -> None:
-        self.total_steps = max(1, total_steps)
-        self.enabled = enabled
-        self.interval_seconds = max(0.1, interval_seconds)
-        self.started_monotonic = time.monotonic()
-        self.last_update_monotonic = 0.0
-        self.completed_steps = 0
-        self.current_step_label: str | None = None
-        self.current_step_started_monotonic = 0.0
-        self._lock = threading.Lock()
-
-    def _eta_seconds(self, now_monotonic: float) -> float | None:
-        if self.completed_steps <= 0:
-            return None
-        elapsed = now_monotonic - self.started_monotonic
-        avg_step = elapsed / self.completed_steps
-        remaining = max(0, self.total_steps - self.completed_steps)
-        return avg_step * remaining
-
-    def _progress_line(self, message: str, now_monotonic: float) -> str:
-        pct = min(100.0, (self.completed_steps / self.total_steps) * 100.0)
-        elapsed_txt = format_duration(now_monotonic - self.started_monotonic)
-        eta_seconds = self._eta_seconds(now_monotonic)
-        eta_txt = format_duration(eta_seconds) if eta_seconds is not None else "n/a"
-        return (
-            f"[progress] {self.completed_steps}/{self.total_steps} ({pct:.1f}%) "
-            f"| elapsed={elapsed_txt} | eta={eta_txt} | {message}"
-        )
-
-    def _emit(self, message: str, force: bool = False) -> None:
-        if not self.enabled:
-            return
-        now_monotonic = time.monotonic()
-        with self._lock:
-            if not force and (now_monotonic - self.last_update_monotonic) < self.interval_seconds:
-                return
-            print(self._progress_line(message, now_monotonic), flush=True)
-            self.last_update_monotonic = now_monotonic
-
-    def start_step(self, label: str) -> None:
-        self.current_step_label = label
-        self.current_step_started_monotonic = time.monotonic()
-        self._emit(f"started: {label}", force=True)
-
-    def heartbeat(self, note: str | None = None) -> None:
-        label = self.current_step_label or "-"
-        if note:
-            self._emit(f"working: {label} | {note}")
-            return
-        self._emit(f"working: {label}")
-
-    def finish_step(self, extra: str | None = None) -> None:
-        step_label = self.current_step_label or "-"
-        step_elapsed = 0.0
-        if self.current_step_started_monotonic > 0:
-            step_elapsed = time.monotonic() - self.current_step_started_monotonic
-        self.completed_steps = min(self.total_steps, self.completed_steps + 1)
-        suffix = f" | {extra}" if extra else ""
-        self._emit(
-            f"finished: {step_label} | step_elapsed={format_duration(step_elapsed)}{suffix}",
-            force=True,
-        )
-        self.current_step_label = None
-        self.current_step_started_monotonic = 0.0
-
-
-def run_with_heartbeat(
-    callback: Any,
-    progress: ExportProgress | None,
-    heartbeat_note: str,
-) -> Any:
-    if progress is None or not progress.enabled:
-        return callback()
-
-    stop_event = threading.Event()
-
-    def heartbeat_loop() -> None:
-        while not stop_event.wait(progress.interval_seconds):
-            progress.heartbeat(heartbeat_note)
-
-    thread = threading.Thread(target=heartbeat_loop, daemon=True)
-    thread.start()
-    try:
-        return callback()
-    finally:
-        stop_event.set()
-        thread.join(timeout=0.5)
+        output_connection.close()
 
 
 def main() -> None:
     args = parse_args()
+    configure_logging(args.log_level)
 
     if args.hours <= 0:
         raise SystemExit("--hours must be > 0.")
@@ -974,359 +434,126 @@ def main() -> None:
         raise SystemExit("--chunk-size must be > 0.")
     if args.progress_interval_seconds <= 0:
         raise SystemExit("--progress-interval-seconds must be > 0.")
-    if args.incremental and args.start_relative_from_hour > 0:
-        raise SystemExit(
-            "--start-relative-from-hour cannot be combined with --incremental. "
-            "Use window mode for deterministic backfill windows."
+
+    vault_root = Path(args.vault_root)
+    manifest_db_path = Path(args.manifest_db) if args.manifest_db else vault_root / "meta" / "vault_manifest.db"
+    if not manifest_db_path.exists():
+        raise SystemExit(f"Manifest DB does not exist: {manifest_db_path}")
+
+    exchanges_filter = normalize_csv(args.exchanges, lower=True)
+    assets_filter = normalize_csv(args.assets, upper=True)
+    assets_filter = [item.lower() for item in assets_filter]
+    symbols_filter = normalize_csv(args.symbols, lower=True)
+
+    with connect_readonly(manifest_db_path) as manifest_connection:
+        source_max_epoch_s = resolve_source_max_epoch(
+            manifest_connection,
+            layer=args.layer,
+            exchanges_filter=exchanges_filter,
+            assets_filter=assets_filter,
+            symbols_filter=symbols_filter,
+        )
+        if source_max_epoch_s is None:
+            raise SystemExit("No source rows found in manifest for selected filters.")
+
+        end_epoch = int(source_max_epoch_s - args.start_relative_from_hour * 3600)
+        start_epoch = int(end_epoch - args.hours * 3600)
+        if end_epoch <= start_epoch:
+            raise SystemExit("Computed window is empty. Check --hours and --start-relative-from-hour.")
+
+        partitions = select_partitions(
+            manifest_connection,
+            layer=args.layer,
+            window_start_epoch_s=start_epoch,
+            window_end_epoch_s=end_epoch,
+            exchanges_filter=exchanges_filter,
+            assets_filter=assets_filter,
+            symbols_filter=symbols_filter,
         )
 
-    exchanges_filter = normalize_csv_values(args.exchanges, to_lower=True)
-    assets_filter = normalize_csv_values(args.assets, to_upper=True)
+    start_utc = datetime.fromtimestamp(start_epoch, tz=timezone.utc).isoformat(timespec="seconds")
+    end_utc = datetime.fromtimestamp(end_epoch, tz=timezone.utc).isoformat(timespec="seconds")
 
-    db_paths = worker_db_paths(args.input_glob)
-    if not db_paths:
-        raise SystemExit(f"No worker DB files found for input glob: {args.input_glob}")
-
-    run_started_utc = datetime.now(timezone.utc)
-    include_events = not args.skip_connection_events
-    source_market_max_utc, source_event_max_utc = collect_source_max_timestamps(
-        db_paths=db_paths,
-        exchanges_filter=exchanges_filter,
-        assets_filter=assets_filter,
-        include_connection_events=include_events,
-    )
-    source_anchor_end_utc_iso = source_market_max_utc
-    if source_anchor_end_utc_iso is None:
-        source_anchor_end_utc_iso = source_event_max_utc if include_events else None
-    if source_anchor_end_utc_iso is None:
-        raise SystemExit(
-            "No source timestamps found for selected filters. "
-            "Cannot derive staging window end from source data."
-        )
-    source_anchor_end_utc = datetime.fromisoformat(source_anchor_end_utc_iso)
-    window_end_utc = source_anchor_end_utc - timedelta(hours=args.start_relative_from_hour)
-    window_end_utc_iso = utc_iso(window_end_utc)
-    window_start_default_utc = window_start_iso(window_end_utc, args.hours)
-    incremental_enabled = bool(args.incremental)
-    state_path = Path(args.state_path)
-    state_key = state_profile_key(
-        custom_key=args.state_key,
-        input_glob=args.input_glob,
-        exchanges_filter=exchanges_filter,
-        assets_filter=assets_filter,
-    )
-
-    state_document: dict[str, Any] | None = None
-    previous_market_watermark_utc: str | None = None
-    previous_event_watermark_utc: str | None = None
-    if incremental_enabled:
-        state_document = load_state_document(state_path)
-        profiles = state_document.get("profiles", {})
-        profile_raw = profiles.get(state_key, {})
-        if isinstance(profile_raw, dict):
-            watermark_raw = profile_raw.get("watermark", {})
-            if isinstance(watermark_raw, dict):
-                market_wm_raw = watermark_raw.get("market_ticks_ingestion_ts_utc")
-                event_wm_raw = watermark_raw.get("connection_events_event_ts_utc")
-                if isinstance(market_wm_raw, str) and market_wm_raw:
-                    previous_market_watermark_utc = market_wm_raw
-                if isinstance(event_wm_raw, str) and event_wm_raw:
-                    previous_event_watermark_utc = event_wm_raw
-
-    market_lower_bound_utc = previous_market_watermark_utc or window_start_default_utc
-    event_lower_bound_utc = previous_event_watermark_utc or window_start_default_utc
-    market_lower_inclusive = not (incremental_enabled and previous_market_watermark_utc is not None)
-    event_lower_inclusive = not (incremental_enabled and previous_event_watermark_utc is not None)
-
-    market_where, market_params = build_market_where_clause(
-        lower_bound_utc=market_lower_bound_utc,
-        upper_bound_utc=window_end_utc_iso,
-        lower_inclusive=market_lower_inclusive,
-        exchanges=exchanges_filter,
-        assets=assets_filter,
-    )
-    event_where, event_params = build_event_where_clause(
-        lower_bound_utc=event_lower_bound_utc,
-        upper_bound_utc=window_end_utc_iso,
-        lower_inclusive=event_lower_inclusive,
-        exchanges=exchanges_filter,
-        assets=assets_filter,
-    )
-
-    source_uniques_mode = args.source_uniques_mode
-
-    print(f"Worker DB files used: {len(db_paths)}")
-    print(f"Export mode: {'incremental' if incremental_enabled else 'window'}")
-    print(f"Source uniques mode: {source_uniques_mode}")
-    print(f"Window anchor UTC (source max): {source_anchor_end_utc_iso}")
-    print(f"Window end relative offset hours: {args.start_relative_from_hour}")
-    print(f"Window default start UTC: {window_start_default_utc}")
-    print(f"Window end UTC: {window_end_utc_iso}")
-    print(
-        "Market ticks query bounds: "
-        f"{'>=' if market_lower_inclusive else '>'} {market_lower_bound_utc} and <= {window_end_utc_iso}"
-    )
-    print(
-        "Connection events query bounds: "
-        f"{'>=' if event_lower_inclusive else '>'} {event_lower_bound_utc} and <= {window_end_utc_iso}"
-    )
-    if incremental_enabled:
-        print(f"State file: {state_path}")
-        print(f"State key: {state_key}")
-        print(f"Previous market watermark: {previous_market_watermark_utc or '-'}")
-        print(f"Previous event watermark: {previous_event_watermark_utc or '-'}")
-    if exchanges_filter:
-        print(f"Exchange filter: {', '.join(exchanges_filter)}")
-    if assets_filter:
-        print(f"Asset filter: {', '.join(assets_filter)}")
+    LOGGER.info("Manifest: %s", manifest_db_path)
+    LOGGER.info("Layer: %s", args.layer)
+    LOGGER.info("Window UTC: %s -> %s", start_utc, end_utc)
+    LOGGER.info("Filters | exchanges=%s assets=%s symbols=%s", exchanges_filter or "-", assets_filter or "-", symbols_filter or "-")
+    LOGGER.info("Selected partitions: %s", len(partitions))
 
     if args.list_only:
-        if source_uniques_mode == "full":
-            source_exchanges, source_assets = collect_source_uniques(db_paths, market_where, market_params)
-            if args.print_unique_exchanges:
-                print_list("Unique exchanges in source window", source_exchanges)
-            if args.print_unique_assets:
-                print_list("Unique assets in source window", source_assets)
-        else:
-            if args.print_unique_exchanges:
-                print_source_uniques_skipped("exchanges", source_uniques_mode)
-            if args.print_unique_assets:
-                print_source_uniques_skipped("assets", source_uniques_mode)
-        print("List-only mode enabled. No export files were created.")
         return
 
-    output_dir = Path(args.output_dir)
-    base_name = output_base_name(
-        args.output_prefix,
-        args.hours,
-        args.start_relative_from_hour,
-        run_started_utc,
+    if not partitions:
+        raise SystemExit("No partitions overlap the selected window and filters.")
+
+    out_db = output_db_path(args)
+    started = time.monotonic()
+    market_rows, event_rows = export_to_sqlite(
+        partitions=partitions,
+        out_db_path=out_db,
+        window_start_epoch_s=start_epoch,
+        window_end_epoch_s=end_epoch,
+        exchanges_filter=exchanges_filter,
+        assets_filter=assets_filter,
+        symbols_filter=symbols_filter,
+        include_connection_events=not args.skip_connection_events,
+        progress_enabled=bool(args.progress),
+        progress_interval_seconds=float(args.progress_interval_seconds),
     )
-    output_base = output_dir / base_name
-    run_id = base_name
 
-    output_files: list[Path]
-    source_exchanges: list[str] = []
-    source_assets: list[str] = []
-    exported_exchanges: list[str]
-    exported_assets: list[str]
-    exported_market_max_ts_utc: str | None = None
-    exported_event_max_ts_utc: str | None = None
-
-    total_export_steps = len(db_paths) * (2 if include_events else 1)
-    progress = ExportProgress(
-        total_steps=total_export_steps,
-        enabled=bool(args.progress),
-        interval_seconds=args.progress_interval_seconds,
-    )
-    if progress.enabled:
-        print(
-            f"Progress tracking: enabled | interval={args.progress_interval_seconds:.1f}s | "
-            f"planned_steps={total_export_steps}",
-            flush=True,
+    runtime = time.monotonic() - started
+    with sqlite3.connect(str(out_db)) as output_connection:
+        run_id = f"staging_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        output_connection.execute(
+            """
+            INSERT OR REPLACE INTO staging_export_run_metadata (
+                run_id,
+                created_utc,
+                vault_root,
+                manifest_db,
+                layer,
+                hours,
+                start_relative_from_hour,
+                window_start_epoch_s,
+                window_end_epoch_s,
+                window_start_utc,
+                window_end_utc,
+                exchange_filter_csv,
+                asset_filter_csv,
+                symbol_filter_csv,
+                partitions_selected,
+                market_rows,
+                connection_event_rows,
+                runtime_seconds
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                str(vault_root.resolve()),
+                str(manifest_db_path.resolve()),
+                args.layer,
+                float(args.hours),
+                float(args.start_relative_from_hour),
+                int(start_epoch),
+                int(end_epoch),
+                start_utc,
+                end_utc,
+                ",".join(exchanges_filter),
+                ",".join(assets_filter),
+                ",".join(symbols_filter),
+                len(partitions),
+                int(market_rows),
+                int(event_rows),
+                float(runtime),
+            ),
         )
+        output_connection.commit()
 
-    if args.output_format == "sqlite":
-        output_db_path = output_base.with_suffix(".db")
-        market_count, event_count = insert_sqlite_from_sources(
-            db_paths=db_paths,
-            output_db_path=output_db_path,
-            market_where=market_where,
-            market_params=market_params,
-            event_where=event_where,
-            event_params=event_params,
-            include_connection_events=include_events,
-            progress=progress,
-        )
-        (
-            exported_exchanges,
-            exported_assets,
-            exported_market_max_ts_utc,
-            exported_event_max_ts_utc,
-        ) = collect_exported_summary_from_sqlite(
-            output_db_path=output_db_path,
-            include_connection_events=include_events,
-        )
-        output_files = [output_db_path]
-    else:
-        (
-            market_count,
-            event_count,
-            output_files,
-            exported_exchanges,
-            exported_assets,
-            exported_market_max_ts_utc,
-            exported_event_max_ts_utc,
-        ) = write_csv_or_json_exports(
-            db_paths=db_paths,
-            output_base=output_base,
-            output_format=args.output_format,
-            market_where=market_where,
-            market_params=market_params,
-            event_where=event_where,
-            event_params=event_params,
-            include_connection_events=include_events,
-            chunk_size=args.chunk_size,
-            progress=progress,
-        )
-
-    if source_uniques_mode == "full":
-        source_exchanges, source_assets = collect_source_uniques(db_paths, market_where, market_params)
-    elif source_uniques_mode == "fast":
-        source_exchanges = list(exported_exchanges)
-        source_assets = list(exported_assets)
-
-    new_market_watermark_utc: str | None = None
-    new_event_watermark_utc: str | None = None
-    state_updated = False
-    if incremental_enabled:
-        new_market_watermark_utc = max_iso_value(previous_market_watermark_utc, exported_market_max_ts_utc)
-        new_market_watermark_utc = max_iso_value(new_market_watermark_utc, window_end_utc_iso)
-        if include_events:
-            new_event_watermark_utc = max_iso_value(previous_event_watermark_utc, exported_event_max_ts_utc)
-            new_event_watermark_utc = max_iso_value(new_event_watermark_utc, window_end_utc_iso)
-        else:
-            new_event_watermark_utc = previous_event_watermark_utc
-
-        if args.update_state:
-            if state_document is None:
-                raise SystemExit("Internal error: incremental mode expected loaded state document.")
-            profiles = state_document.setdefault("profiles", {})
-            profiles[state_key] = {
-                "updated_utc": utc_iso(datetime.now(timezone.utc)),
-                "source": {
-                    "input_glob": args.input_glob,
-                },
-                "filters": {
-                    "exchanges": exchanges_filter,
-                    "assets": assets_filter,
-                },
-                "watermark": {
-                    "market_ticks_ingestion_ts_utc": new_market_watermark_utc,
-                    "connection_events_event_ts_utc": new_event_watermark_utc,
-                },
-            }
-            write_state_document(state_path, state_document)
-            state_updated = True
-
-    run_finished_utc = datetime.now(timezone.utc)
-    metadata = {
-        "contract_name": STAGING_METADATA_CONTRACT_NAME,
-        "contract_version": STAGING_METADATA_CONTRACT_VERSION,
-        "run_id": run_id,
-        "run_started_utc": utc_iso(run_started_utc),
-        "run_finished_utc": utc_iso(run_finished_utc),
-        "mode": {
-            "incremental": incremental_enabled,
-        },
-        "window": {
-            "hours": args.hours,
-            "start_relative_from_hour": args.start_relative_from_hour,
-            "anchor": {
-                "strategy": "source_max_timestamp",
-                "market_ticks_max_utc": source_market_max_utc,
-                "connection_events_max_utc": source_event_max_utc,
-                "source_max_utc": source_anchor_end_utc_iso,
-            },
-            "default_start_utc": window_start_default_utc,
-            "end_utc": window_end_utc_iso,
-        },
-        "query_bounds": {
-            "market_ticks": {
-                "lower_utc": market_lower_bound_utc,
-                "lower_inclusive": market_lower_inclusive,
-                "upper_utc": window_end_utc_iso,
-            },
-            "connection_events": {
-                "lower_utc": event_lower_bound_utc,
-                "lower_inclusive": event_lower_inclusive,
-                "upper_utc": window_end_utc_iso,
-                "included": include_events,
-            },
-        },
-        "source": {
-            "input_glob": args.input_glob,
-            "worker_db_count": len(db_paths),
-            "worker_db_files": [str(path) for path in db_paths],
-        },
-        "options": {
-            "output_format": args.output_format,
-            "include_connection_events": include_events,
-            "chunk_size": args.chunk_size,
-            "progress": bool(args.progress),
-            "progress_interval_seconds": args.progress_interval_seconds,
-            "start_relative_from_hour": args.start_relative_from_hour,
-        },
-        "filters": {
-            "exchanges": exchanges_filter,
-            "assets": assets_filter,
-        },
-        "uniques": {
-            "collection_mode": source_uniques_mode,
-            "source": {
-                "exchanges": source_exchanges,
-                "assets": source_assets,
-            },
-            "exported": {
-                "exchanges": exported_exchanges,
-                "assets": exported_assets,
-            },
-        },
-        "watermarks": {
-            "previous": {
-                "market_ticks_ingestion_ts_utc": previous_market_watermark_utc,
-                "connection_events_event_ts_utc": previous_event_watermark_utc,
-            },
-            "exported_max": {
-                "market_ticks_ingestion_ts_utc": exported_market_max_ts_utc,
-                "connection_events_event_ts_utc": exported_event_max_ts_utc,
-            },
-            "new": {
-                "market_ticks_ingestion_ts_utc": new_market_watermark_utc,
-                "connection_events_event_ts_utc": new_event_watermark_utc,
-            },
-        },
-        "state": {
-            "path": str(state_path),
-            "key": state_key,
-            "update_requested": args.update_state,
-            "updated": state_updated,
-        },
-        "row_counts": {
-            "market_ticks": market_count,
-            "connection_events": event_count,
-        },
-        "output_files": [str(path) for path in output_files],
-    }
-    metadata_path = output_base.with_name(f"{output_base.name}_metadata.json")
-    write_metadata(metadata_path, metadata)
-
-    print(f"Export format: {args.output_format}")
-    print(f"Exported market_ticks rows: {market_count}")
-    print(f"Exported connection_events rows: {event_count}")
-    if args.print_unique_exchanges:
-        if source_uniques_mode == "off":
-            print_source_uniques_skipped("exchanges", source_uniques_mode)
-        else:
-            print_list("Unique exchanges in source window", source_exchanges)
-    if args.print_unique_assets:
-        if source_uniques_mode == "off":
-            print_source_uniques_skipped("assets", source_uniques_mode)
-        else:
-            print_list("Unique assets in source window", source_assets)
-    print_list("Unique exchanges exported", exported_exchanges)
-    print_list("Unique assets exported", exported_assets)
-    if incremental_enabled:
-        print(f"New market watermark: {new_market_watermark_utc or '-'}")
-        print(f"New event watermark: {new_event_watermark_utc or '-'}")
-        print(f"State updated: {'yes' if state_updated else 'no'}")
-    print("Created files:")
-    for output_path in output_files + [metadata_path]:
-        print(f"  - {output_path}")
+    LOGGER.info("Output DB: %s", out_db)
+    LOGGER.info("Rows copied | market_ticks=%s | connection_events=%s", market_rows, event_rows)
+    LOGGER.info("Runtime seconds: %.3f", runtime)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        sys.exit(130)
+    main()

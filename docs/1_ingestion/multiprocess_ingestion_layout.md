@@ -1,75 +1,57 @@
-# Multi-Prozess Layout fuer WebSocket Ingestion
+# Multiprocess Ingestion Layout (VAULT 2.0)
 
-## Ziel
-Die Ingestion horizontal skalieren, ohne SQLite-Lock-Contention zu erzeugen.
+## Goal
+Scale websocket ingestion horizontally while keeping SQLite writes contention-safe and query-friendly for downstream phases.
 
-## Kernidee
-1. Ein Orchestrator verteilt Exchanges auf mehrere Worker-Prozesse.
-2. Jeder Worker verarbeitet seine Exchanges asynchron (asyncio) und schreibt in eine eigene SQLite-Datei.
-3. Ein Merger-Job fuehrt Worker-Daten inkrementell in eine zentrale Raw-DB zusammen.
+## Core Idea
+1. One orchestrator shards exchanges across worker processes.
+2. Each worker runs async websocket loops for its assigned exchanges.
+3. Workers write directly into VAULT partition files, grouped by `exchange + UTC hour`.
+4. A shared manifest DB tracks partition metadata and pair-level min/max ranges.
 
-## Warum so und nicht alle Prozesse auf eine DB
-- SQLite ist stark bei einem Writer, aber mehrere Prozesse auf dieselbe DB erzeugen Lock-Wartezeiten.
-- Worker-lokale DBs isolieren Last und Fehler.
-- Zusammenfuehrung kann kontrolliert und inkrementell laufen.
+There is no merge job and no monolithic raw DB in VAULT 2.0.
 
-## Prozessrollen
+## Process Roles
 - Orchestrator
-  - liest `--exchanges`, `--exchanges-exclude`
-  - prueft Capabilities pro Exchange
-  - plant Shards und startet Worker
-  - startet Worker bei Crash neu
+  - evaluates exchange capabilities and throughput profile
+  - computes shard plan (greedy bin packing)
+  - starts and supervises worker processes
+  - restarts failed workers with backoff
 - Worker
-  - nutzt bestehende asyncio-Logik (`watch_tickers` oder `watch_ticker`)
-  - bei `AuthenticationError`: Exchange dauerhaft aus Worker-Liste entfernen
-  - schreibt `market_ticks` und `connection_events` in `worker_i_raw.db`
-- Merger
-  - laeuft periodisch (z. B. alle 1-5 Minuten)
-  - liest neue Zeilen aus Worker-DBs per `id > last_merged_id`
-  - schreibt in `raw_ingestion.db`
-  - speichert Fortschritt je Worker in `merge_state.db`
+  - subscribes to `watch_tickers` / `watch_ticker`
+  - normalizes keys (`exchange_id_norm`, `symbol_norm`, `asset_norm`)
+  - writes tick/event rows to partition DBs
+  - updates manifest entries for partition and pair ranges
 
-## Sharding-Strategie (praxisnah)
-- Pro Exchange initial `symbol_count` und Stream-Modus laden.
-- Lastscore:
-  - `watch_tickers`: `score = max(1, symbol_count / 200)`
-  - `watch_ticker`: `score = max(1, symbol_count / 25)`
-- Exchanges mit Greedy-Bin-Packing auf `N` Worker verteilen (immer in den aktuell leichtesten Worker legen).
+## Storage Layout
+- Partition files:
+  - `data/vault2/ingestion/exchange=<id>/date=<YYYY-MM-DD>/hour=<HH>/part_<id>_<YYYYMMDD_HH>.db`
+- Manifest DB:
+  - `data/vault2/meta/vault_manifest.db`
+  - tables: `partition_registry`, `partition_pairs`
 
-## Empfohlene Startparameter
-- `N` Worker:
-  - Startwert `min(8, max(2, cpu_count // 2))`
-  - bei schwacher Maschine eher 2-4
-- je Worker:
-  - `queue-size`: 50_000 bis 200_000
-  - `batch-size`: 500 bis 2_000
-  - `flush-interval-s`: 0.5 bis 1.0
-- Merger:
-  - Laufintervall 60-300s
-  - Batch-Insert im Ziel 1_000-5_000 Zeilen
+## Why This Layout
+- Avoids multi-process write contention on a single SQLite file.
+- Enables pruning by exchange/time before opening partition files.
+- Preserves replayability because raw ticks/events stay immutable in partition scope.
+- Supports independent retention per layer.
 
-## Betriebsstabilitaet
-- Health:
-  - jeder Worker schreibt Heartbeat-Event alle 30s
-  - Queue-Lag als Metrik protokollieren
-- Restart:
-  - Worker-Restart mit exponentiellem Backoff
-  - maximaler Backoff 60s
-- Shutdown:
-  - zuerst Stop-Signal an Worker
-  - Queue flushen
-  - dann Merger final laufen lassen
+## Recommended Runtime Defaults
+- Workers:
+  - start with `min(8, max(2, cpu_count // 2))`
+  - tune based on network and exchange limits
+- Queue + flush:
+  - queue size `50_000 .. 200_000`
+  - batch size `500 .. 2_000`
+  - flush interval `0.5 .. 1.0s`
+- Supervision:
+  - heartbeat events every ~30s
+  - exponential restart backoff up to 60s
 
-## Datenmodell-Hinweise
-- Schema in Worker-DB identisch zum aktuellen Schema halten.
-- Zentrale Raw-DB zusaetzlich:
-  - `source_worker_id`
-  - `source_row_id`
-  - optional eindeutiger Constraint auf `(source_worker_id, source_row_id)` gegen Duplikate.
+## Operational Notes
+- One exchange should belong to exactly one worker to avoid partition ownership conflicts.
+- All timestamps must be UTC.
+- Downstream filters must use normalized columns to stay index-friendly.
 
-## Einfuehrungsplan in kleinen Schritten
-1. Orchestrator + statische Worker-Aufteilung (ohne dynamisches Rebalancing).
-2. Worker schreiben in eigene DB-Dateien.
-3. Merger-Job fuer inkrementelles Zusammenfuehren.
-4. Monitoring (Heartbeat, Queue-Lag, Restart-Zaehler).
-5. Optional dynamisches Rebalancing bei Lastverschiebung.
+## Rollout State
+VAULT 2.0 is the only active ingestion architecture in this repository.

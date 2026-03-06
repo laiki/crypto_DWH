@@ -1,73 +1,26 @@
 flowchart TB
     classDef proc fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
     classDef db fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
-    classDef file fill:#fff8e1,stroke:#f9a825,stroke-width:1px,color:#4e3600
     classDef cfg fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px,color:#2a1038
-    classDef out fill:#e0f2f1,stroke:#00695c,stroke-width:1px,color:#00251a
-
-    subgraph SRC[Raw Ingestion Sources]
-        W0[(worker_0_crypto_ws_ticks.db)]
-        W1[(worker_1_crypto_ws_ticks.db)]
-        WN[(worker_n_crypto_ws_ticks.db)]
-    end
-    class W0,W1,WN db
 
     subgraph CFG[Runtime Input]
-        CLI[CLI Trigger<br/>manual run]
-        P1[hours window<br/>--hours]
-        P2[scope filter<br/>--exchanges / --assets]
-        P3[export format<br/>sqlite / csv / json]
-        P4[incremental mode<br/>--incremental]
+        P1[hours and offset<br/>--hours and --start-relative-from-hour]
+        P2[scope filters<br/>--exchanges --assets --symbols]
+        P3[vault source<br/>--vault-root --manifest-db --layer]
     end
-    class CLI,P1,P2,P3,P4 cfg
+    class P1,P2,P3 cfg
 
-    subgraph STG[Staging Export Process]
-        EXP[staging_exporter.py]
-        WIN[Effective query bounds<br/>lower and upper UTC bound]
-        UNI[Unique extraction<br/>exchanges and assets]
-        WM[Watermark handling<br/>load/update state]
-    end
-    class EXP,WIN,UNI,WM proc
+    MAN[(vault_manifest.db)]:::db
+    PART[(VAULT partition DBs)]:::db
+    EXP[staging_exporter.py]:::proc
+    OUT[(staging_export_*.db)]:::db
 
-    subgraph OUT[Staging Outputs]
-        STGDB[(staging_export_*.db)]
-        STGCSV[[staging_export_*_market_ticks.csv<br/>staging_export_*_connection_events.csv]]
-        STGJSON[[staging_export_*_market_ticks.json<br/>staging_export_*_connection_events.json]]
-        META[[staging_export_*_metadata.json]]
-        STATE[[staging_export_state.json]]
-    end
-    class STGDB db
-    class STGCSV,STGJSON,META,STATE file
-
-    subgraph DWH[Downstream Layers]
-        CLN[Cleansing jobs]
-        CORE[Core KPI modeling]
-    end
-    class CLN,CORE out
-
-    CLI --> EXP
     P1 --> EXP
     P2 --> EXP
     P3 --> EXP
-    P4 --> EXP
 
-    W0 --> EXP
-    W1 --> EXP
-    WN --> EXP
-
-    EXP --> WIN
-    EXP --> UNI
-    EXP --> WM
-
-    WIN --> STGDB
-    WIN --> STGCSV
-    WIN --> STGJSON
-    UNI --> META
-    WIN --> META
-    WM --> STATE
-    WM --> META
-
-    STGDB --> CLN
-    STGCSV --> CLN
-    STGJSON --> CLN
-    CLN --> CORE
+    EXP --> MAN
+    MAN --> EXP
+    EXP --> PART
+    PART --> EXP
+    EXP --> OUT

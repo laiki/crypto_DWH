@@ -152,13 +152,6 @@ python scripts/4_core/core_validation_runner.py \
   --no-fail-on-error
 ```
 
-Legacy mode (single combined DB) is still supported:
-
-```bash
-python scripts/4_core/core_validation_runner.py \
-  --db-path /path/to/combined_core.db
-```
-
 ## Manual SQL Fallback
 If Python execution is not available:
 

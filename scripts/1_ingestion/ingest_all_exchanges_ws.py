@@ -17,10 +17,11 @@ import contextlib
 import csv
 import json
 import logging
+import os
 import signal
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -74,57 +75,173 @@ def json_dumps_safe(payload: Any) -> str:
     return json.dumps(payload, ensure_ascii=True, default=str, separators=(",", ":"))
 
 
-class SQLiteWriter:
-    def __init__(self, db_path: Path, batch_size: int, flush_interval_s: float) -> None:
-        self.db_path = db_path
+def parse_iso_to_epoch_s(value: str) -> int:
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    dt = datetime.fromisoformat(text)
+    return int(dt.timestamp())
+
+
+def normalize_text(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
+def normalize_text_lower(value: Any) -> str:
+    return normalize_text(value).lower()
+
+
+def symbol_asset(symbol: str) -> str:
+    if "/" in symbol:
+        return symbol.split("/", 1)[0]
+    return symbol
+
+
+def partition_window_from_epoch_s(epoch_s: int) -> tuple[str, str, str]:
+    dt = datetime.fromtimestamp(epoch_s, tz=timezone.utc)
+    date_part = dt.strftime("%Y-%m-%d")
+    hour_part = dt.strftime("%H")
+    partition_key = dt.strftime("%Y%m%d_%H")
+    return date_part, hour_part, partition_key
+
+
+def ensure_manifest_schema(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS partition_registry (
+            partition_id TEXT PRIMARY KEY,
+            layer TEXT NOT NULL,
+            db_path TEXT NOT NULL,
+            exchange_id_norm TEXT NOT NULL,
+            window_start_utc TEXT NOT NULL,
+            window_end_utc TEXT NOT NULL,
+            ts_min_epoch_s INTEGER NOT NULL,
+            ts_max_epoch_s INTEGER NOT NULL,
+            row_count_market INTEGER NOT NULL,
+            row_count_events INTEGER NOT NULL,
+            created_utc TEXT NOT NULL,
+            updated_utc TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_partition_registry_layer_exchange_time
+            ON partition_registry(layer, exchange_id_norm, ts_min_epoch_s, ts_max_epoch_s);
+
+        CREATE TABLE IF NOT EXISTS partition_pairs (
+            partition_id TEXT NOT NULL,
+            exchange_id_norm TEXT NOT NULL,
+            symbol_norm TEXT NOT NULL,
+            asset_norm TEXT NOT NULL,
+            ts_min_epoch_s INTEGER NOT NULL,
+            ts_max_epoch_s INTEGER NOT NULL,
+            row_count_market INTEGER NOT NULL,
+            created_utc TEXT NOT NULL,
+            updated_utc TEXT NOT NULL,
+            PRIMARY KEY (partition_id, exchange_id_norm, symbol_norm)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_partition_pairs_lookup
+            ON partition_pairs(exchange_id_norm, symbol_norm, ts_min_epoch_s, ts_max_epoch_s);
+        """
+    )
+    connection.commit()
+
+
+def ensure_partition_schema(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS market_ticks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ingestion_ts_utc TEXT NOT NULL,
+            ingestion_ts_epoch_s INTEGER NOT NULL,
+            exchange_id TEXT NOT NULL,
+            exchange_id_norm TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            symbol_norm TEXT NOT NULL,
+            asset_norm TEXT NOT NULL,
+            market_type TEXT,
+            price REAL,
+            bid REAL,
+            ask REAL,
+            last REAL,
+            open REAL,
+            high REAL,
+            low REAL,
+            base_volume REAL,
+            quote_volume REAL,
+            exchange_ts_ms INTEGER,
+            exchange_ts_utc TEXT,
+            raw_json TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_market_ticks_pair_ts
+            ON market_ticks(exchange_id_norm, symbol_norm, ingestion_ts_epoch_s);
+
+        CREATE INDEX IF NOT EXISTS idx_market_ticks_ts
+            ON market_ticks(ingestion_ts_epoch_s);
+
+        CREATE TABLE IF NOT EXISTS connection_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_ts_utc TEXT NOT NULL,
+            event_ts_epoch_s INTEGER NOT NULL,
+            exchange_id TEXT NOT NULL,
+            exchange_id_norm TEXT NOT NULL,
+            symbol TEXT,
+            symbol_norm TEXT,
+            asset_norm TEXT,
+            event_type TEXT NOT NULL,
+            details_json TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_connection_events_ex_ts
+            ON connection_events(exchange_id_norm, event_ts_epoch_s);
+        """
+    )
+    connection.commit()
+
+
+class VaultPartitionWriter:
+    def __init__(self, vault_root: Path, layer: str, batch_size: int, flush_interval_s: float) -> None:
+        self.vault_root = vault_root
+        self.layer = layer
         self.batch_size = batch_size
         self.flush_interval_s = flush_interval_s
-        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL;")
-        self._conn.execute("PRAGMA synchronous=NORMAL;")
-        self._conn.execute("PRAGMA temp_store=MEMORY;")
-        self._create_schema()
+        self._partition_conns: dict[str, sqlite3.Connection] = {}
+        self._partition_paths: dict[str, Path] = {}
+        self._manifest_db_path = self.vault_root / "meta" / "vault_manifest.db"
+        self._manifest_db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._manifest_conn = sqlite3.connect(str(self._manifest_db_path), check_same_thread=False)
+        self._manifest_conn.execute("PRAGMA journal_mode=WAL;")
+        self._manifest_conn.execute("PRAGMA synchronous=NORMAL;")
+        ensure_manifest_schema(self._manifest_conn)
 
-    def _create_schema(self) -> None:
-        self._conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS market_ticks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ingestion_ts_utc TEXT NOT NULL,
-                exchange_id TEXT NOT NULL,
-                symbol TEXT NOT NULL,
-                market_type TEXT,
-                price REAL,
-                bid REAL,
-                ask REAL,
-                last REAL,
-                open REAL,
-                high REAL,
-                low REAL,
-                base_volume REAL,
-                quote_volume REAL,
-                exchange_ts_ms INTEGER,
-                exchange_ts_utc TEXT,
-                raw_json TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_market_ticks_ex_sym_ts
-                ON market_ticks(exchange_id, symbol, ingestion_ts_utc);
-
-            CREATE TABLE IF NOT EXISTS connection_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_ts_utc TEXT NOT NULL,
-                exchange_id TEXT NOT NULL,
-                symbol TEXT,
-                event_type TEXT NOT NULL,
-                details_json TEXT
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_connection_events_ex_ts
-                ON connection_events(exchange_id, event_ts_utc);
-            """
+    def _resolve_partition(self, exchange_id_norm: str, epoch_s: int) -> tuple[str, Path, str, str]:
+        date_part, hour_part, partition_key = partition_window_from_epoch_s(epoch_s)
+        partition_id = f"{self.layer}:{exchange_id_norm}:{partition_key}"
+        db_path = (
+            self.vault_root
+            / self.layer
+            / f"exchange={exchange_id_norm}"
+            / f"date={date_part}"
+            / f"hour={hour_part}"
+            / f"part_{exchange_id_norm}_{partition_key}.db"
         )
-        self._conn.commit()
+        return partition_id, db_path, date_part, hour_part
+
+    def _connection_for_partition(self, partition_id: str, db_path: Path) -> sqlite3.Connection:
+        conn = self._partition_conns.get(partition_id)
+        if conn is not None:
+            return conn
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA temp_store=MEMORY;")
+        ensure_partition_schema(conn)
+        self._partition_conns[partition_id] = conn
+        self._partition_paths[partition_id] = db_path
+        return conn
 
     async def run(self, queue: asyncio.Queue[tuple[str, dict[str, Any]]], stop_event: asyncio.Event) -> None:
         pending: list[tuple[str, dict[str, Any]]] = []
@@ -151,16 +268,38 @@ class SQLiteWriter:
             last_flush = time.monotonic()
 
     def _flush(self, items: list[tuple[str, dict[str, Any]]]) -> None:
-        tick_rows: list[tuple[Any, ...]] = []
-        event_rows: list[tuple[Any, ...]] = []
+        partition_market_rows: dict[str, list[tuple[Any, ...]]] = {}
+        partition_event_rows: dict[str, list[tuple[Any, ...]]] = {}
+        partition_stats: dict[str, dict[str, Any]] = {}
+        pair_stats: dict[tuple[str, str, str], dict[str, Any]] = {}
 
         for kind, payload in items:
+            exchange_id = normalize_text(payload.get("exchange_id"))
+            exchange_id_norm = normalize_text_lower(exchange_id)
+            if not exchange_id_norm:
+                continue
+
             if kind == "tick":
-                tick_rows.append(
+                ingestion_ts_utc = normalize_text(payload.get("ingestion_ts_utc"))
+                if not ingestion_ts_utc:
+                    continue
+                epoch_s = parse_iso_to_epoch_s(ingestion_ts_utc)
+                symbol = normalize_text(payload.get("symbol"))
+                symbol_norm = normalize_text_lower(symbol)
+                if not symbol_norm:
+                    continue
+                asset_norm = normalize_text_lower(symbol_asset(symbol))
+                partition_id, partition_path, date_part, hour_part = self._resolve_partition(exchange_id_norm, epoch_s)
+                rows = partition_market_rows.setdefault(partition_id, [])
+                rows.append(
                     (
-                        payload["ingestion_ts_utc"],
-                        payload["exchange_id"],
-                        payload["symbol"],
+                        ingestion_ts_utc,
+                        int(epoch_s),
+                        exchange_id,
+                        exchange_id_norm,
+                        symbol,
+                        symbol_norm,
+                        asset_norm,
                         payload.get("market_type"),
                         payload.get("price"),
                         payload.get("bid"),
@@ -173,43 +312,218 @@ class SQLiteWriter:
                         payload.get("quote_volume"),
                         payload.get("exchange_ts_ms"),
                         payload.get("exchange_ts_utc"),
-                        payload["raw_json"],
+                        payload.get("raw_json"),
                     )
                 )
+                stats = partition_stats.setdefault(
+                    partition_id,
+                    {
+                        "partition_path": partition_path,
+                        "exchange_id_norm": exchange_id_norm,
+                        "date_part": date_part,
+                        "hour_part": hour_part,
+                        "min_epoch": epoch_s,
+                        "max_epoch": epoch_s,
+                        "market_count": 0,
+                        "event_count": 0,
+                    },
+                )
+                stats["min_epoch"] = min(int(stats["min_epoch"]), epoch_s)
+                stats["max_epoch"] = max(int(stats["max_epoch"]), epoch_s)
+                stats["market_count"] = int(stats["market_count"]) + 1
+
+                pair_key = (partition_id, exchange_id_norm, symbol_norm)
+                pair = pair_stats.setdefault(
+                    pair_key,
+                    {
+                        "asset_norm": asset_norm,
+                        "min_epoch": epoch_s,
+                        "max_epoch": epoch_s,
+                        "count": 0,
+                    },
+                )
+                pair["min_epoch"] = min(int(pair["min_epoch"]), epoch_s)
+                pair["max_epoch"] = max(int(pair["max_epoch"]), epoch_s)
+                pair["count"] = int(pair["count"]) + 1
             elif kind == "event":
-                event_rows.append(
+                event_ts_utc = normalize_text(payload.get("event_ts_utc"))
+                if not event_ts_utc:
+                    continue
+                epoch_s = parse_iso_to_epoch_s(event_ts_utc)
+                symbol = normalize_text(payload.get("symbol"))
+                symbol_norm = normalize_text_lower(symbol) if symbol else None
+                asset_norm = normalize_text_lower(symbol_asset(symbol)) if symbol else None
+                partition_id, partition_path, date_part, hour_part = self._resolve_partition(exchange_id_norm, epoch_s)
+                rows = partition_event_rows.setdefault(partition_id, [])
+                rows.append(
                     (
-                        payload["event_ts_utc"],
-                        payload["exchange_id"],
-                        payload.get("symbol"),
-                        payload["event_type"],
+                        event_ts_utc,
+                        int(epoch_s),
+                        exchange_id,
+                        exchange_id_norm,
+                        symbol if symbol else None,
+                        symbol_norm,
+                        asset_norm,
+                        normalize_text(payload.get("event_type")),
                         payload.get("details_json"),
                     )
                 )
+                stats = partition_stats.setdefault(
+                    partition_id,
+                    {
+                        "partition_path": partition_path,
+                        "exchange_id_norm": exchange_id_norm,
+                        "date_part": date_part,
+                        "hour_part": hour_part,
+                        "min_epoch": epoch_s,
+                        "max_epoch": epoch_s,
+                        "market_count": 0,
+                        "event_count": 0,
+                    },
+                )
+                stats["min_epoch"] = min(int(stats["min_epoch"]), epoch_s)
+                stats["max_epoch"] = max(int(stats["max_epoch"]), epoch_s)
+                stats["event_count"] = int(stats["event_count"]) + 1
 
-        if tick_rows:
-            self._conn.executemany(
+        for partition_id in sorted(set(partition_market_rows) | set(partition_event_rows)):
+            stats = partition_stats.get(partition_id)
+            if stats is None:
+                continue
+            db_path = Path(stats["partition_path"])
+            connection = self._connection_for_partition(partition_id, db_path)
+            if partition_id in partition_market_rows:
+                connection.executemany(
+                    """
+                    INSERT INTO market_ticks (
+                        ingestion_ts_utc,
+                        ingestion_ts_epoch_s,
+                        exchange_id,
+                        exchange_id_norm,
+                        symbol,
+                        symbol_norm,
+                        asset_norm,
+                        market_type,
+                        price,
+                        bid,
+                        ask,
+                        last,
+                        open,
+                        high,
+                        low,
+                        base_volume,
+                        quote_volume,
+                        exchange_ts_ms,
+                        exchange_ts_utc,
+                        raw_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    partition_market_rows[partition_id],
+                )
+            if partition_id in partition_event_rows:
+                connection.executemany(
+                    """
+                    INSERT INTO connection_events (
+                        event_ts_utc,
+                        event_ts_epoch_s,
+                        exchange_id,
+                        exchange_id_norm,
+                        symbol,
+                        symbol_norm,
+                        asset_norm,
+                        event_type,
+                        details_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    partition_event_rows[partition_id],
+                )
+            connection.commit()
+
+        now_utc = utc_now_iso()
+        for partition_id, stats in partition_stats.items():
+            partition_epoch = int(stats["min_epoch"])
+            date_part, hour_part, _ = partition_window_from_epoch_s(partition_epoch)
+            window_start_utc = f"{date_part}T{hour_part}:00:00+00:00"
+            window_end_dt = datetime.fromisoformat(window_start_utc) + timedelta(hours=1)
+            window_end_utc = window_end_dt.isoformat(timespec="seconds")
+            self._manifest_conn.execute(
                 """
-                INSERT INTO market_ticks (
-                    ingestion_ts_utc, exchange_id, symbol, market_type, price, bid, ask, last,
-                    open, high, low, base_volume, quote_volume, exchange_ts_ms, exchange_ts_utc, raw_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO partition_registry (
+                    partition_id,
+                    layer,
+                    db_path,
+                    exchange_id_norm,
+                    window_start_utc,
+                    window_end_utc,
+                    ts_min_epoch_s,
+                    ts_max_epoch_s,
+                    row_count_market,
+                    row_count_events,
+                    created_utc,
+                    updated_utc
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(partition_id) DO UPDATE SET
+                    db_path=excluded.db_path,
+                    ts_min_epoch_s=MIN(partition_registry.ts_min_epoch_s, excluded.ts_min_epoch_s),
+                    ts_max_epoch_s=MAX(partition_registry.ts_max_epoch_s, excluded.ts_max_epoch_s),
+                    row_count_market=partition_registry.row_count_market + excluded.row_count_market,
+                    row_count_events=partition_registry.row_count_events + excluded.row_count_events,
+                    updated_utc=excluded.updated_utc
                 """,
-                tick_rows,
+                (
+                    partition_id,
+                    self.layer,
+                    str(Path(stats["partition_path"]).resolve()),
+                    str(stats["exchange_id_norm"]),
+                    window_start_utc,
+                    window_end_utc,
+                    int(stats["min_epoch"]),
+                    int(stats["max_epoch"]),
+                    int(stats["market_count"]),
+                    int(stats["event_count"]),
+                    now_utc,
+                    now_utc,
+                ),
             )
-        if event_rows:
-            self._conn.executemany(
+
+        for (partition_id, exchange_id_norm, symbol_norm), pair in pair_stats.items():
+            self._manifest_conn.execute(
                 """
-                INSERT INTO connection_events (
-                    event_ts_utc, exchange_id, symbol, event_type, details_json
-                ) VALUES (?, ?, ?, ?, ?)
+                INSERT INTO partition_pairs (
+                    partition_id,
+                    exchange_id_norm,
+                    symbol_norm,
+                    asset_norm,
+                    ts_min_epoch_s,
+                    ts_max_epoch_s,
+                    row_count_market,
+                    created_utc,
+                    updated_utc
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(partition_id, exchange_id_norm, symbol_norm) DO UPDATE SET
+                    ts_min_epoch_s=MIN(partition_pairs.ts_min_epoch_s, excluded.ts_min_epoch_s),
+                    ts_max_epoch_s=MAX(partition_pairs.ts_max_epoch_s, excluded.ts_max_epoch_s),
+                    row_count_market=partition_pairs.row_count_market + excluded.row_count_market,
+                    updated_utc=excluded.updated_utc
                 """,
-                event_rows,
+                (
+                    partition_id,
+                    exchange_id_norm,
+                    symbol_norm,
+                    str(pair["asset_norm"]),
+                    int(pair["min_epoch"]),
+                    int(pair["max_epoch"]),
+                    int(pair["count"]),
+                    now_utc,
+                    now_utc,
+                ),
             )
-        self._conn.commit()
+        self._manifest_conn.commit()
 
     async def close(self) -> None:
-        self._conn.close()
+        for connection in self._partition_conns.values():
+            connection.close()
+        self._partition_conns.clear()
+        self._manifest_conn.close()
 
 
 async def put_event(
@@ -819,10 +1133,19 @@ def install_signal_handlers(stop_event: asyncio.Event) -> None:
 def parse_args() -> argparse.Namespace:
     default_excluded_csv = ", ".join(sorted(DEFAULT_EXCLUDED_EXCHANGES))
     parser = argparse.ArgumentParser(
-        description="Ingest ticker data from all ccxt.pro exchanges via WebSocket into SQLite.",
+        description="Ingest ticker data from all ccxt.pro exchanges into VAULT 2.0 partitioned SQLite storage.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--db-path", default="data/crypto_ws_ticks.db", help="SQLite DB file.")
+    parser.add_argument(
+        "--vault-root",
+        default="data/vault2",
+        help="VAULT 2.0 root directory. Partition files and manifest DB are created below this path.",
+    )
+    parser.add_argument(
+        "--vault-layer",
+        default="ingestion",
+        help="VAULT layer name used for partition registry entries.",
+    )
     parser.add_argument(
         "--exchanges",
         default=None,
@@ -887,7 +1210,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--log-file",
         default=None,
-        help="Optional log file path. Default: <db-path with .log extension>.",
+        help="Optional log file path. Default: <vault-root>/logs/ingest_all_exchanges_ws_<pid>.log.",
     )
     parser.add_argument(
         "--log-level",
@@ -928,7 +1251,8 @@ def parse_args() -> argparse.Namespace:
 
 async def async_main(args: argparse.Namespace) -> None:
     ensure_ccxtpro_available()
-    default_log_path = Path(args.db_path).with_suffix(".log")
+    vault_root = Path(args.vault_root)
+    default_log_path = vault_root / "logs" / f"ingest_all_exchanges_ws_{os.getpid()}.log"
     log_file_path = Path(args.log_file) if args.log_file else default_log_path
     configure_logging_with_file(args.log_level, log_file_path)
     LOGGER.info("File logging enabled: %s", log_file_path)
@@ -966,8 +1290,9 @@ async def async_main(args: argparse.Namespace) -> None:
         )
         return
 
-    db_path = Path(args.db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    vault_root.mkdir(parents=True, exist_ok=True)
+    LOGGER.info("VAULT root: %s", vault_root)
+    LOGGER.info("VAULT layer: %s", args.vault_layer)
 
     LOGGER.info("Starting ingestion for %s exchanges.", len(selected_exchanges))
     LOGGER.debug("Exchanges: %s", selected_exchanges)
@@ -976,7 +1301,12 @@ async def async_main(args: argparse.Namespace) -> None:
     stop_event = asyncio.Event()
     install_signal_handlers(stop_event)
 
-    writer = SQLiteWriter(db_path=db_path, batch_size=args.batch_size, flush_interval_s=args.flush_interval_s)
+    writer = VaultPartitionWriter(
+        vault_root=vault_root,
+        layer=args.vault_layer,
+        batch_size=args.batch_size,
+        flush_interval_s=args.flush_interval_s,
+    )
     writer_task = asyncio.create_task(writer.run(queue=queue, stop_event=stop_event), name="sqlite_writer")
 
     exchange_tasks: list[asyncio.Task[Any]] = []

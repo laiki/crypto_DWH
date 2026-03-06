@@ -31,15 +31,19 @@ flowchart TD
         G1["dashboard_mvp_app.py"]
     end
 
-    RAW[("worker_*.db")]
+    PART[("vault2 partitions")]
+    MAN[("vault_manifest.db")]
     STG[("staging_export_*.db")]
     CLN[("cleaned_*.db")]
     CORE[("core_kpi_*.db")]
     MOD[("models/*.joblib")]
 
-    A2 --> RAW
-    RAW --> B1
+    A2 --> PART
+    A2 --> MAN
+    PART --> B1
+    MAN --> B1
     B1 --> STG
+
     STG --> C1
     C1 --> CLN
 
@@ -52,7 +56,8 @@ flowchart TD
     CORE --> E1
     E1 --> CORE
 
-    RAW --> F1
+    PART --> F1
+    MAN --> F1
     CLN --> F1
     CORE --> F1
     F1 --> MOD

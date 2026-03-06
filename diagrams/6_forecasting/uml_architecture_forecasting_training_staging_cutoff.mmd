@@ -1,32 +1,50 @@
 flowchart TD
     subgraph SRC["Source Data"]
-        STAGING["Staging Export DBs<br/>(worker-derived history)"]
-        CLEAN["Cleansing DB<br/>(reference run window)"]
+        MAN["VAULT Manifest<br/>vault_manifest.db"]
+        PART["VAULT Partitions<br/>exchange/date/hour SQLite files"]
+        CLEAN["Cleansing DB<br/>reference run and inference rows"]
+        COREIN["Forecast DB target<br/>core_kpi_*.db"]
     end
 
     subgraph TRAIN["Forecast Training Domain"]
-        ORCH["Forecast Training Orchestrator"]
-        CUT["Cutoff Resolver<br/>(min cleansing bucket_start_utc)"]
-        RES["In-Memory Resampler<br/>(target cadence, e.g. 60s)"]
+        ORCH["Training Orchestrator"]
+        CUT["Cutoff Resolver<br/>min cleansing bucket_start_utc"]
+        DISC["Manifest-Pruned Partition Discovery"]
+        LOAD["History Loader<br/>ts < cutoff"]
+        RES["In-Memory Resampler<br/>target cadence"]
         FEAT["Feature Engineering"]
         MODELS["Model Trainers<br/>Ridge + HistGradientBoosting"]
-        EVAL["Evaluator<br/>(TimeSeriesSplit + Holdout)"]
+        EVAL["Evaluator<br/>TimeSeriesSplit + Holdout"]
+        PRED["Forecast Inference<br/>1x and Nx bin_seconds"]
     end
 
     subgraph OUT["Artifacts"]
-        REGDB["forecasting_registry.db<br/>(run + model metadata + metrics)"]
+        REG["forecast_training_runs and forecast_model_registry"]
+        PREDS["forecast_predictions"]
         MODELFS["Model Filesystem<br/>joblib artifacts"]
     end
 
     CLEAN --> CUT
-    STAGING --> ORCH
-    CUT --> ORCH
-    ORCH --> RES
+    MAN --> DISC
+    CUT --> DISC
+    DISC --> LOAD
+    PART --> LOAD
+
+    LOAD --> RES
     RES --> FEAT
     FEAT --> MODELS
     MODELS --> EVAL
-    EVAL --> REGDB
-    MODELS --> MODELFS
+    EVAL --> PRED
 
-    NOTE["Design rule:<br/>no persistent resampled training DB"]
-    RES -.-> NOTE
+    MODELS --> MODELFS
+    EVAL --> REG
+    PRED --> PREDS
+
+    ORCH --> CUT
+    ORCH --> DISC
+    ORCH --> LOAD
+    ORCH --> MODELS
+    ORCH --> PRED
+
+    REG --> COREIN
+    PREDS --> COREIN

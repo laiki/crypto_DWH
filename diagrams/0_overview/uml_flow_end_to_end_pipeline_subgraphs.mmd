@@ -1,7 +1,7 @@
 flowchart LR
     subgraph P1["1) Ingestion"]
         I1["1_ingestion/orchestrator_auto_shard.py"]
-        I2["1_ingestion/ingest_all_exchanges_ws.py<br/>(worker runtime)"]
+        I2["1_ingestion/ingest_all_exchanges_ws.py"]
         I1 --> I2
     end
 
@@ -15,8 +15,8 @@ flowchart LR
 
     subgraph P4["4) Core"]
         K1["4_core/build_core_db.py"]
-        K2["4_core/core_pipeline.py<br/>(optional orchestration)"]
-        K3["4_core/core_validation_runner.py<br/>(optional validation)"]
+        K2["4_core/core_pipeline.py (optional)"]
+        K3["4_core/core_validation_runner.py (optional)"]
     end
 
     subgraph P5["5) Marts"]
@@ -28,38 +28,42 @@ flowchart LR
     end
 
     subgraph P7["7) Presentation"]
-        D1["5_marts/dashboard_mvp_app.py<br/>(streamlit run)"]
-        R1["render_mermaid_all.sh<br/>(optional)"]
-        R2["render_markdown_all.sh<br/>(optional)"]
+        D1["5_marts/dashboard_mvp_app.py"]
+        R1["scripts/render_mermaid_all.sh (optional)"]
+        R2["scripts/render_markdown_all.sh (optional)"]
     end
 
-    RAW[("scripts/data/worker_*_crypto_ws_ticks.db")]
+    PART[("scripts/data/vault2/ingestion/.../part_*.db")]
+    MAN[("scripts/data/vault2/meta/vault_manifest.db")]
     STG[("scripts/data/staging/staging_export_*.db")]
     CLN[("scripts/data/cleansing/cleaned_*.db")]
     CORE[("scripts/data/core/core_kpi_*.db")]
-    MOD[("scripts/data/forecasting/models/...")]
-    FPRED[("forecast tables in core DB")]
+    MOD[("scripts/data/forecasting/models/.../*.joblib")]
 
-    I2 --> RAW
-    RAW --> S1
+    I2 --> PART
+    I2 --> MAN
+
+    PART --> S1
+    MAN --> S1
     S1 --> STG
+
     STG --> C1
     C1 --> CLN
 
     STG --> K1
     CLN --> K1
-    K1 --> CORE
     K2 --> K1
     K1 --> K3
+    K1 --> CORE
+
     CORE --> M1
     M1 --> CORE
 
-    RAW --> F1
-    STG -. optional older slices .-> F1
+    PART --> F1
+    MAN --> F1
     CLN --> F1
     CORE --> F1
     F1 --> MOD
-    F1 --> FPRED
+    F1 --> CORE
 
     CORE --> D1
-    FPRED --> D1

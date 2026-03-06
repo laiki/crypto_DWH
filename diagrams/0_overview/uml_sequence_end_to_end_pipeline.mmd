@@ -1,62 +1,53 @@
 sequenceDiagram
     autonumber
 
-    actor Analyst as Analyst / Operator
+    actor Op as Operator
     participant EX as Exchanges
-    participant CCXT as CCXT (WS/REST)
-    participant ING as 1_ingestion<br/>ingest_all_exchanges_ws.py
-    participant RAW as SQLite RAW<br/>scripts/data/worker_*.db
-    participant STG as 2_staging<br/>staging_exporter.py
-    participant STGDB as SQLite STAGING<br/>data/staging/*.db
-    participant CLN as 3_cleansing<br/>cleansing_resample.py
-    participant CLNDB as SQLite CLEANSING<br/>data/cleansing/*.db
-    participant CORE as 4_core<br/>build_core_db.py
-    participant VAL as 4_core<br/>core_validation_runner.py
-    participant COREDB as SQLite CORE<br/>data/core/core_kpi.db
-    participant MART as 5_marts<br/>build_dashboard_cache.py
-    participant CACHE as Cache tables<br/>dash_cache_* (in core_kpi.db)
-    participant DASH as 5_marts<br/>dashboard_mvp_app.py
-    participant FC as 6_forecasting<br/>training + inference
-    participant MODEL as Model artifacts
+    participant ORCH as 1_ingestion orchestrator_auto_shard.py
+    participant ING as 1_ingestion ingest_all_exchanges_ws.py
+    participant PART as VAULT partitions
+    participant MAN as VAULT manifest
+    participant STG as 2_staging staging_exporter.py
+    participant STGDB as Staging DB
+    participant CLN as 3_cleansing cleansing_resample.py
+    participant CLNDB as Cleansing DB
+    participant CORE as 4_core build_core_db.py
+    participant COREDB as Core DB
+    participant MART as 5_marts build_dashboard_cache.py
+    participant FC as 6_forecasting train_staging_models_and_forecasts.py
+    participant DASH as dashboard_mvp_app.py
 
-    loop Continuous ingestion runtime
-        EX->>CCXT: Market/ticker updates
-        CCXT-->>ING: Normalized payloads
-        ING->>RAW: INSERT market_ticks (+ingestion_ts_utc)
-        ING->>RAW: INSERT connection_events
+    Op->>ORCH: start ingestion workers
+    ORCH->>ING: spawn worker commands with vault-root
+
+    loop streaming runtime
+        EX-->>ING: ticker updates
+        ING->>PART: append tick/event rows to exchange-hour partition DB
+        ING->>MAN: upsert partition and pair metadata
     end
 
-    Note over STG: Scheduled (or ad hoc) export
-    STG->>RAW: Query last x hours<br/>(anchor = latest source timestamp)
-    RAW-->>STG: Filtered rows per worker DB
-    STG->>STGDB: Materialize staging export + metadata
+    Op->>STG: export hours window with offset
+    STG->>MAN: resolve source max and matching partitions
+    STG->>PART: read only overlapping partitions
+    STG->>STGDB: materialize staging window DB
 
-    CLN->>STGDB: Discover exchange/symbol scope
-    STGDB-->>CLN: market_ticks window
-    CLN->>CLNDB: Resample bins + fill strategy + DQ outputs
-    CLNDB-->>CLN: Cleansed tables + run metadata
+    Op->>CLN: run cleansing
+    CLN->>STGDB: read market_ticks window
+    CLN->>CLNDB: write cleansed bins and metadata
 
-    CORE->>STGDB: Copy market_ticks + connection_events
-    CORE->>CLNDB: Copy cleansed_market
-    CORE->>COREDB: Build Core tables + KPI views + build metadata
+    Op->>CORE: build core
+    CORE->>STGDB: read raw staging rows
+    CORE->>CLNDB: read cleansed rows
+    CORE->>COREDB: write KPI tables and views
 
-    opt Validation gate
-        VAL->>STGDB: Read staging source aliases
-        VAL->>CLNDB: Read cleansing source aliases
-        VAL-->>Analyst: JSON/Markdown validation report
-    end
+    Op->>MART: refresh dashboard cache
+    MART->>COREDB: build dash cache tables
 
-    MART->>COREDB: Optional mart view apply
-    MART->>CACHE: Build dash_cache_* snapshots + indexes + refresh metadata
+    Op->>FC: train forecasting models
+    FC->>MAN: select manifest-pruned partitions before cutoff
+    FC->>PART: load pair training history
+    FC->>CLNDB: load cleansing inference rows
+    FC->>COREDB: write model registry and predictions
 
-    Analyst->>DASH: Select symbol / filters / time range
-    DASH->>CACHE: Read cache tables for interactive visuals
-    CACHE-->>DASH: KPI slices and aligned price series
-    DASH-->>Analyst: Dashboard insights
-
-    opt Forecasting iteration
-        FC->>COREDB: Load time-series features<br/>(per exchange and symbol)
-        FC->>MODEL: Train/evaluate models<br/>(Ridge, Chronos-2, TimesFM-2.5, MOIRAI-2)
-        FC-->>Analyst: Forecasts + MAE/RMSE/MAPE
-        Analyst->>ING: Refine ingestion scope/config
-    end
+    Op->>DASH: open dashboard
+    DASH->>COREDB: read cache and forecast outputs

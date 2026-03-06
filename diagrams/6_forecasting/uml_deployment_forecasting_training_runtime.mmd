@@ -1,20 +1,25 @@
 flowchart LR
-    subgraph HOST["Execution Host (VM/Server)"]
-        SCHED["Scheduler / Cron"]
-        TRAINJOB["Forecast Training Job<br/>(train_model_registry.py)"]
-        TMP["Ephemeral Memory Workspace<br/>(per-series resampled frame)"]
+    subgraph HOST["Execution Host"]
+        SCHED["Scheduler or manual trigger"]
+        TRAINJOB["train_staging_models_and_forecasts.py"]
+        TMP["Ephemeral memory workspace<br/>per-pair resampled frames"]
     end
 
-    subgraph DATA["Data Layer"]
-        STAGEDB["Staging DB Files<br/>(data/staging/*.db)"]
-        CLEANDB["Cleansing DB<br/>(data/cleansing/*.db)"]
-        REGDB["Forecast Registry DB<br/>(data/forecasting/forecasting_registry.db)"]
-        MODELSTORE["Model Artifact Store<br/>(data/forecasting/models/)"]
+    subgraph VAULT["VAULT Source"]
+        MAN[(meta/vault_manifest.db)]
+        PART[(ingestion partitions)]
+    end
+
+    subgraph DATA["Batch and Serving Data"]
+        CLEANDB[(data/cleansing/cleaned_*.db)]
+        COREDB[(data/core/core_kpi_*.db)]
+        MODELSTORE[(data/forecasting/models/...)]
     end
 
     SCHED --> TRAINJOB
-    TRAINJOB --> STAGEDB
+    TRAINJOB --> MAN
+    TRAINJOB --> PART
     TRAINJOB --> CLEANDB
     TRAINJOB --> TMP
-    TRAINJOB --> REGDB
+    TRAINJOB --> COREDB
     TRAINJOB --> MODELSTORE
