@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Run operational Core pipeline phases (fast/full) as one command.
 

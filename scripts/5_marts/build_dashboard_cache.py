@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Build precomputed dashboard cache tables for fast UI reads.
 

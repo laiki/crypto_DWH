@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Shared configuration and helper functions for ingestion scripts.
 """

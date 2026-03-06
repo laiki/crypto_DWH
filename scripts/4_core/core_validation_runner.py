@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Run Core KPI SQL validation against staging and cleansing SQLite sources.
 

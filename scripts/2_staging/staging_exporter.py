@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Export a configurable time window from VAULT 2.0 partitioned ingestion storage into a staging SQLite DB.
 

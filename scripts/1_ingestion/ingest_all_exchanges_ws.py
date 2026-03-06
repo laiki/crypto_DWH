@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 WebSocket ingestion for ccxt.pro exchanges into SQLite.
 
@@ -53,11 +53,19 @@ LOGGER = logging.getLogger("crypto_ws_ingestion")
 def ensure_ccxtpro_available() -> None:
     if ccxtpro is not None:
         return
+    cause = (
+        f"{type(CCXTPRO_IMPORT_ERROR).__name__}: {CCXTPRO_IMPORT_ERROR}"
+        if CCXTPRO_IMPORT_ERROR is not None
+        else "unknown ImportError"
+    )
     raise SystemExit(
         "Failed to import 'ccxt.pro'. "
-        "The current ccxt installation for this interpreter is missing required modules "
-        "or is inconsistent. Reinstall/upgrade ccxt and verify with: "
-        "python -c \"import ccxt, ccxt.pro\""
+        "The active interpreter may not match your conda environment or ccxt installation. "
+        f"interpreter={sys.executable} | cause={cause}. "
+        "Verify with: "
+        f"\"{sys.executable}\" -c \"import ccxt, ccxt.pro; print(ccxt.__version__)\" "
+        "and reinstall if needed: "
+        f"\"{sys.executable}\" -m pip install -U --force-reinstall ccxt"
     ) from CCXTPRO_IMPORT_ERROR
 
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Build a 1-minute cleansed time series from staging market ticks.
 

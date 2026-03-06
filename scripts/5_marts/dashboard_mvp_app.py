@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Dashboard MVP for mart-based crypto KPI visualization.
 

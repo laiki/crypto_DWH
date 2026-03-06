@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Build a query-ready Core SQLite database from staging and cleansing sources.
 

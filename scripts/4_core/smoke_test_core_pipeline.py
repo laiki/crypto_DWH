@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Run an integration smoke test for the Core pipeline wrapper.
 
