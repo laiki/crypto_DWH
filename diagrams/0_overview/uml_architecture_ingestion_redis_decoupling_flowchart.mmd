@@ -1,0 +1,65 @@
+flowchart LR
+    classDef src fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef bus fill:#fff8e1,stroke:#f9a825,stroke-width:1px,color:#4e3600
+    classDef proc fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+    classDef sink fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px,color:#2a1038
+    classDef dwh fill:#fce4ec,stroke:#ad1457,stroke-width:1px,color:#4a1026
+
+    subgraph S[Data Sources]
+        CCXT[ccxt ws collectors]
+        EXT[additional adapters]
+    end
+    class CCXT,EXT src
+
+    subgraph B[Event Backbone]
+        PUB[redis pubsub channel]
+        STR[redis streams and dlq]
+    end
+    class PUB,STR bus
+
+    subgraph I[Ingestion Processing]
+        VAL[schema validator]
+        DEDUP[dedup and idempotency]
+        ENR[normalizer and enricher]
+    end
+    class VAL,DEDUP,ENR proc
+
+    subgraph W[Storage Writers]
+        SQLW[sqlite vault writer]
+        PGW[postgres writer optional]
+        LKW[parquet writer optional]
+    end
+    class SQLW,PGW,LKW sink
+
+    subgraph D[DWH]
+        VAULT[(vault partitions and manifest)]
+        STG[staging exporter]
+        CLN[cleansing]
+        CORE[core]
+        MART[marts and dashboard]
+        FC[forecasting]
+    end
+    class VAULT,STG,CLN,CORE,MART,FC dwh
+
+    CCXT --> PUB
+    EXT --> PUB
+    PUB --> VAL --> DEDUP --> ENR --> STR
+
+    STR --> SQLW
+    STR --> PGW
+    STR --> LKW
+
+    SQLW --> VAULT
+    PGW -. optional target .-> VAULT
+    LKW -. optional target .-> VAULT
+
+    VAULT --> STG
+    STG --> CLN
+    STG --> CORE
+    CLN --> CORE
+    CORE --> MART
+
+    VAULT --> FC
+    CLN --> FC
+    CORE --> FC
+    FC --> MART

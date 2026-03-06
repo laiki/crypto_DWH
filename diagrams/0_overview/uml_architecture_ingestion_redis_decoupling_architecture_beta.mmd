@@ -1,0 +1,51 @@
+architecture-beta
+    group src(cloud)[Data Sources]
+    service ccxt_ws(server)[CCXT WS Collectors] in src
+    service ext_feed(server)[Additional Feed Adapters] in src
+
+    group bus(cloud)[Event Backbone]
+    service redis_pubsub(server)[Redis PubSub] in bus
+    service redis_stream(database)[Redis Streams DLQ] in bus
+
+    group ingest(cloud)[Ingestion and Quality]
+    service schema_val(server)[Schema Validator] in ingest
+    service dedup(server)[Dedup and Idempotency] in ingest
+    service enricher(server)[Normalizer and Enricher] in ingest
+
+    group sink(cloud)[Storage Writers]
+    service sqlite_writer(server)[SQLite VAULT Writer] in sink
+    service pg_writer(server)[Postgres Writer Optional] in sink
+    service lake_writer(server)[Parquet Lake Writer Optional] in sink
+
+    group dwh(cloud)[DWH Pipeline]
+    service vault(database)[VAULT Partitions and Manifest] in dwh
+    service staging(server)[Staging Exporter]
+    service cleansing(server)[Cleansing]
+    service core(server)[Core]
+    service marts(server)[Marts and Dashboard]
+    service forecast(server)[Forecasting]
+
+    ccxt_ws:R -- L:redis_pubsub
+    ext_feed:R -- L:redis_pubsub
+    redis_pubsub:B -- T:schema_val
+    schema_val:R -- L:dedup
+    dedup:R -- L:enricher
+    enricher:B -- T:redis_stream
+
+    redis_stream:R -- L:sqlite_writer
+    redis_stream:R -- L:pg_writer
+    redis_stream:R -- L:lake_writer
+
+    sqlite_writer:B -- T:vault
+    pg_writer:B -- T:vault
+    lake_writer:B -- T:vault
+
+    vault:R -- L:staging
+    staging:R -- L:cleansing
+    staging:R -- L:core
+    cleansing:R -- L:core
+    core:R -- L:marts
+    vault:R -- L:forecast
+    cleansing:R -- L:forecast
+    core:R -- L:forecast
+    forecast:B -- T:marts
