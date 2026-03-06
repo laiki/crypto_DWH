@@ -6,6 +6,7 @@ Shared configuration and helper functions for ingestion scripts.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -54,6 +55,7 @@ def select_symbols(
     markets: dict[str, dict[str, Any]],
     only_spot: bool,
     max_symbols: int | None,
+    symbol_filters: list[str] | None = None,
 ) -> list[str]:
     symbols: list[str] = []
     for symbol, market in markets.items():
@@ -65,9 +67,77 @@ def select_symbols(
             continue
         symbols.append(symbol)
     symbols = sorted(set(symbols))
+    if symbol_filters:
+        symbols = apply_symbol_filters(symbols, symbol_filters)
     if max_symbols is not None and max_symbols > 0:
         symbols = symbols[:max_symbols]
     return symbols
+
+
+def parse_symbol_filters(raw_value: str | None) -> list[str]:
+    if raw_value is None:
+        return []
+    values: list[str] = []
+    seen: set[str] = set()
+    for token in raw_value.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        key = item.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        values.append(item)
+    return values
+
+
+def _split_exact_and_like_tokens(values: list[str]) -> tuple[list[str], list[str]]:
+    exact_tokens: list[str] = []
+    like_tokens: list[str] = []
+    for value in values:
+        if "%" in value or "_" in value:
+            like_tokens.append(value.lower())
+        else:
+            exact_tokens.append(value.lower())
+    return exact_tokens, like_tokens
+
+
+def _like_pattern_matches(symbol_lower: str, like_pattern_lower: str) -> bool:
+    pattern_parts: list[str] = ["^"]
+    for char in like_pattern_lower:
+        if char == "%":
+            pattern_parts.append(".*")
+        elif char == "_":
+            pattern_parts.append(".")
+        else:
+            pattern_parts.append(re.escape(char))
+    pattern_parts.append("$")
+    return re.match("".join(pattern_parts), symbol_lower) is not None
+
+
+def symbol_matches_filters(symbol: str, symbol_filters: list[str]) -> bool:
+    if not symbol_filters:
+        return True
+    symbol_lower = symbol.lower()
+    exact_tokens, like_tokens = _split_exact_and_like_tokens(symbol_filters)
+    if symbol_lower in exact_tokens:
+        return True
+    return any(_like_pattern_matches(symbol_lower, pattern) for pattern in like_tokens)
+
+
+def apply_symbol_filters(symbols: list[str], symbol_filters: list[str]) -> list[str]:
+    if not symbol_filters:
+        return symbols
+    exact_tokens, like_tokens = _split_exact_and_like_tokens(symbol_filters)
+    filtered: list[str] = []
+    for symbol in symbols:
+        symbol_lower = symbol.lower()
+        if symbol_lower in exact_tokens:
+            filtered.append(symbol)
+            continue
+        if any(_like_pattern_matches(symbol_lower, pattern) for pattern in like_tokens):
+            filtered.append(symbol)
+    return filtered
 
 
 def supports_ws_flag(flag_value: Any) -> bool:

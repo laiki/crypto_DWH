@@ -24,12 +24,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+CCXTPRO_IMPORT_ERROR: ImportError | None = None
 try:
     import ccxt.pro as ccxtpro
 except ImportError as exc:
-    raise SystemExit(
-        "ccxt.pro is not installed. Please install it (e.g. pip install ccxt)."
-    ) from exc
+    ccxtpro = None
+    CCXTPRO_IMPORT_ERROR = exc
 
 from ingestion_common import (
     DEFAULT_EXCLUDED_EXCHANGES,
@@ -37,6 +37,7 @@ from ingestion_common import (
     is_terminal_exclusion_error,
     iter_tickers,
     parse_exchange_list,
+    parse_symbol_filters,
     resolve_excluded_exchanges,
     select_symbols,
     supports_ws_flag,
@@ -45,6 +46,17 @@ from ingestion_common import (
 
 
 LOGGER = logging.getLogger("orchestrator_auto_shard")
+
+
+def ensure_ccxtpro_available() -> None:
+    if ccxtpro is not None:
+        return
+    raise SystemExit(
+        "Failed to import 'ccxt.pro'. "
+        "The current ccxt installation for this interpreter is missing required modules "
+        "or is inconsistent. Reinstall/upgrade ccxt and verify with: "
+        "python -c \"import ccxt, ccxt.pro\""
+    ) from CCXTPRO_IMPORT_ERROR
 
 
 @dataclass
@@ -171,6 +183,18 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Optional symbol cap per exchange passed to workers.",
+    )
+    parser.add_argument(
+        "--symbols",
+        "--symbol",
+        dest="symbols",
+        default=None,
+        help=(
+            "Optional comma-separated symbol filter. "
+            "Supports exact symbols and SQL LIKE patterns (%% and _), case-insensitive "
+            "(for example BTC/USDT,eth/usdt,%%btc/%%). "
+            "Forwarded to worker processes."
+        ),
     )
     parser.add_argument(
         "--max-symbol-streams-per-exchange",
@@ -394,7 +418,11 @@ def make_profile(
     )
 
 
-async def profile_exchange(exchange_id: str, args: argparse.Namespace) -> ExchangeProfile:
+async def profile_exchange(
+    exchange_id: str,
+    args: argparse.Namespace,
+    symbol_filters: list[str],
+) -> ExchangeProfile:
     exchange_cls = getattr(ccxtpro, exchange_id, None)
     if exchange_cls is None:
         return make_profile(
@@ -419,7 +447,12 @@ async def profile_exchange(exchange_id: str, args: argparse.Namespace) -> Exchan
 
     try:
         markets = await exchange.load_markets()
-        symbols = select_symbols(markets, args.only_spot, args.max_symbols_per_exchange)
+        symbols = select_symbols(
+            markets,
+            args.only_spot,
+            args.max_symbols_per_exchange,
+            symbol_filters,
+        )
         symbols_total = len(symbols)
         symbols_for_profile = limit_symbols(symbols, args.profile_symbol_limit)
         symbols_profiled = len(symbols_for_profile)
@@ -495,13 +528,17 @@ async def profile_exchange(exchange_id: str, args: argparse.Namespace) -> Exchan
     )
 
 
-async def profile_exchanges(exchange_ids: list[str], args: argparse.Namespace) -> list[ExchangeProfile]:
+async def profile_exchanges(
+    exchange_ids: list[str],
+    args: argparse.Namespace,
+    symbol_filters: list[str],
+) -> list[ExchangeProfile]:
     semaphore = asyncio.Semaphore(max(1, args.profile_concurrency))
 
     async def _run(exchange_id: str) -> ExchangeProfile:
         async with semaphore:
             LOGGER.info("Profiling exchange %s...", exchange_id)
-            profile = await profile_exchange(exchange_id, args)
+            profile = await profile_exchange(exchange_id, args, symbol_filters)
             if profile.error is None:
                 LOGGER.info(
                     "Profiled %s | mode=%s | ticks=%s | bytes/s=%.1f | score=%.1f",
@@ -590,6 +627,8 @@ def build_shard_plan(
             command.append("--only-watch-tickers")
         if args.max_symbols_per_exchange is not None:
             command.extend(["--max-symbols-per-exchange", str(args.max_symbols_per_exchange)])
+        if args.symbols:
+            command.extend(["--symbols", args.symbols])
         if args.max_symbol_streams_per_exchange is not None:
             command.extend(["--max-symbol-streams-per-exchange", str(args.max_symbol_streams_per_exchange)])
         plan.command = command
@@ -776,6 +815,7 @@ def supervise_workers(worker_plans: list[WorkerPlan], args: argparse.Namespace) 
 
 def main() -> None:
     args = parse_args()
+    ensure_ccxtpro_available()
     configure_logging_with_file(args.log_level, Path(args.log_file))
     LOGGER.info("File logging enabled: %s", args.log_file)
 
@@ -820,8 +860,12 @@ def main() -> None:
             ", ".join(excluded_from_selection),
         )
 
+    symbol_filters = parse_symbol_filters(args.symbols)
+    if symbol_filters:
+        LOGGER.info("Symbol filters enabled (%s): %s", len(symbol_filters), ", ".join(symbol_filters))
+
     LOGGER.info("Profiling %s exchanges...", len(selected_exchanges))
-    profiles = asyncio.run(profile_exchanges(selected_exchanges, args))
+    profiles = asyncio.run(profile_exchanges(selected_exchanges, args, symbol_filters))
 
     runnable_profiles = [profile for profile in profiles if profile.error is None]
     excluded_profiles = [profile for profile in profiles if profile.error is not None]

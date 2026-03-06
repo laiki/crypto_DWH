@@ -121,7 +121,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--symbols",
         default=None,
-        help="Optional comma-separated symbol filter (for example BTC/USDT,ETH/USDT).",
+        help=(
+            "Optional comma-separated symbol filter. "
+            "Supports exact symbols and SQL LIKE patterns (%% and _), case-insensitive "
+            "(for example BTC/USDT,eth/usdt,%%btc/%%)."
+        ),
     )
     parser.add_argument(
         "--enable-dq",
@@ -203,6 +207,45 @@ def normalize_csv_values(raw: str | None, *, to_lower: bool = False) -> list[str
         seen.add(value)
         ordered.append(value)
     return ordered
+
+
+def split_exact_and_like_tokens(values: list[str]) -> tuple[list[str], list[str]]:
+    exact_tokens: list[str] = []
+    like_tokens: list[str] = []
+    for value in values:
+        if "%" in value or "_" in value:
+            like_tokens.append(value)
+        else:
+            exact_tokens.append(value)
+    return exact_tokens, like_tokens
+
+
+def build_case_insensitive_symbol_clause(symbols: list[str]) -> tuple[str, list[Any]]:
+    if not symbols:
+        return "", []
+
+    exact_symbols, like_symbols = split_exact_and_like_tokens(symbols)
+    clause_parts: list[str] = []
+    params: list[Any] = []
+
+    if exact_symbols:
+        exact_values = [item.lower() for item in exact_symbols]
+        placeholders = ",".join("?" for _ in exact_values)
+        clause_parts.append(f"lower(symbol) IN ({placeholders})")
+        params.extend(exact_values)
+
+    if like_symbols:
+        like_conditions = []
+        for pattern in like_symbols:
+            like_conditions.append("lower(symbol) LIKE ? ESCAPE '\\'")
+            params.append(pattern.lower())
+        clause_parts.append("(" + " OR ".join(like_conditions) + ")")
+
+    if not clause_parts:
+        return "", []
+    if len(clause_parts) == 1:
+        return clause_parts[0], params
+    return "(" + " OR ".join(clause_parts) + ")", params
 
 
 def utc_now_iso() -> str:
@@ -386,10 +429,10 @@ def build_pair_filter_clause(exchanges: list[str], symbols: list[str]) -> tuple[
         placeholders = ",".join("?" for _ in exchanges)
         conditions.append(f"lower(exchange_id) IN ({placeholders})")
         params.extend(exchanges)
-    if symbols:
-        placeholders = ",".join("?" for _ in symbols)
-        conditions.append(f"symbol IN ({placeholders})")
-        params.extend(symbols)
+    symbol_clause, symbol_params = build_case_insensitive_symbol_clause(symbols)
+    if symbol_clause:
+        conditions.append(symbol_clause)
+        params.extend(symbol_params)
     return " AND ".join(conditions), params
 
 
@@ -405,10 +448,10 @@ def build_scope_filter_clause(exchanges: list[str], symbols: list[str]) -> tuple
         placeholders = ",".join("?" for _ in exchanges)
         conditions.append(f"lower(exchange_id) IN ({placeholders})")
         params.extend(exchanges)
-    if symbols:
-        placeholders = ",".join("?" for _ in symbols)
-        conditions.append(f"symbol IN ({placeholders})")
-        params.extend(symbols)
+    symbol_clause, symbol_params = build_case_insensitive_symbol_clause(symbols)
+    if symbol_clause:
+        conditions.append(symbol_clause)
+        params.extend(symbol_params)
     return " AND ".join(conditions), params
 
 

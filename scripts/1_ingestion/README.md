@@ -21,13 +21,18 @@ This document describes all Python scripts in `scripts/1_ingestion/` and explain
 ## Prerequisites
 
 - Python 3.10+ (recommended).
-- `ccxt` installed in the same environment used to run the scripts.
+- `ccxt` installed in the same environment used to run the scripts, with
+  successful `ccxt.pro` import support.
 - Write access to the project directories (`data/`, `logs/`).
 
 Install example:
 
 ```powershell
-python -m pip install ccxt
+# Install or upgrade ccxt
+python -m pip install --upgrade ccxt
+
+# Verify websocket modules
+python -c "import ccxt, ccxt.pro as p; print(ccxt.__version__, len(p.exchanges))"
 ```
 
 ## `ingest_all_exchanges_ws.py`
@@ -60,6 +65,12 @@ Run ingestion:
 
 ```powershell
 python scripts/1_ingestion/ingest_all_exchanges_ws.py --db-path data/crypto_ws_ticks.db
+```
+
+Run ingestion with symbol filter (exact + SQL-like pattern):
+
+```powershell
+python scripts/1_ingestion/ingest_all_exchanges_ws.py --symbols "BTC/USDT,%btc/%"
 ```
 
 List capabilities to HTML:
@@ -116,6 +127,7 @@ For each exchange:
 - Symbols are filtered using:
   - active market only
   - `--only-spot` if enabled
+  - `--symbols` / `--symbol` if provided (exact and SQL-like pattern filtering)
   - `--max-symbols-per-exchange` (if provided)
 - Profiling symbol subset is controlled by `--profile-symbol-limit`.
 

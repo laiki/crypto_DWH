@@ -140,6 +140,66 @@ def parse_int_csv(raw_value: str, *, arg_name: str) -> list[int]:
     return sorted(set(values))
 
 
+def parse_csv_values(raw_value: str | None) -> list[str]:
+    if raw_value is None:
+        return []
+    values: list[str] = []
+    seen: set[str] = set()
+    for token in raw_value.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        key = item.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        values.append(item)
+    return values
+
+
+def split_exact_and_like_tokens(values: list[str]) -> tuple[list[str], list[str]]:
+    exact_tokens: list[str] = []
+    like_tokens: list[str] = []
+    for value in values:
+        if "%" in value or "_" in value:
+            like_tokens.append(value)
+        else:
+            exact_tokens.append(value)
+    return exact_tokens, like_tokens
+
+
+def build_case_insensitive_symbol_clause(
+    *,
+    column_name: str,
+    symbols: list[str],
+) -> tuple[str, list[Any]]:
+    if not symbols:
+        return "", []
+
+    exact_symbols, like_symbols = split_exact_and_like_tokens(symbols)
+    clause_parts: list[str] = []
+    params: list[Any] = []
+
+    if exact_symbols:
+        exact_values = [item.lower() for item in exact_symbols]
+        placeholders = ",".join("?" for _ in exact_values)
+        clause_parts.append(f"lower({column_name}) IN ({placeholders})")
+        params.extend(exact_values)
+
+    if like_symbols:
+        like_conditions = []
+        for pattern in like_symbols:
+            like_conditions.append(f"lower({column_name}) LIKE ? ESCAPE '\\'")
+            params.append(pattern.lower())
+        clause_parts.append("(" + " OR ".join(like_conditions) + ")")
+
+    if not clause_parts:
+        return "", []
+    if len(clause_parts) == 1:
+        return clause_parts[0], params
+    return "(" + " OR ".join(clause_parts) + ")", params
+
+
 def safe_name(value: str) -> str:
     normalized = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
     return normalized.strip("_") or "value"
@@ -191,9 +251,15 @@ def parse_args() -> argparse.Namespace:
         help="Secondary forecast horizon as integer multiple of bin-seconds.",
     )
     parser.add_argument(
+        "--symbols",
         "--symbol",
+        dest="symbols",
         default=None,
-        help="Optional symbol filter for training/inference scope.",
+        help=(
+            "Optional comma-separated symbol filter for training/inference scope. "
+            "Supports exact symbols and SQL LIKE patterns (%% and _), case-insensitive "
+            "(for example BTC/USDT,eth/usdt,%%btc/%%)."
+        ),
     )
     parser.add_argument(
         "--exchange-id",
@@ -387,29 +453,38 @@ def load_scope_pairs(
     *,
     cleansing_run_id: str,
     exchange_id_filter: str | None,
-    symbol_filter: str | None,
+    symbol_filters: list[str],
 ) -> list[SeriesScope]:
+    conditions = [
+        "run_id = ?",
+        "price IS NOT NULL",
+        "is_missing = 0",
+        "is_stale = 0",
+    ]
+    params: list[Any] = [cleansing_run_id]
+    if exchange_id_filter:
+        conditions.append("exchange_id = ?")
+        params.append(exchange_id_filter)
+    symbol_clause, symbol_params = build_case_insensitive_symbol_clause(
+        column_name="symbol",
+        symbols=symbol_filters,
+    )
+    if symbol_clause:
+        conditions.append(symbol_clause)
+        params.extend(symbol_params)
+
     rows = connection.execute(
-        """
+        f"""
         SELECT
             exchange_id,
             symbol,
             COUNT(*) AS row_count
         FROM cleansed_market
-        WHERE run_id = :run_id
-          AND price IS NOT NULL
-          AND is_missing = 0
-          AND is_stale = 0
-          AND (:exchange_id IS NULL OR exchange_id = :exchange_id)
-          AND (:symbol IS NULL OR symbol = :symbol)
+        WHERE {" AND ".join(conditions)}
         GROUP BY exchange_id, symbol
         ORDER BY row_count DESC, exchange_id ASC, symbol ASC
         """,
-        {
-            "run_id": cleansing_run_id,
-            "exchange_id": exchange_id_filter,
-            "symbol": symbol_filter,
-        },
+        params,
     ).fetchall()
     result: list[SeriesScope] = []
     for row in rows:
@@ -1382,6 +1457,7 @@ def main() -> None:
 
     lag_steps = parse_int_csv(args.lag_steps, arg_name="--lag-steps")
     rolling_windows = parse_int_csv(args.rolling_windows, arg_name="--rolling-windows")
+    symbol_filters = parse_csv_values(args.symbols)
 
     staging_db_paths = discover_staging_dbs(args.staging_glob)
     if not staging_db_paths:
@@ -1407,7 +1483,7 @@ def main() -> None:
             cleansing_conn,
             cleansing_run_id=cleansing_run_id,
             exchange_id_filter=args.exchange_id,
-            symbol_filter=args.symbol,
+            symbol_filters=symbol_filters,
         )
         if args.limit_series is not None:
             scope_pairs = scope_pairs[: args.limit_series]

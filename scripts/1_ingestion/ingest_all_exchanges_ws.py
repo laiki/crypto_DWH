@@ -25,12 +25,12 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
+CCXTPRO_IMPORT_ERROR: ImportError | None = None
 try:
     import ccxt.pro as ccxtpro
 except ImportError as exc:
-    raise SystemExit(
-        "ccxt.pro is not installed. Please install it (e.g. pip install ccxt)."
-    ) from exc
+    ccxtpro = None
+    CCXTPRO_IMPORT_ERROR = exc
 
 from ingestion_common import (
     DEFAULT_EXCLUDED_EXCHANGES,
@@ -38,6 +38,7 @@ from ingestion_common import (
     is_terminal_exclusion_error,
     iter_tickers,
     parse_exchange_list,
+    parse_symbol_filters,
     resolve_excluded_exchanges,
     select_symbols,
     supports_ws_flag,
@@ -46,6 +47,17 @@ from ingestion_common import (
 
 
 LOGGER = logging.getLogger("crypto_ws_ingestion")
+
+
+def ensure_ccxtpro_available() -> None:
+    if ccxtpro is not None:
+        return
+    raise SystemExit(
+        "Failed to import 'ccxt.pro'. "
+        "The current ccxt installation for this interpreter is missing required modules "
+        "or is inconsistent. Reinstall/upgrade ccxt and verify with: "
+        "python -c \"import ccxt, ccxt.pro\""
+    ) from CCXTPRO_IMPORT_ERROR
 
 
 def utc_now_iso() -> str:
@@ -410,6 +422,7 @@ async def watch_ticker_symbol_loop(
 async def run_exchange(
     exchange_id: str,
     args: argparse.Namespace,
+    symbol_filters: list[str],
     queue: asyncio.Queue[tuple[str, dict[str, Any]]],
     stop_event: asyncio.Event,
 ) -> None:
@@ -431,7 +444,12 @@ async def run_exchange(
         try:
             await put_event(queue, exchange_id, "connecting")
             markets = await exchange.load_markets()
-            symbols = select_symbols(markets, args.only_spot, args.max_symbols_per_exchange)
+            symbols = select_symbols(
+                markets,
+                args.only_spot,
+                args.max_symbols_per_exchange,
+                symbol_filters,
+            )
             if not symbols:
                 await put_event(queue, exchange_id, "no_symbols")
                 return
@@ -583,7 +601,11 @@ def choose_stream_mode(watch_tickers_supported: bool, watch_ticker_supported: bo
     return "unsupported"
 
 
-async def probe_exchange_capability(exchange_id: str, args: argparse.Namespace) -> dict[str, Any]:
+async def probe_exchange_capability(
+    exchange_id: str,
+    args: argparse.Namespace,
+    symbol_filters: list[str],
+) -> dict[str, Any]:
     exchange_cls = getattr(ccxtpro, exchange_id, None)
     if exchange_cls is None:
         return {
@@ -599,7 +621,12 @@ async def probe_exchange_capability(exchange_id: str, args: argparse.Namespace) 
     exchange = exchange_cls({"enableRateLimit": True, "newUpdates": True})
     try:
         markets = await exchange.load_markets()
-        symbols = select_symbols(markets, args.only_spot, args.max_symbols_per_exchange)
+        symbols = select_symbols(
+            markets,
+            args.only_spot,
+            args.max_symbols_per_exchange,
+            symbol_filters,
+        )
 
         watch_tickers_supported = supports_ws_flag(exchange.has.get("watchTickers"))
         watch_ticker_supported = supports_ws_flag(exchange.has.get("watchTicker"))
@@ -743,12 +770,16 @@ def resolve_list_output_path(args: argparse.Namespace) -> Path:
     return Path("data") / f"exchange_symbol_capabilities.{args.list_format}"
 
 
-async def list_capabilities(args: argparse.Namespace, selected_exchanges: list[str]) -> None:
+async def list_capabilities(
+    args: argparse.Namespace,
+    selected_exchanges: list[str],
+    symbol_filters: list[str],
+) -> None:
     semaphore = asyncio.Semaphore(max(1, args.list_concurrency))
 
     async def _probe(exchange_id: str) -> dict[str, Any]:
         async with semaphore:
-            return await probe_exchange_capability(exchange_id, args)
+            return await probe_exchange_capability(exchange_id, args, symbol_filters)
 
     results = await asyncio.gather(*(_probe(exchange_id) for exchange_id in selected_exchanges))
     results_sorted = sorted(results, key=lambda item: item["exchange_id"])
@@ -818,6 +849,17 @@ def parse_args() -> argparse.Namespace:
         help="Optional limit for symbols per exchange (test mode).",
     )
     parser.add_argument(
+        "--symbols",
+        "--symbol",
+        dest="symbols",
+        default=None,
+        help=(
+            "Optional comma-separated symbol filter. "
+            "Supports exact symbols and SQL LIKE patterns (%% and _), case-insensitive "
+            "(for example BTC/USDT,eth/usdt,%%btc/%%)."
+        ),
+    )
+    parser.add_argument(
         "--max-symbol-streams-per-exchange",
         type=int,
         default=None,
@@ -885,6 +927,7 @@ def parse_args() -> argparse.Namespace:
 
 
 async def async_main(args: argparse.Namespace) -> None:
+    ensure_ccxtpro_available()
     default_log_path = Path(args.db_path).with_suffix(".log")
     log_file_path = Path(args.log_file) if args.log_file else default_log_path
     configure_logging_with_file(args.log_level, log_file_path)
@@ -911,9 +954,16 @@ async def async_main(args: argparse.Namespace) -> None:
             len(excluded_from_selection),
             ", ".join(excluded_from_selection),
         )
+    symbol_filters = parse_symbol_filters(args.symbols)
+    if symbol_filters:
+        LOGGER.info("Symbol filters enabled (%s): %s", len(symbol_filters), ", ".join(symbol_filters))
 
     if args.list_capabilities:
-        await list_capabilities(args=args, selected_exchanges=selected_exchanges)
+        await list_capabilities(
+            args=args,
+            selected_exchanges=selected_exchanges,
+            symbol_filters=symbol_filters,
+        )
         return
 
     db_path = Path(args.db_path)
@@ -932,7 +982,13 @@ async def async_main(args: argparse.Namespace) -> None:
     exchange_tasks: list[asyncio.Task[Any]] = []
     for exchange_id in selected_exchanges:
         task = asyncio.create_task(
-            run_exchange(exchange_id=exchange_id, args=args, queue=queue, stop_event=stop_event),
+            run_exchange(
+                exchange_id=exchange_id,
+                args=args,
+                symbol_filters=symbol_filters,
+                queue=queue,
+                stop_event=stop_event,
+            ),
             name=f"exchange_worker:{exchange_id}",
         )
         exchange_tasks.append(task)

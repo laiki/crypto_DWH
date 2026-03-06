@@ -24,6 +24,10 @@ python scripts/6_forecasting/train_staging_models_and_forecasts.py \
   --secondary-horizon-multiple 30
 ```
 
+Symbol scope filter:
+- Use `--symbols` (alias: `--symbol`) with comma-separated exact values and/or SQL-like patterns (`%`, `_`), case-insensitive.
+- Example: `--symbols "BTC/USDT,%btc/%"`.
+
 Parallel execution model:
 - `--workers` controls per-pair process parallelism for training/inference compute.
 - SQLite writes for model registry and forecast rows remain single-writer in the main process.
