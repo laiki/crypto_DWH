@@ -15,9 +15,11 @@ Pipeline:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import glob
 import json
 import math
+import multiprocessing
 import re
 import sqlite3
 import sys
@@ -67,6 +69,30 @@ class SeriesScope:
     exchange_id: str
     symbol: str
     cleansing_rows: int
+
+
+@dataclass(frozen=True)
+class PairWorkerTask:
+    exchange_id: str
+    symbol: str
+    cleansing_rows: int
+    staging_db_paths: tuple[str, ...]
+    cleansing_db_path: str
+    cleansing_run_id: str
+    training_cutoff_utc: str
+    bin_seconds: int
+    lag_steps: tuple[int, ...]
+    rolling_windows: tuple[int, ...]
+    min_train_rows: int
+    test_size: float
+    cv_splits: int
+    ridge_alpha: float
+    hgb_max_iter: int
+    hgb_learning_rate: float
+    horizons_steps: tuple[int, ...]
+    horizons_seconds: tuple[int, ...]
+    training_run_id: str
+    model_dir: str
 
 
 def log(level: str, message: str) -> None:
@@ -227,6 +253,12 @@ def parse_args() -> argparse.Namespace:
         help="HistGradientBoosting learning rate.",
     )
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of worker processes for per-pair training/inference tasks.",
+    )
+    parser.add_argument(
         "--progress",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -266,6 +298,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--cv-splits must be > 0.")
     if args.min_train_rows < 60:
         raise SystemExit("--min-train-rows must be >= 60.")
+    if args.workers <= 0:
+        raise SystemExit("--workers must be > 0.")
     if args.progress_interval_seconds <= 0:
         raise SystemExit("--progress-interval-seconds must be > 0.")
 
@@ -637,17 +671,22 @@ def evaluate_time_series_cv(
     return effective_splits, fold_metrics, mean_metrics
 
 
-def create_models(args: argparse.Namespace) -> dict[str, Any]:
+def create_models_from_hyperparams(
+    *,
+    ridge_alpha: float,
+    hgb_max_iter: int,
+    hgb_learning_rate: float,
+) -> dict[str, Any]:
     ridge = Pipeline(
         steps=[
             ("scaler", StandardScaler()),
-            ("model", Ridge(alpha=args.ridge_alpha)),
+            ("model", Ridge(alpha=ridge_alpha)),
         ]
     )
     hgb = HistGradientBoostingRegressor(
         loss="squared_error",
-        learning_rate=args.hgb_learning_rate,
-        max_iter=args.hgb_max_iter,
+        learning_rate=hgb_learning_rate,
+        max_iter=hgb_max_iter,
         max_depth=6,
         min_samples_leaf=20,
         random_state=42,
@@ -656,6 +695,14 @@ def create_models(args: argparse.Namespace) -> dict[str, Any]:
         "ridge": ridge,
         "hist_gradient_boosting": hgb,
     }
+
+
+def create_models(args: argparse.Namespace) -> dict[str, Any]:
+    return create_models_from_hyperparams(
+        ridge_alpha=float(args.ridge_alpha),
+        hgb_max_iter=int(args.hgb_max_iter),
+        hgb_learning_rate=float(args.hgb_learning_rate),
+    )
 
 
 def ensure_forecast_tables(connection: sqlite3.Connection) -> None:
@@ -1019,6 +1066,280 @@ def build_cleansing_inference_frame(
     return cleaned
 
 
+def process_pair_task(task: PairWorkerTask) -> dict[str, Any]:
+    model_templates = create_models_from_hyperparams(
+        ridge_alpha=float(task.ridge_alpha),
+        hgb_max_iter=int(task.hgb_max_iter),
+        hgb_learning_rate=float(task.hgb_learning_rate),
+    )
+    model_names = list(model_templates.keys())
+    models_per_pair = len(task.horizons_steps) * len(model_names)
+
+    result: dict[str, Any] = {
+        "exchange_id": task.exchange_id,
+        "symbol": task.symbol,
+        "pair_key": f"{task.exchange_id}:{task.symbol}",
+        "pair_trained_models": 0,
+        "model_slots_processed": 0,
+        "model_slots_failed": 0,
+        "model_slots_skipped": 0,
+        "skipped_series_item": None,
+        "model_results": [],
+    }
+
+    staging_paths = [Path(path) for path in task.staging_db_paths]
+    staging_raw = load_staging_series_before_cutoff(
+        staging_paths,
+        exchange_id=task.exchange_id,
+        symbol=task.symbol,
+        cutoff_utc=task.training_cutoff_utc,
+    )
+    staging_resampled = resample_staging_series(staging_raw, bin_seconds=int(task.bin_seconds))
+    if len(staging_resampled) < int(task.min_train_rows):
+        result["skipped_series_item"] = {
+            "exchange_id": task.exchange_id,
+            "symbol": task.symbol,
+            "reason": f"insufficient_staging_rows:{len(staging_resampled)}",
+        }
+        result["model_slots_processed"] = models_per_pair
+        result["model_slots_skipped"] = models_per_pair
+        return result
+
+    feature_table_staging = build_feature_table(
+        staging_resampled,
+        lag_steps=list(task.lag_steps),
+        rolling_windows=list(task.rolling_windows),
+    )
+    feature_columns = feature_columns_from_table(feature_table_staging)
+    if not feature_columns:
+        result["skipped_series_item"] = {
+            "exchange_id": task.exchange_id,
+            "symbol": task.symbol,
+            "reason": "no_features",
+        }
+        result["model_slots_processed"] = models_per_pair
+        result["model_slots_skipped"] = models_per_pair
+        return result
+
+    with sqlite3.connect(f"file:{task.cleansing_db_path}?mode=ro", uri=True) as cleansing_connection:
+        cleansing_series = load_cleansing_series(
+            cleansing_connection,
+            cleansing_run_id=task.cleansing_run_id,
+            exchange_id=task.exchange_id,
+            symbol=task.symbol,
+        )
+    if cleansing_series.empty:
+        result["skipped_series_item"] = {
+            "exchange_id": task.exchange_id,
+            "symbol": task.symbol,
+            "reason": "no_cleansing_rows",
+        }
+        result["model_slots_processed"] = models_per_pair
+        result["model_slots_skipped"] = models_per_pair
+        return result
+
+    feature_table_cleansing = build_feature_table(
+        cleansing_series,
+        lag_steps=list(task.lag_steps),
+        rolling_windows=list(task.rolling_windows),
+    )
+    actual_price_by_epoch = dict(
+        zip(
+            cleansing_series["bucket_epoch_s"].astype(int).tolist(),
+            cleansing_series["price"].astype(float).tolist(),
+        )
+    )
+
+    for horizon_step, horizon_seconds in zip(task.horizons_steps, task.horizons_seconds):
+        X_all, y_all = build_training_frame(
+            feature_table_staging,
+            feature_columns,
+            horizon_steps=int(horizon_step),
+        )
+        if len(X_all) < int(task.min_train_rows):
+            result["model_slots_processed"] += len(model_names)
+            result["model_slots_skipped"] += len(model_names)
+            continue
+
+        split_index = int(math.floor(len(X_all) * (1.0 - float(task.test_size))))
+        split_index = max(1, min(len(X_all) - 1, split_index))
+        X_train = X_all.iloc[:split_index]
+        y_train = y_all.iloc[:split_index]
+        X_test = X_all.iloc[split_index:]
+        y_test = y_all.iloc[split_index:]
+
+        for model_name, base_model in model_templates.items():
+            feature_config = {
+                "bin_seconds": int(task.bin_seconds),
+                "horizon_steps": int(horizon_step),
+                "horizon_seconds": int(horizon_seconds),
+                "lag_steps": list(task.lag_steps),
+                "rolling_windows": list(task.rolling_windows),
+                "feature_columns": feature_columns,
+                "training_cutoff_utc": task.training_cutoff_utc,
+            }
+            try:
+                cv_fold_count, _, cv_mean_metrics = evaluate_time_series_cv(
+                    base_model,
+                    X_train,
+                    y_train,
+                    requested_splits=int(task.cv_splits),
+                )
+                eval_model = clone(base_model)
+                eval_model.fit(X_train, y_train)
+                y_test_pred = eval_model.predict(X_test).astype(float)
+                holdout_metrics = compute_metrics(y_test.to_numpy(dtype=float), y_test_pred)
+
+                production_model = clone(base_model)
+                production_model.fit(X_all, y_all)
+
+                model_path = make_model_artifact_path(
+                    model_dir=Path(task.model_dir),
+                    training_run_id=task.training_run_id,
+                    exchange_id=task.exchange_id,
+                    symbol=task.symbol,
+                    model_name=model_name,
+                    horizon_seconds=int(horizon_seconds),
+                )
+                joblib.dump(
+                    {
+                        "model": production_model,
+                        "metadata": feature_config,
+                    },
+                    model_path,
+                )
+
+                cleansing_infer = build_cleansing_inference_frame(
+                    feature_table_cleansing,
+                    feature_columns,
+                    horizon_seconds=int(horizon_seconds),
+                )
+                prediction_rows: list[tuple[Any, ...]] = []
+                if not cleansing_infer.empty:
+                    X_infer = cleansing_infer[feature_columns].astype(float)
+                    y_pred = production_model.predict(X_infer).astype(float)
+                    generated_at_utc = utc_now_iso()
+                    for row_idx, predicted_price in enumerate(y_pred):
+                        generated_epoch = int(cleansing_infer.iloc[row_idx]["bucket_epoch_s"])
+                        target_epoch = int(cleansing_infer.iloc[row_idx]["target_bucket_epoch_s"])
+                        generated_utc = cleansing_infer.iloc[row_idx]["bucket_start_utc"].strftime("%Y-%m-%dT%H:%M:%S%z")
+                        target_utc = str(cleansing_infer.iloc[row_idx]["target_bucket_start_utc"])
+                        actual_price = actual_price_by_epoch.get(target_epoch)
+                        abs_error = (
+                            abs(float(actual_price) - float(predicted_price))
+                            if actual_price is not None
+                            else None
+                        )
+                        prediction_rows.append(
+                            (
+                                generated_utc,
+                                int(generated_epoch),
+                                target_utc,
+                                int(target_epoch),
+                                float(predicted_price),
+                                float(actual_price) if actual_price is not None else None,
+                                float(abs_error) if abs_error is not None else None,
+                                generated_at_utc,
+                            )
+                        )
+
+                result["model_results"].append(
+                    {
+                        "status": "trained",
+                        "exchange_id": task.exchange_id,
+                        "symbol": task.symbol,
+                        "model_name": model_name,
+                        "horizon_steps": int(horizon_step),
+                        "horizon_seconds": int(horizon_seconds),
+                        "artifact_path": str(model_path),
+                        "feature_config": feature_config,
+                        "train_rows": int(len(X_train)),
+                        "test_rows": int(len(X_test)),
+                        "cv_fold_count": int(cv_fold_count),
+                        "holdout_metrics": holdout_metrics,
+                        "cv_mean_metrics": cv_mean_metrics,
+                        "prediction_rows": prediction_rows,
+                        "error_message": None,
+                    }
+                )
+                result["pair_trained_models"] += 1
+                result["model_slots_processed"] += 1
+            except Exception as exc:  # noqa: BLE001
+                result["model_results"].append(
+                    {
+                        "status": "failed",
+                        "exchange_id": task.exchange_id,
+                        "symbol": task.symbol,
+                        "model_name": model_name,
+                        "horizon_steps": int(horizon_step),
+                        "horizon_seconds": int(horizon_seconds),
+                        "artifact_path": "",
+                        "feature_config": feature_config,
+                        "train_rows": 0,
+                        "test_rows": 0,
+                        "cv_fold_count": 0,
+                        "holdout_metrics": {"mae": None, "rmse": None, "mape": None, "r2": None},
+                        "cv_mean_metrics": {"mae": None, "rmse": None, "mape": None, "r2": None},
+                        "prediction_rows": [],
+                        "error_message": repr(exc),
+                    }
+                )
+                result["model_slots_processed"] += 1
+                result["model_slots_failed"] += 1
+
+    return result
+
+
+def build_pair_worker_exception_result(
+    *,
+    task: PairWorkerTask,
+    model_names: list[str],
+    error_message: str,
+) -> dict[str, Any]:
+    model_results: list[dict[str, Any]] = []
+    for horizon_step, horizon_seconds in zip(task.horizons_steps, task.horizons_seconds):
+        for model_name in model_names:
+            model_results.append(
+                {
+                    "status": "failed",
+                    "exchange_id": task.exchange_id,
+                    "symbol": task.symbol,
+                    "model_name": model_name,
+                    "horizon_steps": int(horizon_step),
+                    "horizon_seconds": int(horizon_seconds),
+                    "artifact_path": "",
+                    "feature_config": {
+                        "bin_seconds": int(task.bin_seconds),
+                        "horizon_steps": int(horizon_step),
+                        "horizon_seconds": int(horizon_seconds),
+                        "lag_steps": list(task.lag_steps),
+                        "rolling_windows": list(task.rolling_windows),
+                        "feature_columns": [],
+                        "training_cutoff_utc": task.training_cutoff_utc,
+                    },
+                    "train_rows": 0,
+                    "test_rows": 0,
+                    "cv_fold_count": 0,
+                    "holdout_metrics": {"mae": None, "rmse": None, "mape": None, "r2": None},
+                    "cv_mean_metrics": {"mae": None, "rmse": None, "mape": None, "r2": None},
+                    "prediction_rows": [],
+                    "error_message": error_message,
+                }
+            )
+    model_slots = len(model_results)
+    return {
+        "exchange_id": task.exchange_id,
+        "symbol": task.symbol,
+        "pair_key": f"{task.exchange_id}:{task.symbol}",
+        "pair_trained_models": 0,
+        "model_slots_processed": model_slots,
+        "model_slots_failed": model_slots,
+        "model_slots_skipped": 0,
+        "skipped_series_item": None,
+        "model_results": model_results,
+    }
+
+
 def log_progress(
     *,
     total_pairs: int,
@@ -1183,321 +1504,246 @@ def main() -> None:
 
             maybe_log_progress(force=True)
 
-            for idx, pair in enumerate(scope_pairs, start=1):
-                if args.log_pair_details:
-                    log(
-                        "INFO",
-                        f"Pair {idx}/{len(scope_pairs)} exchange={pair.exchange_id} symbol={pair.symbol} "
-                        f"cleansing_rows={pair.cleansing_rows}",
-                    )
-
-                staging_raw = load_staging_series_before_cutoff(
-                    staging_db_paths,
+            model_names = list(models.keys())
+            worker_tasks = [
+                PairWorkerTask(
                     exchange_id=pair.exchange_id,
                     symbol=pair.symbol,
-                    cutoff_utc=training_cutoff_utc,
+                    cleansing_rows=int(pair.cleansing_rows),
+                    staging_db_paths=tuple(str(path) for path in staging_db_paths),
+                    cleansing_db_path=str(cleansing_db_path),
+                    cleansing_run_id=cleansing_run_id,
+                    training_cutoff_utc=training_cutoff_utc,
+                    bin_seconds=int(bin_seconds),
+                    lag_steps=tuple(lag_steps),
+                    rolling_windows=tuple(rolling_windows),
+                    min_train_rows=int(args.min_train_rows),
+                    test_size=float(args.test_size),
+                    cv_splits=int(args.cv_splits),
+                    ridge_alpha=float(args.ridge_alpha),
+                    hgb_max_iter=int(args.hgb_max_iter),
+                    hgb_learning_rate=float(args.hgb_learning_rate),
+                    horizons_steps=tuple(int(step) for step in horizons_steps),
+                    horizons_seconds=tuple(int(seconds) for seconds in horizons_seconds),
+                    training_run_id=training_run_id,
+                    model_dir=str(model_dir),
                 )
-                staging_resampled = resample_staging_series(staging_raw, bin_seconds=bin_seconds)
-                if len(staging_resampled) < args.min_train_rows:
-                    skipped_series.append(
-                        {
-                            "exchange_id": pair.exchange_id,
-                            "symbol": pair.symbol,
-                            "reason": f"insufficient_staging_rows:{len(staging_resampled)}",
-                        }
-                    )
+                for pair in scope_pairs
+            ]
+            log("INFO", f"Worker processes: {args.workers}")
+
+            def persist_pair_result(result: dict[str, Any]) -> None:
+                nonlocal series_trained
+                nonlocal models_trained
+                nonlocal predictions_written
+                nonlocal failed_model_slots
+                nonlocal skipped_model_slots
+                nonlocal processed_pairs
+                nonlocal processed_model_slots
+                nonlocal last_completed_pair
+
+                processed_pairs += 1
+                processed_model_slots += int(result.get("model_slots_processed", 0))
+                failed_model_slots += int(result.get("model_slots_failed", 0))
+                skipped_model_slots += int(result.get("model_slots_skipped", 0))
+                last_completed_pair = str(result.get("pair_key", "-"))
+
+                skipped_item = result.get("skipped_series_item")
+                if isinstance(skipped_item, dict):
+                    skipped_series.append(skipped_item)
                     if args.log_skip_details:
                         log(
                             "WARNING",
-                            f"Skip pair exchange={pair.exchange_id} symbol={pair.symbol} "
-                            f"insufficient staging rows after resample ({len(staging_resampled)}).",
+                            f"Skip pair exchange={skipped_item.get('exchange_id')} "
+                            f"symbol={skipped_item.get('symbol')} reason={skipped_item.get('reason')}",
                         )
-                    processed_pairs += 1
-                    processed_model_slots += models_per_pair
-                    skipped_model_slots += models_per_pair
-                    last_completed_pair = f"{pair.exchange_id}:{pair.symbol}"
-                    maybe_log_progress()
-                    continue
 
-                feature_table_staging = build_feature_table(
-                    staging_resampled,
-                    lag_steps=lag_steps,
-                    rolling_windows=rolling_windows,
-                )
-                feature_columns = feature_columns_from_table(feature_table_staging)
-                if not feature_columns:
-                    skipped_series.append(
-                        {
-                            "exchange_id": pair.exchange_id,
-                            "symbol": pair.symbol,
-                            "reason": "no_features",
-                        }
-                    )
-                    if args.log_skip_details:
-                        log("WARNING", f"Skip pair exchange={pair.exchange_id} symbol={pair.symbol} no features.")
-                    processed_pairs += 1
-                    processed_model_slots += models_per_pair
-                    skipped_model_slots += models_per_pair
-                    last_completed_pair = f"{pair.exchange_id}:{pair.symbol}"
-                    maybe_log_progress()
-                    continue
+                if int(result.get("pair_trained_models", 0)) > 0:
+                    series_trained += 1
 
-                cleansing_series = load_cleansing_series(
-                    cleansing_conn,
-                    cleansing_run_id=cleansing_run_id,
-                    exchange_id=pair.exchange_id,
-                    symbol=pair.symbol,
-                )
-                if cleansing_series.empty:
-                    skipped_series.append(
-                        {
-                            "exchange_id": pair.exchange_id,
-                            "symbol": pair.symbol,
-                            "reason": "no_cleansing_rows",
-                        }
-                    )
-                    if args.log_skip_details:
-                        log("WARNING", f"Skip pair exchange={pair.exchange_id} symbol={pair.symbol} no cleansing rows.")
-                    processed_pairs += 1
-                    processed_model_slots += models_per_pair
-                    skipped_model_slots += models_per_pair
-                    last_completed_pair = f"{pair.exchange_id}:{pair.symbol}"
-                    maybe_log_progress()
-                    continue
+                for model_result in result.get("model_results", []):
+                    status = str(model_result.get("status", "")).lower()
+                    holdout_metrics = model_result.get("holdout_metrics") or {
+                        "mae": None,
+                        "rmse": None,
+                        "mape": None,
+                        "r2": None,
+                    }
+                    cv_mean_metrics = model_result.get("cv_mean_metrics") or {
+                        "mae": None,
+                        "rmse": None,
+                        "mape": None,
+                        "r2": None,
+                    }
+                    exchange_id = str(model_result.get("exchange_id", result.get("exchange_id", "")))
+                    symbol = str(model_result.get("symbol", result.get("symbol", "")))
+                    model_name = str(model_result.get("model_name", "unknown_model"))
+                    horizon_steps = int(model_result.get("horizon_steps", 0))
+                    horizon_seconds = int(model_result.get("horizon_seconds", 0))
+                    error_message = model_result.get("error_message")
+                    feature_config = model_result.get("feature_config") or {
+                        "bin_seconds": int(bin_seconds),
+                        "horizon_steps": horizon_steps,
+                        "horizon_seconds": horizon_seconds,
+                        "lag_steps": lag_steps,
+                        "rolling_windows": rolling_windows,
+                        "feature_columns": [],
+                        "training_cutoff_utc": training_cutoff_utc,
+                    }
 
-                feature_table_cleansing = build_feature_table(
-                    cleansing_series,
-                    lag_steps=lag_steps,
-                    rolling_windows=rolling_windows,
-                )
-                actual_price_by_epoch = dict(
-                    zip(
-                        cleansing_series["bucket_epoch_s"].astype(int).tolist(),
-                        cleansing_series["price"].astype(float).tolist(),
+                    model_id = insert_model_registry_row(
+                        forecast_conn,
+                        training_run_id=training_run_id,
+                        exchange_id=exchange_id,
+                        symbol=symbol,
+                        model_name=model_name,
+                        horizon_steps=horizon_steps,
+                        horizon_seconds=horizon_seconds,
+                        artifact_path=Path(str(model_result.get("artifact_path", ""))),
+                        feature_config=feature_config,
+                        train_rows=int(model_result.get("train_rows", 0)),
+                        test_rows=int(model_result.get("test_rows", 0)),
+                        cv_fold_count=int(model_result.get("cv_fold_count", 0)),
+                        holdout_metrics=holdout_metrics,
+                        cv_mean_metrics=cv_mean_metrics,
+                        status="trained" if status == "trained" else "failed",
+                        error_message=str(error_message) if error_message is not None else None,
                     )
-                )
 
-                pair_trained_models = 0
-                for horizon_step, horizon_seconds in zip(horizons_steps, horizons_seconds):
-                    X_all, y_all = build_training_frame(
-                        feature_table_staging,
-                        feature_columns,
-                        horizon_steps=horizon_step,
-                    )
-                    if len(X_all) < args.min_train_rows:
+                    if status != "trained":
+                        failed_models.append(
+                            {
+                                "exchange_id": exchange_id,
+                                "symbol": symbol,
+                                "model_name": model_name,
+                                "horizon_seconds": horizon_seconds,
+                                "error": str(error_message),
+                            }
+                        )
                         if args.log_skip_details:
                             log(
-                                "WARNING",
-                                f"Skip horizon for pair exchange={pair.exchange_id} symbol={pair.symbol} "
-                                f"horizon_seconds={horizon_seconds} insufficient rows={len(X_all)}",
+                                "ERROR",
+                                f"Model failed exchange={exchange_id} symbol={symbol} "
+                                f"model={model_name} horizon_s={horizon_seconds} error={error_message}",
                             )
-                        processed_model_slots += len(models)
-                        skipped_model_slots += len(models)
-                        maybe_log_progress()
                         continue
 
-                    split_index = int(math.floor(len(X_all) * (1.0 - args.test_size)))
-                    split_index = max(1, min(len(X_all) - 1, split_index))
-                    X_train = X_all.iloc[:split_index]
-                    y_train = y_all.iloc[:split_index]
-                    X_test = X_all.iloc[split_index:]
-                    y_test = y_all.iloc[split_index:]
-
-                    for model_name, base_model in models.items():
-                        model_slot_counted = False
-                        try:
-                            cv_fold_count, _, cv_mean_metrics = evaluate_time_series_cv(
-                                base_model,
-                                X_train,
-                                y_train,
-                                requested_splits=args.cv_splits,
-                            )
-                            eval_model = clone(base_model)
-                            eval_model.fit(X_train, y_train)
-                            y_test_pred = eval_model.predict(X_test).astype(float)
-                            holdout_metrics = compute_metrics(y_test.to_numpy(dtype=float), y_test_pred)
-
-                            production_model = clone(base_model)
-                            production_model.fit(X_all, y_all)
-
-                            model_path = make_model_artifact_path(
-                                model_dir=model_dir,
-                                training_run_id=training_run_id,
-                                exchange_id=pair.exchange_id,
-                                symbol=pair.symbol,
-                                model_name=model_name,
-                                horizon_seconds=horizon_seconds,
-                            )
-                            feature_config = {
-                                "bin_seconds": int(bin_seconds),
-                                "horizon_steps": int(horizon_step),
-                                "horizon_seconds": int(horizon_seconds),
-                                "lag_steps": lag_steps,
-                                "rolling_windows": rolling_windows,
-                                "feature_columns": feature_columns,
-                                "training_cutoff_utc": training_cutoff_utc,
-                            }
-                            joblib.dump(
-                                {
-                                    "model": production_model,
-                                    "metadata": feature_config,
-                                },
-                                model_path,
-                            )
-
-                            model_id = insert_model_registry_row(
-                                forecast_conn,
-                                training_run_id=training_run_id,
-                                exchange_id=pair.exchange_id,
-                                symbol=pair.symbol,
-                                model_name=model_name,
-                                horizon_steps=horizon_step,
-                                horizon_seconds=horizon_seconds,
-                                artifact_path=model_path,
-                                feature_config=feature_config,
-                                train_rows=len(X_train),
-                                test_rows=len(X_test),
-                                cv_fold_count=cv_fold_count,
-                                holdout_metrics=holdout_metrics,
-                                cv_mean_metrics=cv_mean_metrics,
-                                status="trained",
-                                error_message=None,
-                            )
-                            models_trained += 1
-                            pair_trained_models += 1
-                            processed_model_slots += 1
-                            model_slot_counted = True
-
-                            cleansing_infer = build_cleansing_inference_frame(
-                                feature_table_cleansing,
-                                feature_columns,
-                                horizon_seconds=horizon_seconds,
-                            )
-                            if cleansing_infer.empty:
-                                continue
-
-                            X_infer = cleansing_infer[feature_columns].astype(float)
-                            y_pred = production_model.predict(X_infer).astype(float)
-                            generated_at_utc = utc_now_iso()
-                            insert_rows: list[tuple[Any, ...]] = []
-                            for row_idx, predicted_price in enumerate(y_pred):
-                                generated_epoch = int(cleansing_infer.iloc[row_idx]["bucket_epoch_s"])
-                                target_epoch = int(cleansing_infer.iloc[row_idx]["target_bucket_epoch_s"])
-                                generated_utc = cleansing_infer.iloc[row_idx]["bucket_start_utc"].strftime(
-                                    "%Y-%m-%dT%H:%M:%S%z"
-                                )
-                                target_utc = str(cleansing_infer.iloc[row_idx]["target_bucket_start_utc"])
-                                actual_price = actual_price_by_epoch.get(target_epoch)
-                                abs_error = (
-                                    abs(float(actual_price) - float(predicted_price))
-                                    if actual_price is not None
-                                    else None
-                                )
-                                insert_rows.append(
-                                    (
-                                        model_id,
-                                        training_run_id,
-                                        cleansing_run_id,
-                                        pair.exchange_id,
-                                        pair.symbol,
-                                        model_name,
-                                        int(horizon_seconds),
-                                        generated_utc,
-                                        int(generated_epoch),
-                                        target_utc,
-                                        int(target_epoch),
-                                        float(predicted_price),
-                                        float(actual_price) if actual_price is not None else None,
-                                        float(abs_error) if abs_error is not None else None,
-                                        generated_at_utc,
-                                    )
-                                )
-                            forecast_conn.executemany(
-                                """
-                                INSERT INTO forecast_predictions (
+                    models_trained += 1
+                    prediction_rows = model_result.get("prediction_rows") or []
+                    if prediction_rows:
+                        insert_rows: list[tuple[Any, ...]] = []
+                        for row in prediction_rows:
+                            (
+                                generated_utc,
+                                generated_epoch,
+                                target_utc,
+                                target_epoch,
+                                predicted_price,
+                                actual_price,
+                                abs_error,
+                                generated_at_utc,
+                            ) = row
+                            insert_rows.append(
+                                (
                                     model_id,
                                     training_run_id,
                                     cleansing_run_id,
                                     exchange_id,
                                     symbol,
                                     model_name,
-                                    horizon_seconds,
-                                    forecast_generated_bucket_start_utc,
-                                    forecast_generated_bucket_epoch_s,
-                                    target_bucket_start_utc,
-                                    target_bucket_epoch_s,
-                                    predicted_price,
-                                    actual_price,
-                                    abs_error,
-                                    generated_at_utc
+                                    int(horizon_seconds),
+                                    str(generated_utc),
+                                    int(generated_epoch),
+                                    str(target_utc),
+                                    int(target_epoch),
+                                    float(predicted_price),
+                                    float(actual_price) if actual_price is not None else None,
+                                    float(abs_error) if abs_error is not None else None,
+                                    str(generated_at_utc),
                                 )
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                                insert_rows,
                             )
-                            forecast_conn.commit()
-                            predictions_written += len(insert_rows)
+                        forecast_conn.executemany(
+                            """
+                            INSERT INTO forecast_predictions (
+                                model_id,
+                                training_run_id,
+                                cleansing_run_id,
+                                exchange_id,
+                                symbol,
+                                model_name,
+                                horizon_seconds,
+                                forecast_generated_bucket_start_utc,
+                                forecast_generated_bucket_epoch_s,
+                                target_bucket_start_utc,
+                                target_bucket_epoch_s,
+                                predicted_price,
+                                actual_price,
+                                abs_error,
+                                generated_at_utc
+                            )
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            insert_rows,
+                        )
+                        forecast_conn.commit()
+                        predictions_written += len(insert_rows)
 
-                            holdout_rmse = holdout_metrics["rmse"]
-                            holdout_rmse_txt = f"{holdout_rmse:.8f}" if holdout_rmse is not None else "n/a"
+                    if args.log_pair_details:
+                        holdout_rmse = holdout_metrics.get("rmse")
+                        holdout_rmse_txt = f"{holdout_rmse:.8f}" if holdout_rmse is not None else "n/a"
+                        log(
+                            "INFO",
+                            f"Trained model exchange={exchange_id} symbol={symbol} "
+                            f"model={model_name} horizon_s={horizon_seconds} "
+                            f"holdout_rmse={holdout_rmse_txt} predictions={len(prediction_rows)}",
+                        )
+
+                maybe_log_progress()
+
+            if args.workers == 1:
+                for idx, task in enumerate(worker_tasks, start=1):
+                    if args.log_pair_details:
+                        log(
+                            "INFO",
+                            f"Pair {idx}/{len(worker_tasks)} exchange={task.exchange_id} "
+                            f"symbol={task.symbol} cleansing_rows={task.cleansing_rows}",
+                        )
+                    try:
+                        pair_result = process_pair_task(task)
+                    except Exception as exc:  # noqa: BLE001
+                        pair_result = build_pair_worker_exception_result(
+                            task=task,
+                            model_names=model_names,
+                            error_message=f"worker_exception:{exc!r}",
+                        )
+                    persist_pair_result(pair_result)
+            else:
+                with concurrent.futures.ProcessPoolExecutor(
+                    max_workers=int(args.workers),
+                    mp_context=multiprocessing.get_context("spawn"),
+                ) as executor:
+                    future_to_task: dict[concurrent.futures.Future[dict[str, Any]], PairWorkerTask] = {}
+                    for idx, task in enumerate(worker_tasks, start=1):
+                        if args.log_pair_details:
                             log(
                                 "INFO",
-                                f"Trained model exchange={pair.exchange_id} symbol={pair.symbol} "
-                                f"model={model_name} horizon_s={horizon_seconds} "
-                                f"holdout_rmse={holdout_rmse_txt} predictions={len(insert_rows)}",
+                                f"Queue pair {idx}/{len(worker_tasks)} exchange={task.exchange_id} "
+                                f"symbol={task.symbol} cleansing_rows={task.cleansing_rows}",
                             )
-                            maybe_log_progress()
-                        except Exception as exc:  # noqa: BLE001
-                            failed_models.append(
-                                {
-                                    "exchange_id": pair.exchange_id,
-                                    "symbol": pair.symbol,
-                                    "model_name": model_name,
-                                    "horizon_seconds": horizon_seconds,
-                                    "error": repr(exc),
-                                }
-                            )
-                            insert_model_registry_row(
-                                forecast_conn,
-                                training_run_id=training_run_id,
-                                exchange_id=pair.exchange_id,
-                                symbol=pair.symbol,
-                                model_name=model_name,
-                                horizon_steps=horizon_step,
-                                horizon_seconds=horizon_seconds,
-                                artifact_path=Path(""),
-                                feature_config={
-                                    "bin_seconds": int(bin_seconds),
-                                    "horizon_steps": int(horizon_step),
-                                    "horizon_seconds": int(horizon_seconds),
-                                    "lag_steps": lag_steps,
-                                    "rolling_windows": rolling_windows,
-                                    "feature_columns": feature_columns,
-                                    "training_cutoff_utc": training_cutoff_utc,
-                                },
-                                train_rows=0,
-                                test_rows=0,
-                                cv_fold_count=0,
-                                holdout_metrics={"mae": None, "rmse": None, "mape": None, "r2": None},
-                                cv_mean_metrics={"mae": None, "rmse": None, "mape": None, "r2": None},
-                                status="failed",
-                                error_message=repr(exc),
-                            )
-                            log(
-                                "ERROR",
-                                f"Model failed exchange={pair.exchange_id} symbol={pair.symbol} "
-                                f"model={model_name} horizon_s={horizon_seconds} error={exc!r}",
-                            )
-                            if not model_slot_counted:
-                                failed_model_slots += 1
-                                processed_model_slots += 1
-                            maybe_log_progress()
+                        future = executor.submit(process_pair_task, task)
+                        future_to_task[future] = task
 
-                if pair_trained_models > 0:
-                    series_trained += 1
-                processed_pairs += 1
-                last_completed_pair = f"{pair.exchange_id}:{pair.symbol}"
-                maybe_log_progress()
+                    for future in concurrent.futures.as_completed(future_to_task):
+                        task = future_to_task[future]
+                        try:
+                            pair_result = future.result()
+                        except Exception as exc:  # noqa: BLE001
+                            pair_result = build_pair_worker_exception_result(
+                                task=task,
+                                model_names=model_names,
+                                error_message=f"worker_exception:{exc!r}",
+                            )
+                        persist_pair_result(pair_result)
 
             maybe_log_progress(force=True)
 

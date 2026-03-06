@@ -18,8 +18,15 @@ python scripts/6_forecasting/train_staging_models_and_forecasts.py \
   --staging-glob "data/staging/staging_export_*_last_*.db" \
   --cleansing-db data/cleansing/latest_cleansing.db \
   --forecast-db data/core/core_kpi.db \
+  --workers 4 \
+  --progress \
+  --progress-interval-seconds 30 \
   --secondary-horizon-multiple 30
 ```
+
+Parallel execution model:
+- `--workers` controls per-pair process parallelism for training/inference compute.
+- SQLite writes for model registry and forecast rows remain single-writer in the main process.
 
 ## Output Artifacts
 - Model artifacts (`joblib`) under `data/forecasting/models/<run_id>/...`

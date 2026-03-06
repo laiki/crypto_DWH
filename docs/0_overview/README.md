@@ -107,6 +107,7 @@ python scripts/6_forecasting/train_staging_models_and_forecasts.py \
   --cleansing-db "$LATEST_CDB" \
   --forecast-db "$LATEST_CORE" \
   --model-dir "scripts/data/forecasting/models" \
+  --workers 4 \
   --progress \
   --progress-interval-seconds 30
 ```
@@ -218,6 +219,7 @@ python 6_forecasting/train_staging_models_and_forecasts.py \
   --cleansing-db "$LATEST_CDB" \
   --forecast-db "$LATEST_CORE" \
   --model-dir "data/forecasting/models" \
+  --workers 4 \
   --progress \
   --progress-interval-seconds 30
 

@@ -36,6 +36,17 @@ Last updated: 2026-03-05
      - includes full command variant for execution from `scripts/` directory
      - adds LR directed end-to-end Mermaid flow with per-phase subgraphs and script-level nodes
 
+4. Parallelized forecasting training/inference execution with configurable worker count.
+   - Artifacts:
+     - `scripts/6_forecasting/train_staging_models_and_forecasts.py`
+     - `scripts/6_forecasting/README.md`
+     - `docs/0_overview/README.md`
+   - Scope:
+     - added `--workers` argument for configurable process parallelism
+     - implemented process-pool fanout per `(exchange_id, symbol)` with robust `spawn` context
+     - kept SQLite writes in single-writer main process to avoid write contention
+     - updated runbook and forecasting examples to include parallel execution parameters
+
 ## Completed in This Session (2026-03-04)
 1. Made staging window anchoring robust against ingestion gaps.
    - Artifacts:
