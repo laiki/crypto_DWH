@@ -6,10 +6,14 @@ Tag 1 der Projektarbeit
   Die Architektur hat sich ende Letzter Woche geändert und soll die ETL Prozesse Daten über Redis key/value publish/subscribe Mechanismen routen.
   Bisher wurden Daten von den Handelsplattformen empfangen und direkt in eine SQLite DB geschrieben.
   Die Neue Architektur sieht vor, diesen Prozess aufzuteilen. 
-  Daten können dann von unterschiedlichen Plattformen und Quellen über eine Redis Instanz (soll im Docker Container laufen) publisht.
+  Daten können dann von unterschiedlichen Plattformen und Quellen über eine Redis Instanz (soll im Docker/Podman Container laufen) publisht.
   Subscriber lesen die Daten und bringen sie in das gewünschte Format, um sie in der Datenbank zu speichern.
   
   Außerdem, soll die Datenarchitektur "Vault 2.0" zum Einsatz kommen um Datenbank Zugriffe performanter zu gestallten. 
+
+- Prove of Concept (PoC) der neue Architektur umsetzen. 
+  Verwendung von Podman statt Docker um Redis zu starten. 
+  Skripte für Umgang mit Redis anpassen.
   
 - Datensammlung über Nacht starten 
   Die vergangenen 2 Wochen haben gezeigt, dass 
