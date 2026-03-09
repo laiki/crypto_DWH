@@ -1,0 +1,47 @@
+Tag 1 der Projektarbeit
+
+- Projektvorstellung vorbereiten
+  An dem Projekt wurde schon seit 2 Wochen gearbeitet. 
+  Es steht unter https://github.com/laiki/crypto_DWH/ als open source Projekt mit MIT Lizenz z.V.
+  Die Architektur hat sich ende Letzter Woche geändert und soll die ETL Prozesse Daten über Redis key/value publish/subscribe Mechanismen routen.
+  Bisher wurden Daten von den Handelsplattformen empfangen und direkt in eine SQLite DB geschrieben.
+  Die Neue Architektur sieht vor, diesen Prozess aufzuteilen. 
+  Daten können dann von unterschiedlichen Plattformen und Quellen über eine Redis Instanz (soll im Docker Container laufen) publisht.
+  Subscriber lesen die Daten und bringen sie in das gewünschte Format, um sie in der Datenbank zu speichern.
+  
+  Außerdem, soll die Datenarchitektur "Vault 2.0" zum Einsatz kommen um Datenbank Zugriffe performanter zu gestallten. 
+  
+- Datensammlung über Nacht starten 
+  Die vergangenen 2 Wochen haben gezeigt, dass 
+	a) ein lokaler Prozess aus dem Heimnetzwerk nicht sinnvoll möglich ist da der Internetprovider nachts kurzfristig die Verbindung neu aufbaut. (IP-reset)
+		Prozesse die kontinuierlich Daten über Internet-Socketverbindungen wie Web-Sockets, RestAPIs empfangen, werden dadurch unterbrochen.
+		Eine Fehlerbehandlung zum Wiederaufbau der Verbindungen ist zwar technisch möglich, jedoch aufwändig, fehlernfällig, schlecht debugbar und außerdem fehlen Daten für den entsprechenden Zeitraum.
+		Die beste Lösung scheint den Prozess auf einen gehosteten Server laufen zu lassen. z.B. Contabo für knapp 5€/Monat.
+	b) Eine sehr hohe Menge an Daten zusammengetragen wird. 
+		Erste Tests ließen vermuten, dass ohne Filterung auf Symbole und Handelsplattformen mit ca. 90GB/Tag an Daten zu rechnen ist. 
+		Wenn logging im DEBUG Level läuft, kann durchaus mit doppelt so viel Festplattenplatz gerechnet werden.
+		Ich habe mich daher entschieden, eine ausgewählte Liste von Symbolen abzufragen. 
+		Diese sind BTC/*, ETH/*, SOL/*, ADA/*
+
+
+- Umsetzungsplan der nächsten Tage dokumentieren
+  Der Plan sieht folgendermaßen aus:
+  - Tag 1: 
+		Neue Architektur dokumentieren 
+		Diagramme updaten
+		Skripte anpassen
+		1 Stunde Datensammlung für einen Testlauf
+		Präsentation Überarbeiten
+		Datensammlung über Nacht starten
+		
+  - Tag 2:
+		Daten-Pipeline laufen lassen
+		Ergebnisse im Dashboard prüfen
+		ML forecast Modelle trainieren
+		forecasts durchführen und in DB speichern
+		Dashboard um forecasts erweitern
+  - Tag 3:
+		Weitere Arbeiten an ML forecasts
+		Wenn möglich Deep Learning forecasts hinzufügen
+  - Tag 4:
+		Präsentation
