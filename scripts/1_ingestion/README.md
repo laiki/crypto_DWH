@@ -7,6 +7,9 @@ This folder contains the websocket ingestion runtime and auto-sharding orchestra
 - `ingest_all_exchanges_ws.py`
 - `orchestrator_auto_shard.py`
 - `ingestion_common.py`
+- `poc_ccxt_to_redis_stream.py`
+- `poc_redis_stream_to_vault_writer.py`
+- `docker-compose.redis.yml`
 
 ## What changed in VAULT 2.0
 
@@ -63,3 +66,52 @@ python scripts/1_ingestion/ingest_all_exchanges_ws.py \
 ## Operational note
 
 For best throughput and deterministic ownership of partition files, each exchange should be assigned to exactly one worker (handled by the orchestrator shard plan).
+
+## Redis Stream PoC (Decoupled Ingestion)
+
+Important startup order:
+1. Start Redis.
+2. Start `poc_redis_stream_to_vault_writer.py` first.
+3. Start `poc_ccxt_to_redis_stream.py` afterwards.
+
+Reason:
+- Starting the writer first ensures events are consumed immediately and persisted to VAULT without backlog buildup.
+- It also ensures DLQ and retry handling are active from the first published event.
+
+Start Redis locally:
+
+```bash
+docker compose -f scripts/1_ingestion/docker-compose.redis.yml up -d
+```
+
+Start Redis consumer (stream to VAULT writer):
+
+```bash
+python scripts/1_ingestion/poc_redis_stream_to_vault_writer.py \
+  --redis-url redis://localhost:6379/0 \
+  --stream ingest:events:v1 \
+  --group cg.vault_writer \
+  --consumer writer-1 \
+  --dlq-stream ingest:events:dlq:v1 \
+  --vault-root data/vault2_redis_poc \
+  --vault-layer ingestion \
+  --log-level INFO
+```
+
+Start ccxt publisher (ccxt to Redis stream):
+
+```bash
+python scripts/1_ingestion/poc_ccxt_to_redis_stream.py \
+  --redis-url redis://localhost:6379/0 \
+  --stream ingest:events:v1 \
+  --exchange binance \
+  --symbols "BTC/%,ETH/%,SOL/%,ADA/%" \
+  --only-spot \
+  --max-symbols 100 \
+  --log-level INFO
+```
+
+Result paths:
+- stream input: `ingest:events:v1`
+- DLQ stream: `ingest:events:dlq:v1`
+- VAULT output root: `data/vault2_redis_poc/`

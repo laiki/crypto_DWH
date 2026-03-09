@@ -394,3 +394,39 @@ Dashboard delivery is now prioritized before forecasting so that already collect
      - `docs/5_marts/mart_kpi_extracts.md`
      - `docs/5_marts/symbol_deviation_mart_use_case.md`
      - `docs/7_presentation/crypto_dwh_data_engineering_leitfaden_slides.md`
+
+## Update 2026-03-09 (Redis PoC Ingestion Decoupling)
+1. Implemented minimal ccxt-to-Redis publisher PoC.
+   - Artifact:
+     - `scripts/1_ingestion/poc_ccxt_to_redis_stream.py`
+   - Scope:
+     - watches one exchange with symbol selection via SQL-like patterns
+       (`--symbols` with `%` and `_`)
+     - publishes `tick` and `connection_event` envelopes to `ingest:events:v1`
+     - includes schema fields and deterministic `dedup_key`
+
+2. Implemented Redis consumer group writer PoC for VAULT.
+   - Artifact:
+     - `scripts/1_ingestion/poc_redis_stream_to_vault_writer.py`
+   - Scope:
+     - reads via `XREADGROUP`
+     - writes into VAULT-style partition DBs and manifest
+     - idempotency via `processed_event_keys`
+     - DLQ handoff to `ingest:events:dlq:v1` after retry exhaustion
+
+3. Added Redis local runtime scaffold and docs.
+   - Artifacts:
+     - `scripts/1_ingestion/docker-compose.redis.yml`
+     - `scripts/1_ingestion/README.md`
+     - `docs/0_overview/redis_event_contract.md`
+     - `diagrams/0_overview/uml_sequence_redis_stream_ingestion_contract.mmd`
+   - Scope:
+     - minimal operational commands for Redis, publisher, and writer
+     - explicit startup order: Redis -> writer consumer -> publisher
+     - contract and sequence sketch for rollout alignment
+
+4. Extended dependencies for PoC runtime.
+   - Artifact:
+     - `requirements.txt`
+   - Scope:
+     - added `redis`

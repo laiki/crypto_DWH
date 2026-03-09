@@ -119,3 +119,7 @@ The proposed Redis-based ingestion split is a strong architectural option:
 ### Diagrams
 - `diagrams/0_overview/uml_architecture_ingestion_redis_decoupling_architecture_beta.mmd`
 - `diagrams/0_overview/uml_architecture_ingestion_redis_decoupling_flowchart.mmd`
+- `diagrams/0_overview/uml_sequence_redis_stream_ingestion_contract.mmd`
+
+### Contract Sketch
+- `docs/0_overview/redis_event_contract.md`
