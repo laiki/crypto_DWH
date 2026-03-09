@@ -26,7 +26,42 @@ python -m pip install --upgrade ccxt
 python -c "import ccxt, ccxt.pro as p; print(ccxt.__version__, len(p.exchanges))"
 ```
 
-## Direct ingestion example
+## Runtime Modes
+
+Two ingestion modes exist:
+
+- Direct VAULT path:
+  - `ingest_all_exchanges_ws.py` writes directly into VAULT partitions.
+  - `orchestrator_auto_shard.py` is the recommended entrypoint for direct mode because it spawns and supervises worker processes automatically.
+- Redis-decoupled path:
+  - `poc_ccxt_to_redis_stream.py` publishes events into Redis Streams.
+  - `poc_redis_stream_to_vault_writer.py` consumes Redis events and writes them into VAULT.
+
+All commands below assume execution from the repository root.
+
+## Direct VAULT Path
+
+### Recommended startup order
+
+Use exactly one direct startup variant for a given run:
+
+1. Start `orchestrator_auto_shard.py` for the normal multi-worker runtime.
+2. Use `ingest_all_exchanges_ws.py` only when you intentionally want a single-process/manual run instead of the orchestrator.
+
+Do not start `orchestrator_auto_shard.py` and a manual `ingest_all_exchanges_ws.py` process for the same exchange scope at the same time unless duplicate ingestion is explicitly intended.
+
+### Direct path: orchestrated runtime (recommended)
+
+This is the preferred direct path. The orchestrator calculates the shard plan and starts worker processes internally, so no second ingestion command needs to be started manually.
+
+```bash
+python scripts/1_ingestion/orchestrator_auto_shard.py \
+  --vault-root data/vault2 \
+  --workers 4 \
+  --log-level INFO
+```
+
+### Direct path: manual single-process runtime
 
 ```bash
 python scripts/1_ingestion/ingest_all_exchanges_ws.py \
@@ -34,15 +69,6 @@ python scripts/1_ingestion/ingest_all_exchanges_ws.py \
   --vault-layer ingestion \
   --exchanges binance,kraken \
   --symbols "BTC/USDT,%btc/%" \
-  --log-level INFO
-```
-
-## Orchestrated ingestion example
-
-```bash
-python scripts/1_ingestion/orchestrator_auto_shard.py \
-  --vault-root data/vault2 \
-  --workers 4 \
   --log-level INFO
 ```
 
@@ -69,22 +95,31 @@ For best throughput and deterministic ownership of partition files, each exchang
 
 ## Redis Stream PoC (Decoupled Ingestion)
 
-Important startup order:
+### Required startup order
+
 1. Start Redis.
-2. Start `poc_redis_stream_to_vault_writer.py` first.
-3. Start `poc_ccxt_to_redis_stream.py` afterwards.
+2. Start `poc_redis_stream_to_vault_writer.py`.
+3. Start `poc_ccxt_to_redis_stream.py`.
 
 Reason:
 - Starting the writer first ensures events are consumed immediately and persisted to VAULT without backlog buildup.
 - It also ensures DLQ and retry handling are active from the first published event.
 
-Start Redis locally:
+### Start Redis locally
+
+Using Podman:
+
+```bash
+podman compose -f scripts/1_ingestion/docker-compose.redis.yml up -d
+```
+
+Using Docker:
 
 ```bash
 docker compose -f scripts/1_ingestion/docker-compose.redis.yml up -d
 ```
 
-Start Redis consumer (stream to VAULT writer):
+### Start Redis consumer (stream to VAULT writer)
 
 ```bash
 python scripts/1_ingestion/poc_redis_stream_to_vault_writer.py \
@@ -98,7 +133,7 @@ python scripts/1_ingestion/poc_redis_stream_to_vault_writer.py \
   --log-level INFO
 ```
 
-Start ccxt publisher (ccxt to Redis stream):
+### Start ccxt publisher (ccxt to Redis stream)
 
 ```bash
 python scripts/1_ingestion/poc_ccxt_to_redis_stream.py \

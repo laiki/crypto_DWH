@@ -37,6 +37,47 @@ Recommended startup sequence for the PoC and initial production rollout:
 
 This order guarantees that persistence, retries, and DLQ handoff are active before the first source events arrive.
 
+Reference runtime commands from repo root:
+
+Start Redis with Podman:
+
+```bash
+podman compose -f scripts/1_ingestion/docker-compose.redis.yml up -d
+```
+
+Start Redis with Docker:
+
+```bash
+docker compose -f scripts/1_ingestion/docker-compose.redis.yml up -d
+```
+
+Start the VAULT writer consumer:
+
+```bash
+python scripts/1_ingestion/poc_redis_stream_to_vault_writer.py \
+  --redis-url redis://localhost:6379/0 \
+  --stream ingest:events:v1 \
+  --group cg.vault_writer \
+  --consumer writer-1 \
+  --dlq-stream ingest:events:dlq:v1 \
+  --vault-root data/vault2_redis_poc \
+  --vault-layer ingestion \
+  --log-level INFO
+```
+
+Start the ccxt publisher afterwards:
+
+```bash
+python scripts/1_ingestion/poc_ccxt_to_redis_stream.py \
+  --redis-url redis://localhost:6379/0 \
+  --stream ingest:events:v1 \
+  --exchange binance \
+  --symbols "BTC/%,ETH/%,SOL/%,ADA/%" \
+  --only-spot \
+  --max-symbols 100 \
+  --log-level INFO
+```
+
 ## Envelope Schema (All Event Types)
 Required top-level fields:
 
