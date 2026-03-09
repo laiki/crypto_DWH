@@ -107,11 +107,21 @@ Reason:
 
 ### Start Redis locally
 
-Using Podman:
+Using Podman helper script (recommended when `podman compose` provider is not installed):
+
+```bash
+scripts/1_ingestion/start_redis_podman.sh
+```
+
+Using Podman Compose:
 
 ```bash
 podman compose -f scripts/1_ingestion/docker-compose.redis.yml up -d
 ```
+
+Note:
+- `podman compose` requires a compose provider (`podman-compose` or `docker-compose`) on the host.
+- If `podman compose` fails with `looking up compose provider failed`, use `scripts/1_ingestion/start_redis_podman.sh` instead.
 
 Using Docker:
 
