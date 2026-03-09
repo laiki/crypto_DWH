@@ -1,8 +1,8 @@
-# Forecasting Scripts (VAULT 2.0)
+# Forecasting Scripts (Staging and Cleansing)
 
 ## Files
 
-- `train_staging_models_and_forecasts.py`: trains models from VAULT 2.0 ingestion history and writes forecasting outputs to the forecast DB.
+- `train_staging_models_and_forecasts.py`: trains models from staging history, runs inference on cleansing series, and writes forecasting outputs to the forecast DB.
 
 ## Models
 
@@ -11,8 +11,7 @@
 
 ## Input requirements
 
-- VAULT manifest DB (`<vault-root>/meta/vault_manifest.db`)
-- VAULT ingestion partition files referenced by the manifest
+- One staging SQLite DB (`market_ticks`)
 - One cleansing SQLite DB (`cleansed_market`)
 - Forecast output DB (typically Core DB), writable
 
@@ -20,8 +19,7 @@
 
 ```bash
 python scripts/6_forecasting/train_staging_models_and_forecasts.py \
-  --vault-root data/vault2 \
-  --vault-layer ingestion \
+  --staging-db data/staging/latest_staging.db \
   --cleansing-db data/cleansing/latest_cleansing.db \
   --forecast-db data/core/core_kpi.db \
   --model-dir data/forecasting/models \
@@ -44,7 +42,7 @@ python scripts/6_forecasting/train_staging_models_and_forecasts.py \
 ## Output artifacts
 
 - Model artifacts (`joblib`) under `data/forecasting/models/<run_id>/...`
-- Registry metadata and metrics in forecast tables / view (`model_artifacts`)
+- Registry metadata and metrics in forecast tables / view (`model_artifacts`) inside the forecast DB
 - Forecast rows (`forecast_predictions`) for dashboard overlays
 
 ## Evaluation logic

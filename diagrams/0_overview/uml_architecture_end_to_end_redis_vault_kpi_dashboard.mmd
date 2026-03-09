@@ -1,0 +1,68 @@
+flowchart LR
+    classDef proc fill:#e8f4ff,stroke:#1f78b4,stroke-width:1px,color:#0b2239
+    classDef db fill:#eef7ea,stroke:#2e7d32,stroke-width:1px,color:#0d2b10
+    classDef bus fill:#fff3e0,stroke:#ef6c00,stroke-width:1px,color:#4e2b00
+    classDef meta fill:#fff8e1,stroke:#f9a825,stroke-width:1px,color:#4e3600
+
+    subgraph SRC["Sources"]
+        EX[(CCXT exchanges)]:::db
+    end
+
+    subgraph ETL["1. ETL / Ingestion"]
+        PUB[ccxt publisher<br/>poc_ccxt_to_redis_stream.py]:::proc
+        REDIS[(Redis Streams bus<br/>short-lived buffer)]:::bus
+        WRITER[VAULT writer<br/>poc_redis_stream_to_vault_writer.py]:::proc
+        VAULT[(VAULT2 partitions<br/>and manifest)]:::db
+    end
+
+    subgraph STG["2. Staging"]
+        STGPROC[staging_exporter.py]:::proc
+        STGDB[(Staging DB)]:::db
+    end
+
+    subgraph CLN["3. Cleansing"]
+        CLNPROC[cleansing_resample.py]:::proc
+        CLNDB[(Cleansing DB)]:::db
+    end
+
+    subgraph CORE["4. Core"]
+        COREPROC[build_core_db.py<br/>core_pipeline.py]:::proc
+        KPI[(KPI DB<br/>core_kpi + forecast tables)]:::db
+    end
+
+    subgraph MARTS["5. Marts"]
+        MARTPROC[build_dashboard_cache.py]:::proc
+        CACHE[(Dashboard caches<br/>views / OLAP extracts)]:::meta
+        DASH[dashboard_mvp_app.py]:::proc
+    end
+
+    subgraph FC["6. Forecasting"]
+        TRAIN[train_staging_models_and_forecasts.py]:::proc
+        MODELS[(Model artifacts)]:::meta
+    end
+
+    EX --> PUB
+    PUB --> REDIS
+    REDIS --> WRITER
+    WRITER --> VAULT
+
+    VAULT --> STGPROC
+    STGPROC --> STGDB
+
+    STGDB --> CLNPROC
+    CLNPROC --> CLNDB
+
+    STGDB --> COREPROC
+    CLNDB --> COREPROC
+    COREPROC --> KPI
+
+    KPI --> MARTPROC
+    MARTPROC --> CACHE
+    CACHE --> DASH
+
+    STGDB --> TRAIN
+    CLNDB --> TRAIN
+    TRAIN --> MODELS
+    TRAIN --> KPI
+
+    KPI --> DASH

@@ -1,7 +1,6 @@
 flowchart TD
     subgraph SRC["Source Data"]
-        MAN["VAULT Manifest<br/>vault_manifest.db"]
-        PART["VAULT Partitions<br/>exchange/date/hour SQLite files"]
+        STG["Staging DB<br/>market_ticks training history"]
         CLEAN["Cleansing DB<br/>reference run and inference rows"]
         COREIN["Forecast DB target<br/>core_kpi_*.db"]
     end
@@ -9,7 +8,6 @@ flowchart TD
     subgraph TRAIN["Forecast Training Domain"]
         ORCH["Training Orchestrator"]
         CUT["Cutoff Resolver<br/>min cleansing bucket_start_utc"]
-        DISC["Manifest-Pruned Partition Discovery"]
         LOAD["History Loader<br/>ts < cutoff"]
         RES["In-Memory Resampler<br/>target cadence"]
         FEAT["Feature Engineering"]
@@ -25,10 +23,8 @@ flowchart TD
     end
 
     CLEAN --> CUT
-    MAN --> DISC
-    CUT --> DISC
-    DISC --> LOAD
-    PART --> LOAD
+    CUT --> LOAD
+    STG --> LOAD
 
     LOAD --> RES
     RES --> FEAT
@@ -41,7 +37,6 @@ flowchart TD
     PRED --> PREDS
 
     ORCH --> CUT
-    ORCH --> DISC
     ORCH --> LOAD
     ORCH --> MODELS
     ORCH --> PRED
