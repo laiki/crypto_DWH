@@ -7,3 +7,4 @@ cairosvg
 Pillow
 scikit-learn
 pandas-ta
+redis

@@ -1,0 +1,23 @@
+sequenceDiagram
+    autonumber
+    participant COL as ccxt collector
+    participant REDIS as Redis Stream ingest:events:v1
+    participant CG as Consumer Group cg.vault_writer
+    participant WRITER as Vault writer consumer
+    participant VAULT as VAULT partitions and manifest
+    participant DLQ as Redis Stream ingest:events:dlq:v1
+
+    COL->>COL: Build envelope and dedup_key
+    COL->>REDIS: XADD event
+
+    WRITER->>REDIS: XREADGROUP from cg.vault_writer
+    REDIS-->>WRITER: event batch
+    WRITER->>WRITER: Validate schema and check idempotency
+
+    alt write succeeds
+        WRITER->>VAULT: Insert tick or connection_event
+        WRITER->>REDIS: XACK processed IDs
+    else write fails repeatedly
+        WRITER->>DLQ: XADD original event plus error metadata
+        WRITER->>REDIS: XACK failed IDs after DLQ handoff
+    end

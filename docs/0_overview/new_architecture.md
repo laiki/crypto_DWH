@@ -89,3 +89,37 @@ CREATE INDEX idx_pairs_lookup
 3. Maintain manifest entries when writing partitions.
 4. Move staging, forecasting, and core readers to manifest pruning.
 5. Remove legacy monolithic access paths.
+
+## Event-Backbone Option (Redis Decoupling)
+The proposed Redis-based ingestion split is a strong architectural option:
+
+1. Producers:
+   - ccxt websocket collectors publish market ticks and connection events.
+   - additional external adapters can publish into the same event contracts.
+2. Backbone:
+   - Redis PubSub for low-latency fan-out.
+   - Redis Streams for durability, replay, and dead-letter handling.
+3. Processing:
+   - schema validation, dedup/idempotency, and normalization happen before sink writes.
+4. Sinks:
+   - dedicated writer services persist into SQLite VAULT (current), Postgres, or data lake.
+
+### Why this is useful
+1. Source and storage are decoupled.
+2. Adding a new source does not require DB-writer changes.
+3. Switching DB technology does not require source-collector changes.
+4. Replay and backfill become operationally manageable (with Streams).
+
+### Design cautions
+1. Keep a strict event schema version (`event_type`, `schema_version`, `exchange`, `symbol`, `ts`, payload).
+2. Enforce idempotent writes in sink services (dedup key per event).
+3. Prefer Redis Streams over PubSub for critical persistence paths.
+4. Add consumer lag and DLQ monitoring from day one.
+
+### Diagrams
+- `diagrams/0_overview/uml_architecture_ingestion_redis_decoupling_architecture_beta.mmd`
+- `diagrams/0_overview/uml_architecture_ingestion_redis_decoupling_flowchart.mmd`
+- `diagrams/0_overview/uml_sequence_redis_stream_ingestion_contract.mmd`
+
+### Contract Sketch
+- `docs/0_overview/redis_event_contract.md`
