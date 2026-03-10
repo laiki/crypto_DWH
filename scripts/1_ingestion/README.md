@@ -97,6 +97,11 @@ python scripts/1_ingestion/ingest_all_exchanges_ws.py \
 
 For best throughput and deterministic ownership of partition files, each exchange should be assigned to exactly one worker (handled by the orchestrator shard plan).
 
+Supervisor behavior:
+- Worker processes that exit with a non-zero code are restarted with backoff.
+- Worker processes that exit with code `0` are treated as completed runs and are not restarted.
+- In orchestrated mode, `--duration-seconds` is forwarded to worker processes; the supervisor exits after all workers finish successfully.
+
 ## Redis Stream Product Path (Decoupled Ingestion)
 
 Redis in this mode is an operational buffer only.
@@ -222,3 +227,6 @@ Result paths:
 - DLQ stream: `ingest:events:dlq:v1`
 - VAULT output root: `data/vault2_redis/`
 - long-term persistence target: `data/vault2_redis/`
+
+Repository note:
+- Paths under `data/` are local runtime artifacts and are not intended to be tracked in Git.

@@ -764,6 +764,7 @@ def supervise_workers(worker_plans: list[WorkerPlan], args: argparse.Namespace) 
             "log_handle": handle,
             "restart_count": 0,
             "next_restart_ts": 0.0,
+            "completed": False,
         }
         LOGGER.info(
             "Spawned worker %s | exchanges=%s | pid=%s | log=%s",
@@ -776,9 +777,19 @@ def supervise_workers(worker_plans: list[WorkerPlan], args: argparse.Namespace) 
     try:
         while not stop_requested:
             for worker_id, runtime in runtimes.items():
+                if runtime["completed"]:
+                    continue
                 process: subprocess.Popen[Any] = runtime["process"]
                 return_code = process.poll()
                 if return_code is None:
+                    continue
+                if return_code == 0:
+                    runtime["completed"] = True
+                    LOGGER.info("Worker %s completed successfully.", worker_id)
+                    if all(item["completed"] for item in runtimes.values()):
+                        LOGGER.info("All workers completed successfully. Stopping supervisor.")
+                        stop_requested = True
+                        break
                     continue
                 now = time.monotonic()
                 if now < runtime["next_restart_ts"]:

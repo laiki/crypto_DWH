@@ -906,6 +906,9 @@ async def async_main(args: argparse.Namespace) -> None:
             await asyncio.sleep(1.0)
     finally:
         stop_event.set()
+        for task in exchange_tasks:
+            if not task.done():
+                task.cancel()
         await asyncio.gather(*exchange_tasks, return_exceptions=True)
         await queue.join()
         await publisher_task
