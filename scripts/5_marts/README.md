@@ -63,6 +63,14 @@ If present, `data/core/core_kpi.db` is selected by default.
 You can switch to another discovered Core DB or choose `Custom path...` and enter a path manually.
 If the default DB is not found, the app still falls back automatically to `scripts/data/core/core_kpi.db`.
 
+For raw-ingestion fallback panels, the default ingestion path is now `data/vault2_redis`.
+The dashboard accepts:
+- a VAULT root such as `data/vault2_redis`
+- a directory that contains raw SQLite DBs
+- or a single SQLite DB file
+
+When a VAULT root is provided, the dashboard discovers partition DBs recursively under `ingestion/**/part_*.db`.
+
 Runtime behavior:
 - symbol start page can render violin distributions of `price_diff_pct` per symbol (selected run/window)
 - price curve and price deviation are computed for a selected `run_id` and selectable UTC window

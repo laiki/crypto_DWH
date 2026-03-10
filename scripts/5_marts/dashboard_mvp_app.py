@@ -26,7 +26,7 @@ import streamlit as st
 SCRIPT_FILE_PATH = Path(__file__).resolve()
 REPO_ROOT = SCRIPT_FILE_PATH.parents[2]
 DEFAULT_DB_PATH = Path(os.getenv("CORE_DB_PATH", "data/core/core_kpi.db"))
-DEFAULT_INGESTION_DB_PATH = Path(os.getenv("INGESTION_DB_PATH", "scripts/data/"))
+DEFAULT_INGESTION_DB_PATH = Path(os.getenv("INGESTION_DB_PATH", "data/vault2_redis"))
 THEME_OPTIONS = ("Dark", "Light")
 PAGINATION_SIGNATURE_STATE_KEY = "violin_page_signature_v1"
 VIOLIN_PAGE_NUMBER_STATE_KEY = "violin_page_number_v1"
@@ -800,11 +800,23 @@ def _discover_ingestion_db_files(ingestion_db_path: Path) -> list[Path]:
         )
         if worker_db_files:
             return worker_db_files
-        return sorted(
+        legacy_flat_db_files = sorted(
             db_file
             for db_file in ingestion_db_path.glob("*crypto_ws_ticks.db")
             if db_file.is_file()
         )
+        if legacy_flat_db_files:
+            return legacy_flat_db_files
+
+        vault_ingestion_dir = ingestion_db_path / "ingestion"
+        search_root = vault_ingestion_dir if vault_ingestion_dir.is_dir() else ingestion_db_path
+        partition_db_files = sorted(
+            db_file
+            for db_file in search_root.rglob("part_*.db")
+            if db_file.is_file()
+        )
+        if partition_db_files:
+            return partition_db_files
     return []
 
 
@@ -1035,7 +1047,7 @@ def main() -> None:
         else:
             db_path_raw = selected_db_option
         ingestion_db_path_raw = st.text_input(
-            "Ingestion SQLite path (raw file or directory)",
+            "Ingestion SQLite path (VAULT root, raw DB file, or directory)",
             str(DEFAULT_INGESTION_DB_PATH),
         )
         if st.button("Refresh Query Cache"):
@@ -1090,7 +1102,7 @@ def main() -> None:
 
         if ingestion_db_path.is_dir():
             st.caption(f"Raw ingestion directory: {ingestion_db_path}")
-            st.caption(f"Worker raw DB files: {len(ingestion_db_files)}")
+            st.caption(f"Raw ingestion DB files: {len(ingestion_db_files)}")
         elif ingestion_db_path.is_file():
             st.caption(f"Raw ingestion DB: {ingestion_db_path}")
         else:
@@ -1730,8 +1742,9 @@ def main() -> None:
                         )
                     elif ingestion_db_path.is_dir() and not ingestion_db_files:
                         raw_overlay_error_message = (
-                            "No worker raw DB files found in ingestion directory "
-                            f"{ingestion_db_path} (expected pattern: worker_*_crypto_ws_ticks.db)."
+                            "No raw ingestion DB files found in ingestion path "
+                            f"{ingestion_db_path} "
+                            "(expected legacy raw DBs or VAULT partitions under ingestion/**/part_*.db)."
                         )
                     else:
                         raw_window_start_utc = price_curve_plot["bucket_start_utc"].min().isoformat()
