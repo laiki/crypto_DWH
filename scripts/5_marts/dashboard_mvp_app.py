@@ -29,6 +29,7 @@ DEFAULT_DB_PATH = Path(os.getenv("CORE_DB_PATH", "data/core/core_kpi.db"))
 DEFAULT_INGESTION_DB_PATH = Path(os.getenv("INGESTION_DB_PATH", "scripts/data/"))
 THEME_OPTIONS = ("Dark", "Light")
 PAGINATION_SIGNATURE_STATE_KEY = "violin_page_signature_v1"
+VIOLIN_PAGE_NUMBER_STATE_KEY = "violin_page_number_v1"
 OBSERVED_QUALITY_BANDS = ("0-50%", "50-75%", "75-90%", "90-100%")
 
 DARK_THEME_CSS = """
@@ -132,6 +133,10 @@ PLOTLY_CHART_CONFIG = {
 CORE_DB_FALLBACK_RELATIVE_PATHS = (
     Path("data/core/core_kpi.db"),
     Path("scripts/data/core/core_kpi.db"),
+)
+CORE_DB_DISCOVERY_RELATIVE_DIRS = (
+    Path("data/core"),
+    Path("scripts/data/core"),
 )
 
 SQL_PLATFORM_QUALITY_DAILY_CACHE = """
@@ -969,10 +974,47 @@ def _resolve_core_db_path(db_path_raw: str) -> tuple[Path, list[Path]]:
     return ordered_candidates[0], ordered_candidates
 
 
+def _discover_core_db_files() -> list[Path]:
+    candidates: list[Path] = []
+    for base_dir in CORE_DB_DISCOVERY_RELATIVE_DIRS:
+        for root in (Path.cwd(), REPO_ROOT):
+            resolved_dir = (root / base_dir).resolve()
+            if not resolved_dir.is_dir():
+                continue
+            for path_candidate in sorted(resolved_dir.glob("core_kpi*.db")):
+                if path_candidate.is_file():
+                    candidates.append(path_candidate.resolve())
+    return _deduplicate_paths(candidates)
+
+
+def _default_core_db_selection(discovered_paths: list[Path]) -> str:
+    resolved_default, _ = _resolve_core_db_path(str(DEFAULT_DB_PATH))
+    if resolved_default.is_file():
+        return str(resolved_default)
+
+    for path_candidate in discovered_paths:
+        if path_candidate.name == "core_kpi.db":
+            return str(path_candidate)
+
+    if discovered_paths:
+        return str(discovered_paths[0])
+
+    return str(DEFAULT_DB_PATH)
+
+
 def main() -> None:
     st.set_page_config(page_title="Crypto KPI Dashboard MVP", layout="wide")
     st.title("Crypto KPI Dashboard MVP")
     st.caption("Source: SQLite Core DB (dynamic window analysis on cleansed data)")
+
+    discovered_core_db_files = _discover_core_db_files()
+    default_db_selection = _default_core_db_selection(discovered_core_db_files)
+    db_select_options = [str(path) for path in discovered_core_db_files]
+    custom_db_option = "Custom path..."
+    if default_db_selection not in db_select_options:
+        db_select_options.append(default_db_selection)
+    db_select_options.append(custom_db_option)
+    default_db_index = db_select_options.index(default_db_selection)
 
     with st.sidebar:
         st.header("Configuration")
@@ -982,7 +1024,16 @@ def main() -> None:
             index=0,
             horizontal=True,
         )
-        db_path_raw = st.text_input("Core SQLite DB path", str(DEFAULT_DB_PATH))
+        selected_db_option = st.selectbox(
+            "Core SQLite DB",
+            options=db_select_options,
+            index=default_db_index,
+            help="Discovered core_kpi*.db files are listed here. Select 'Custom path...' to enter another path.",
+        )
+        if selected_db_option == custom_db_option:
+            db_path_raw = st.text_input("Custom Core SQLite DB path", default_db_selection)
+        else:
+            db_path_raw = selected_db_option
         ingestion_db_path_raw = st.text_input(
             "Ingestion SQLite path (raw file or directory)",
             str(DEFAULT_INGESTION_DB_PATH),
@@ -1016,6 +1067,8 @@ def main() -> None:
 
     with st.sidebar:
         st.caption(f"Resolved Core DB: {db_path}")
+        if discovered_core_db_files:
+            st.caption(f"Discovered Core DB files: {len(discovered_core_db_files)}")
         if has_platform_quality_cache:
             st.success("Platform quality source: cache table")
         elif has_quality_view:
@@ -1338,7 +1391,26 @@ def main() -> None:
         else:
             page_size_value = int(page_size_label)
             page_count = max(1, (total_symbols + page_size_value - 1) // page_size_value)
-            current_page_default = 1
+            selected_symbol_rank_series = symbol_stats_df.index[symbol_stats_df["symbol"] == selected_symbol]
+            if len(selected_symbol_rank_series) > 0:
+                selected_symbol_rank = int(selected_symbol_rank_series[0])
+                current_page_default = (selected_symbol_rank // page_size_value) + 1
+            else:
+                current_page_default = 1
+
+        page_signature = "|".join(
+            [
+                str(selected_run_id),
+                window_start_utc,
+                window_end_utc,
+                str(page_size_label),
+                selected_symbol,
+            ]
+        )
+        last_page_signature = str(st.session_state.get(PAGINATION_SIGNATURE_STATE_KEY, ""))
+        if page_signature != last_page_signature:
+            st.session_state[PAGINATION_SIGNATURE_STATE_KEY] = page_signature
+            st.session_state[VIOLIN_PAGE_NUMBER_STATE_KEY] = int(current_page_default)
 
         with control_col_2:
             st.caption("Page")
@@ -1346,10 +1418,11 @@ def main() -> None:
                 "Page",
                 min_value=1,
                 max_value=page_count,
-                value=current_page_default,
+                value=int(st.session_state.get(VIOLIN_PAGE_NUMBER_STATE_KEY, current_page_default)),
                 step=1,
                 disabled=(page_size_label == "Alle"),
                 label_visibility="collapsed",
+                key=VIOLIN_PAGE_NUMBER_STATE_KEY,
             )
 
         if page_size_label == "Alle":
@@ -1362,21 +1435,9 @@ def main() -> None:
 
         if not paged_symbols_df.empty:
             first_symbol_on_page = str(paged_symbols_df.iloc[0]["symbol"])
-            page_signature = "|".join(
-                [
-                    str(selected_run_id),
-                    window_start_utc,
-                    window_end_utc,
-                    str(page_size_label),
-                    str(int(current_page)),
-                ]
-            )
-            last_page_signature = str(st.session_state.get(PAGINATION_SIGNATURE_STATE_KEY, ""))
-            if page_signature != last_page_signature:
-                st.session_state[PAGINATION_SIGNATURE_STATE_KEY] = page_signature
-                if selected_symbol != first_symbol_on_page:
-                    _set_symbol_query_param(first_symbol_on_page)
-                    st.rerun()
+            if selected_symbol not in paged_symbols_df["symbol"].astype(str).tolist():
+                _set_symbol_query_param(first_symbol_on_page)
+                st.rerun()
 
         st.caption(
             f"Sorted by max deviation descending | Page {int(current_page)}/{int(page_count)} | "
@@ -1389,15 +1450,31 @@ def main() -> None:
             with grid_columns[idx % columns_per_row]:
                 symbol_points_df = symbol_violin_df[symbol_violin_df["symbol"] == symbol]
                 stat_row = paged_symbols_df[paged_symbols_df["symbol"] == symbol].iloc[0]
-                st.markdown(
-                    f"**#{int(stat_row['rank_max_diff_desc'])} {symbol}**"
-                )
+                is_selected_symbol_card = symbol == selected_symbol
+                if is_selected_symbol_card:
+                    st.markdown(
+                        f"**#{int(stat_row['rank_max_diff_desc'])} {symbol}** `Selected`"
+                    )
+                else:
+                    st.markdown(
+                        f"**#{int(stat_row['rank_max_diff_desc'])} {symbol}**"
+                    )
                 violin_figure = px.violin(
                     symbol_points_df,
                     y="price_diff_pct",
                     points=False,
                     box=True,
                 )
+                if is_selected_symbol_card:
+                    violin_figure.update_traces(
+                        line_color="#d97706",
+                        fillcolor="rgba(217, 119, 6, 0.35)",
+                    )
+                else:
+                    violin_figure.update_traces(
+                        line_color="#2563eb",
+                        fillcolor="rgba(37, 99, 235, 0.28)",
+                    )
                 violin_figure.update_layout(
                     template=plotly_template,
                     height=220,
@@ -1406,6 +1483,11 @@ def main() -> None:
                     xaxis_title=None,
                     yaxis_title="Diff %",
                 )
+                if is_selected_symbol_card:
+                    violin_figure.update_layout(
+                        paper_bgcolor="rgba(217, 119, 6, 0.08)",
+                        plot_bgcolor="rgba(217, 119, 6, 0.02)",
+                    )
                 st.plotly_chart(
                     violin_figure,
                     width="stretch",

@@ -58,8 +58,10 @@ Install dependencies from root `requirements.txt`, then start:
 streamlit run scripts/5_marts/dashboard_mvp_app.py
 ```
 
-In the sidebar, provide the Core SQLite DB path (default: `data/core/core_kpi.db`).
-If not found, the app falls back automatically to `scripts/data/core/core_kpi.db`.
+In the sidebar, the app discovers available `core_kpi*.db` files automatically.
+If present, `data/core/core_kpi.db` is selected by default.
+You can switch to another discovered Core DB or choose `Custom path...` and enter a path manually.
+If the default DB is not found, the app still falls back automatically to `scripts/data/core/core_kpi.db`.
 
 Runtime behavior:
 - symbol start page can render violin distributions of `price_diff_pct` per symbol (selected run/window)
