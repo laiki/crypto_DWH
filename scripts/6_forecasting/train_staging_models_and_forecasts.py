@@ -75,8 +75,7 @@ class PairWorkerTask:
     exchange_id: str
     symbol: str
     cleansing_rows: int
-    manifest_db_path: str
-    vault_layer: str
+    staging_db_path: str
     cleansing_db_path: str
     cleansing_run_id: str
     training_cutoff_utc: str
@@ -208,25 +207,15 @@ def safe_name(value: str) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Train regression models from VAULT 2.0 ingestion history and write forecasts "
+            "Train regression models from staging history and write forecasts "
             "for cleansing run rows into forecast tables."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--vault-root",
-        default="data/vault2",
-        help="VAULT 2.0 root directory.",
-    )
-    parser.add_argument(
-        "--manifest-db",
-        default=None,
-        help="Optional manifest DB path. Default: <vault-root>/meta/vault_manifest.db",
-    )
-    parser.add_argument(
-        "--vault-layer",
-        default="ingestion",
-        help="Manifest layer used for training history reads.",
+        "--staging-db",
+        default="data/staging/latest_staging.db",
+        help="Staging DB path used for leakage-safe training history reads.",
     )
     parser.add_argument(
         "--cleansing-db",
@@ -387,16 +376,6 @@ def resolve_file(path_raw: str) -> Path:
     else:
         path = (Path.cwd() / candidate).resolve()
     return path
-
-
-def resolve_manifest_db_path(vault_root: Path, manifest_db_raw: str | None) -> Path:
-    if manifest_db_raw is not None and manifest_db_raw.strip():
-        path = resolve_file(manifest_db_raw)
-    else:
-        path = (vault_root / "meta" / "vault_manifest.db").resolve()
-    return path
-
-
 def resolve_cleansing_run_id(connection: sqlite3.Connection, requested: str | None) -> str:
     if requested:
         row = connection.execute(
@@ -521,10 +500,9 @@ def staging_price_sql_expr() -> str:
     )
 
 
-def load_vault_series_before_cutoff(
-    manifest_db_path: Path,
+def load_staging_series_before_cutoff(
+    staging_db_path: Path,
     *,
-    vault_layer: str,
     exchange_id: str,
     symbol: str,
     cutoff_utc: str,
@@ -536,29 +514,6 @@ def load_vault_series_before_cutoff(
     exchange_norm = exchange_id.lower()
     symbol_norm = symbol.lower()
 
-    manifest_connection = sqlite3.connect(f"file:{manifest_db_path}?mode=ro", uri=True)
-    try:
-        partition_rows = manifest_connection.execute(
-            """
-            SELECT DISTINCT pr.db_path
-            FROM partition_pairs pp
-            JOIN partition_registry pr ON pr.partition_id = pp.partition_id
-            WHERE pr.layer = ?
-              AND pp.exchange_id_norm = ?
-              AND pp.symbol_norm = ?
-              AND pp.ts_min_epoch_s < ?
-              AND pr.ts_min_epoch_s < ?
-            ORDER BY pr.ts_min_epoch_s ASC
-            """,
-            (vault_layer, exchange_norm, symbol_norm, cutoff_epoch_s, cutoff_epoch_s),
-        ).fetchall()
-    finally:
-        manifest_connection.close()
-
-    if not partition_rows:
-        return pd.DataFrame(columns=["ingestion_ts_utc", "price_value"])
-
-    frames: list[pd.DataFrame] = []
     price_expr = staging_price_sql_expr()
     sql = f"""
         SELECT
@@ -571,28 +526,19 @@ def load_vault_series_before_cutoff(
           AND {price_expr} IS NOT NULL
         ORDER BY ingestion_ts_epoch_s ASC
     """
-    for row in partition_rows:
-        db_path = Path(str(row[0]))
-        if not db_path.exists():
-            continue
-        connection = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
-        try:
-            table_exists = connection.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='market_ticks' LIMIT 1"
-            ).fetchone()
-            if table_exists is None:
-                continue
-            frame = pd.read_sql_query(sql, connection, params=(exchange_norm, symbol_norm, cutoff_epoch_s))
-            if frame.empty:
-                continue
-            frames.append(frame)
-        finally:
-            connection.close()
+    connection = sqlite3.connect(f"file:{staging_db_path}?mode=ro", uri=True)
+    try:
+        table_exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='market_ticks' LIMIT 1"
+        ).fetchone()
+        if table_exists is None:
+            return pd.DataFrame(columns=["ingestion_ts_utc", "price_value"])
+        merged = pd.read_sql_query(sql, connection, params=(exchange_norm, symbol_norm, cutoff_epoch_s))
+    finally:
+        connection.close()
 
-    if not frames:
+    if merged.empty:
         return pd.DataFrame(columns=["ingestion_ts_utc", "price_value"])
-
-    merged = pd.concat(frames, ignore_index=True)
     merged["ingestion_ts_utc"] = pd.to_datetime(merged["ingestion_ts_utc"], utc=True, errors="coerce")
     merged["price_value"] = pd.to_numeric(merged["price_value"], errors="coerce")
     merged = merged.dropna(subset=["ingestion_ts_utc", "price_value"])
@@ -601,16 +547,14 @@ def load_vault_series_before_cutoff(
     return merged.reset_index(drop=True)
 
 
-def summarize_vault_time_window(manifest_db_path: Path, vault_layer: str) -> tuple[str | None, str | None]:
-    connection = sqlite3.connect(f"file:{manifest_db_path}?mode=ro", uri=True)
+def summarize_staging_time_window(staging_db_path: Path) -> tuple[str | None, str | None]:
+    connection = sqlite3.connect(f"file:{staging_db_path}?mode=ro", uri=True)
     try:
         row = connection.execute(
             """
-            SELECT MIN(ts_min_epoch_s), MAX(ts_max_epoch_s)
-            FROM partition_registry
-            WHERE layer = ?
-            """,
-            (vault_layer,),
+            SELECT MIN(ingestion_ts_epoch_s), MAX(ingestion_ts_epoch_s)
+            FROM market_ticks
+            """
         ).fetchone()
     finally:
         connection.close()
@@ -982,6 +926,7 @@ def insert_training_run_start(
     training_run_id: str,
     args: argparse.Namespace,
     staging_db_count: int,
+    staging_db_path: Path,
     cleansing_db_path: Path,
     cleansing_run_id: str,
     forecast_db_path: Path,
@@ -1015,7 +960,7 @@ def insert_training_run_start(
             training_run_id,
             utc_now_iso(),
             "running",
-            f"vault_root={args.vault_root};manifest={args.manifest_db or ''};layer={args.vault_layer}",
+            str(staging_db_path),
             staging_db_count,
             str(cleansing_db_path),
             cleansing_run_id,
@@ -1212,9 +1157,8 @@ def process_pair_task(task: PairWorkerTask) -> dict[str, Any]:
         "model_results": [],
     }
 
-    staging_raw = load_vault_series_before_cutoff(
-        Path(task.manifest_db_path),
-        vault_layer=task.vault_layer,
+    staging_raw = load_staging_series_before_cutoff(
+        Path(task.staging_db_path),
         exchange_id=task.exchange_id,
         symbol=task.symbol,
         cutoff_utc=task.training_cutoff_utc,
@@ -1509,10 +1453,9 @@ def main() -> None:
     rolling_windows = parse_int_csv(args.rolling_windows, arg_name="--rolling-windows")
     symbol_filters = parse_csv_values(args.symbols)
 
-    vault_root = resolve_file(args.vault_root)
-    manifest_db_path = resolve_manifest_db_path(vault_root, args.manifest_db)
-    if not manifest_db_path.is_file():
-        raise SystemExit(f"Manifest DB does not exist: {manifest_db_path}")
+    staging_db_path = resolve_file(args.staging_db)
+    if not staging_db_path.is_file():
+        raise SystemExit(f"Staging DB does not exist: {staging_db_path}")
 
     cleansing_db_path = resolve_file(args.cleansing_db)
     if not cleansing_db_path.is_file():
@@ -1522,20 +1465,13 @@ def main() -> None:
     forecast_db_path.parent.mkdir(parents=True, exist_ok=True)
     model_dir = resolve_file(args.model_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(f"file:{manifest_db_path}?mode=ro", uri=True) as manifest_conn:
-        manifest_partition_count = int(
-            manifest_conn.execute(
-                "SELECT COUNT(*) FROM partition_registry WHERE layer = ?",
-                (args.vault_layer,),
-            ).fetchone()[0]
-        )
 
     with sqlite3.connect(str(cleansing_db_path)) as cleansing_conn:
         cleansing_run_id = resolve_cleansing_run_id(cleansing_conn, args.cleansing_run_id)
         training_cutoff_utc = resolve_training_cutoff(cleansing_conn, cleansing_run_id)
         derived_bin_seconds = derive_bin_seconds(cleansing_conn, cleansing_run_id)
         bin_seconds = int(args.bin_seconds or derived_bin_seconds or 60)
-        vault_min_utc, vault_max_utc = summarize_vault_time_window(manifest_db_path, args.vault_layer)
+        staging_min_utc, staging_max_utc = summarize_staging_time_window(staging_db_path)
 
         scope_pairs = load_scope_pairs(
             cleansing_conn,
@@ -1553,23 +1489,23 @@ def main() -> None:
         log("INFO", f"Training cutoff UTC: {training_cutoff_utc}")
         log("INFO", f"Bin seconds: {bin_seconds}")
         log("INFO", f"Scope pairs: {len(scope_pairs)}")
-        log("INFO", f"VAULT layer: {args.vault_layer}")
-        log("INFO", f"VAULT time window UTC: min={vault_min_utc or '-'} max={vault_max_utc or '-'}")
-        if vault_min_utc is None:
-            raise SystemExit("No VAULT ingestion timestamps found in partition_registry. Cannot train forecasting models.")
+        log("INFO", f"Staging DB: {staging_db_path}")
+        log("INFO", f"Staging time window UTC: min={staging_min_utc or '-'} max={staging_max_utc or '-'}")
+        if staging_min_utc is None:
+            raise SystemExit("No staging ingestion timestamps found in market_ticks. Cannot train forecasting models.")
         cutoff_ts = pd.to_datetime(training_cutoff_utc, utc=True, errors="coerce")
-        vault_min_ts = pd.to_datetime(vault_min_utc, utc=True, errors="coerce")
-        if pd.isna(cutoff_ts) or pd.isna(vault_min_ts):
+        staging_min_ts = pd.to_datetime(staging_min_utc, utc=True, errors="coerce")
+        if pd.isna(cutoff_ts) or pd.isna(staging_min_ts):
             log(
                 "WARNING",
-                "Could not parse vault/cutoff timestamps reliably. Continuing without no-history preflight check.",
+                "Could not parse staging/cutoff timestamps reliably. Continuing without no-history preflight check.",
             )
-        elif vault_min_ts >= cutoff_ts:
+        elif staging_min_ts >= cutoff_ts:
             raise SystemExit(
-                "No leakage-safe VAULT history available before cleansing cutoff. "
-                f"training_cutoff_utc={training_cutoff_utc}, vault_min_utc={vault_min_utc}, "
-                f"vault_max_utc={vault_max_utc}. "
-                "Provide older ingestion partitions before the cutoff."
+                "No leakage-safe staging history available before cleansing cutoff. "
+                f"training_cutoff_utc={training_cutoff_utc}, staging_min_utc={staging_min_utc}, "
+                f"staging_max_utc={staging_max_utc}. "
+                "Provide older staging rows before the cutoff."
             )
 
         horizons_steps = [1, int(args.secondary_horizon_multiple)]
@@ -1585,7 +1521,8 @@ def main() -> None:
                 forecast_conn,
                 training_run_id=training_run_id,
                 args=args,
-                staging_db_count=manifest_partition_count,
+                staging_db_count=1,
+                staging_db_path=staging_db_path,
                 cleansing_db_path=cleansing_db_path,
                 cleansing_run_id=cleansing_run_id,
                 forecast_db_path=forecast_db_path,
@@ -1644,8 +1581,7 @@ def main() -> None:
                     exchange_id=pair.exchange_id,
                     symbol=pair.symbol,
                     cleansing_rows=int(pair.cleansing_rows),
-                    manifest_db_path=str(manifest_db_path),
-                    vault_layer=str(args.vault_layer),
+                    staging_db_path=str(staging_db_path),
                     cleansing_db_path=str(cleansing_db_path),
                     cleansing_run_id=cleansing_run_id,
                     training_cutoff_utc=training_cutoff_utc,

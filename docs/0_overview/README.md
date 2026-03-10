@@ -13,6 +13,10 @@ Pipeline order:
 
 All commands below assume execution from repo root (`/home/wgo/dev/crypto_DWH`).
 
+Runtime artifact note:
+- Paths under `data/` and `scripts/data/` in this runbook are execution-time output locations.
+- They are local generated artifacts and should not be treated as versioned repository content.
+
 ## Prerequisites
 
 ```bash
@@ -84,11 +88,12 @@ for sdb in scripts/data/staging/staging_export_*_last_1h*.db; do
 done
 ```
 
-## 4) Forecasting (training directly from VAULT)
+## 4) Forecasting (training from staging, inference on cleansing)
 
-Pick latest cleansing/core DB first:
+Pick latest staging/cleansing/core DB first:
 
 ```bash
+LATEST_SDB="$(ls -1t scripts/data/staging/staging_export_*_last_*.db | head -n1)"
 LATEST_CDB="$(ls -1t scripts/data/cleansing/cleaned_staging_export_*_60s.db | head -n1)"
 LATEST_BASE="$(basename "$LATEST_CDB" .db)"
 LATEST_STAGING_BASE="${LATEST_BASE#cleaned_}"
@@ -100,8 +105,7 @@ Run forecasting:
 
 ```bash
 python scripts/6_forecasting/train_staging_models_and_forecasts.py \
-  --vault-root "scripts/data/vault2" \
-  --vault-layer ingestion \
+  --staging-db "$LATEST_SDB" \
   --cleansing-db "$LATEST_CDB" \
   --forecast-db "$LATEST_CORE" \
   --model-dir "scripts/data/forecasting/models" \

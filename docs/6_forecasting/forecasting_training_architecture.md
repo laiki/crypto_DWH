@@ -4,7 +4,7 @@
 - Forecast model training is executed as a dedicated batch phase, not inside `staging_exporter.py`.
 - Training data is sourced from staging exports (for larger history), not from Core KPI DB.
 - Resampling to target cadence (for example `60s`) is done per `(exchange_id, symbol)` in memory and discarded immediately after model training.
-- Model artifacts are stored on filesystem (`joblib`), while metadata/metrics are stored in a dedicated SQLite registry DB.
+- Model artifacts are stored on filesystem (`joblib`), while metadata/metrics and forecast rows are stored in the forecast DB (typically the Core/KPI DB).
 
 ## Why This Design
 - Keeps staging export deterministic and operationally stable.
@@ -23,18 +23,19 @@ This ensures no training sample overlaps with the period used by current cleansi
 ## Storage Pattern
 - Model files:
   - `data/forecasting/models/<run_id>/<exchange_id>/<symbol>/<model_name>.joblib`
-- Registry DB:
-  - `data/forecasting/forecasting_registry.db`
-  - stores model path, config, metrics, status, hashes, and run context
-  - `model_artifacts` view exposes per-model test score (`test_score_r2`) for dashboard/model QA
+- Forecast DB:
+  - typically `data/core/core_kpi.db`
+  - stores `forecast_training_runs`, `forecast_model_registry`, `forecast_predictions`, and `model_artifacts`
+  - exposes per-model test score (`test_score_r2`) and dashboard-ready forecast rows
 
 ## Processing Pattern (per exchange/symbol)
 1. Read raw staging rows before cutoff.
 2. Resample to configured cadence (for example `60s`) in memory.
 3. Build features and train all configured regressors from the same resampled frame.
 4. Evaluate (`TimeSeriesSplit` + holdout).
-5. Persist artifacts and registry rows.
-6. Drop in-memory frame and continue with next series.
+5. Run inference on cleansing rows for the active run.
+6. Persist model artifacts, registry rows, and forecast rows.
+7. Drop in-memory frame and continue with next series.
 
 No persistent intermediate resampled DB is created.
 

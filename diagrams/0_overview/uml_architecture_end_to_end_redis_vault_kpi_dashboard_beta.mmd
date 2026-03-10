@@ -1,0 +1,53 @@
+architecture-beta
+    group src(cloud)[Sources]
+    service exchanges(database)[CCXT Exchanges] in src
+
+    group etl(cloud)[ETL and Ingestion]
+    service publisher(server)[CCXT Publisher] in etl
+    service redis(database)[Redis Streams Short Buffer] in etl
+    service writer(server)[VAULT2 Writer] in etl
+
+    group store(cloud)[Persistent Storage]
+    service vault(database)[VAULT2 Partitions and Manifest] in store
+    service staging_db(database)[Staging DB] in store
+    service cleansing_db(database)[Cleansing DB] in store
+    service kpi_db(database)[KPI DB and Forecast Tables] in store
+    service model_store(disk)[Model Artifacts] in store
+    service dash_cache(database)[Dashboard Cache Tables] in store
+
+    group transform(cloud)[Batch Transformation]
+    service staging(server)[Staging Exporter] in transform
+    service cleansing(server)[Cleansing Resampler] in transform
+    service core(server)[Core KPI Pipeline] in transform
+
+    group marts(cloud)[Marts and Dashboard]
+    service mart_builder(server)[Dashboard Cache Builder] in marts
+    service dashboard(server)[Dashboard App] in marts
+
+    group fc(cloud)[Forecasting]
+    service forecast(server)[Forecast Training and Inference] in fc
+
+    exchanges:R -- L:publisher
+    publisher:R -- L:redis
+    redis:R -- L:writer
+    writer:R -- L:vault
+
+    vault:R -- L:staging
+    staging:R -- L:staging_db
+
+    staging_db:R -- L:cleansing
+    cleansing:R -- L:cleansing_db
+
+    staging_db:B -- T:core
+    cleansing_db:B -- T:core
+    core:R -- L:kpi_db
+
+    kpi_db:R -- L:mart_builder
+    mart_builder:R -- L:dash_cache
+    dash_cache:R -- L:dashboard
+    kpi_db:B -- T:dashboard
+
+    staging_db:R -- L:forecast
+    cleansing_db:R -- L:forecast
+    forecast:R -- L:model_store
+    forecast:B -- T:kpi_db

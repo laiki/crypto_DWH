@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """
-Minimal PoC consumer:
-- reads events from Redis Stream consumer group
-- writes events into VAULT-style SQLite partitions + manifest
-- sends repeatedly failing events to DLQ
+Redis Stream consumer and VAULT writer runtime.
+
+Compatibility note:
+- this file remains as a backward-compatible entrypoint
+- the product command path is `redis_stream_to_vault_writer.py`
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ except Exception as exc:  # pragma: no cover - import environment dependent
     REDIS_IMPORT_ERROR = exc
 
 
-LOGGER = logging.getLogger("poc_redis_stream_to_vault_writer")
+LOGGER = logging.getLogger("redis_stream_to_vault_writer")
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,9 +40,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--group", default="cg.vault_writer", help="Redis consumer group.")
     parser.add_argument("--consumer", default=f"writer-{os.getpid()}", help="Consumer name in the group.")
     parser.add_argument("--dlq-stream", default="ingest:events:dlq:v1", help="Dead-letter stream key.")
-    parser.add_argument("--stream-maxlen", type=int, default=5_000_000, help="Approximate maxlen for main stream.")
-    parser.add_argument("--dlq-maxlen", type=int, default=1_000_000, help="Approximate maxlen for DLQ stream.")
-    parser.add_argument("--vault-root", default="data/vault2_redis_poc", help="Output VAULT root directory.")
+    parser.add_argument(
+        "--stream-maxlen",
+        type=int,
+        default=50_000,
+        help="Approximate maxlen for the main stream short-lived operational buffer.",
+    )
+    parser.add_argument(
+        "--dlq-maxlen",
+        type=int,
+        default=10_000,
+        help="Approximate maxlen for the DLQ short-lived operational buffer.",
+    )
+    parser.add_argument("--vault-root", default="data/vault2_redis", help="Output VAULT root directory.")
     parser.add_argument("--vault-layer", default="ingestion", help="Partition layer label.")
     parser.add_argument("--batch-size", type=int, default=200, help="XREADGROUP batch size.")
     parser.add_argument("--block-ms", type=int, default=3000, help="XREADGROUP block timeout ms.")

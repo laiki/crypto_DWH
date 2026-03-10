@@ -4,11 +4,13 @@
 Define a minimal, stable event contract so source collectors and DB writers can evolve independently.
 
 ## Delivery Model
-Use **Redis Streams** as the source of truth for persistence pipelines.
+Use **Redis Streams** as a short-lived operational buffer between producers and persistent sink writers.
 
 - Semantics: at-least-once delivery.
 - Ordering: guaranteed per stream key, not globally across all producers.
-- Reliability: replay via stream IDs and consumer groups.
+- Reliability: short-range replay via stream IDs and consumer groups.
+
+VAULT is the system of record for downstream analytics, replay beyond the short buffer window, and auditability.
 
 PubSub can still be used for live monitoring, but not as the only persistence path.
 
@@ -28,8 +30,18 @@ PubSub can still be used for live monitoring, but not as the only persistence pa
 
 Each writer group can have multiple consumers for horizontal scale.
 
+## Retention Principle
+- Redis is not a historical store in this architecture.
+- Redis Streams exist to absorb short outages, restarts, and producer-consumer rate mismatches.
+- The current product baseline starts with about one minute of backlog capacity as an initial sizing target.
+- Effective retention is approximate because the current product baseline trims by entry count (`MAXLEN ~`) rather than by time.
+- VAULT remains the only long-term persistence layer.
+- Size stream length from measured peak event rate, not from a fixed assumption.
+- Publisher selection starts from all supported `ccxt.pro` exchanges and then applies the shared ingestion exclusion list by default.
+- Current default exclusions: `alpaca`, `arkham`, `bequant`, `bitfinex`, `bitmex`, `bitopro`, `blockchaincom`, `oxfun`, `probit`.
+
 ## Operational Start Order
-Recommended startup sequence for the PoC and initial production rollout:
+Recommended startup sequence for the product runtime:
 
 1. Start Redis.
 2. Start writer consumers (at least `cg.vault_writer`).
@@ -39,11 +51,21 @@ This order guarantees that persistence, retries, and DLQ handoff are active befo
 
 Reference runtime commands from repo root:
 
-Start Redis with Podman:
+Start Redis with Podman helper script:
+
+```bash
+scripts/1_ingestion/start_redis_podman.sh
+```
+
+Start Redis with Podman Compose:
 
 ```bash
 podman compose -f scripts/1_ingestion/docker-compose.redis.yml up -d
 ```
+
+Note:
+- `podman compose` requires a compose provider (`podman-compose` or `docker-compose`) on the host.
+- If the host does not provide one, use `scripts/1_ingestion/start_redis_podman.sh`.
 
 Start Redis with Docker:
 
@@ -54,29 +76,65 @@ docker compose -f scripts/1_ingestion/docker-compose.redis.yml up -d
 Start the VAULT writer consumer:
 
 ```bash
-python scripts/1_ingestion/poc_redis_stream_to_vault_writer.py \
+python scripts/1_ingestion/redis_stream_to_vault_writer.py \
   --redis-url redis://localhost:6379/0 \
   --stream ingest:events:v1 \
   --group cg.vault_writer \
   --consumer writer-1 \
   --dlq-stream ingest:events:dlq:v1 \
-  --vault-root data/vault2_redis_poc \
+  --stream-maxlen 50000 \
+  --dlq-maxlen 10000 \
+  --vault-root data/vault2_redis \
   --vault-layer ingestion \
   --log-level INFO
 ```
 
-Start the ccxt publisher afterwards:
+Start the publisher orchestrator afterwards:
 
 ```bash
-python scripts/1_ingestion/poc_ccxt_to_redis_stream.py \
+python scripts/1_ingestion/orchestrator_redis_auto_shard.py \
   --redis-url redis://localhost:6379/0 \
   --stream ingest:events:v1 \
-  --exchange binance \
+  --stream-maxlen 50000 \
+  --workers 4 \
   --symbols "BTC/%,ETH/%,SOL/%,ADA/%" \
   --only-spot \
-  --max-symbols 100 \
+  --max-symbols-per-exchange 100 \
   --log-level INFO
 ```
+
+Manual single-process publisher fallback:
+
+```bash
+python scripts/1_ingestion/ccxt_to_redis_stream.py \
+  --redis-url redis://localhost:6379/0 \
+  --stream ingest:events:v1 \
+  --stream-maxlen 50000 \
+  --exchanges binance,kraken \
+  --symbols "BTC/%,ETH/%,SOL/%,ADA/%" \
+  --only-spot \
+  --max-symbols-per-exchange 100 \
+  --log-level INFO
+```
+
+Operational sizing baseline for the current product runtime:
+
+- Main stream default: `50,000` entries.
+- DLQ default: `10,000` entries.
+- Treat these as starting values for about one minute of buffering and tune them from observed event rate and consumer lag.
+
+Sizing rule:
+
+```text
+stream_maxlen = peak_events_per_second * desired_buffer_seconds
+dlq_maxlen = expected_dlq_events_per_second * desired_dlq_buffer_seconds
+```
+
+Sizing notes:
+
+- Use measured peak throughput from the actual `(exchange count, symbol count, update rate)` scope.
+- Keep `desired_buffer_seconds` intentionally small because Redis is only an operational buffer.
+- Add burst headroom instead of turning Redis into historical storage.
 
 ## Envelope Schema (All Event Types)
 Required top-level fields:

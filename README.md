@@ -98,6 +98,39 @@ Detailed English documentation for all ingestion/orchestration scripts is availa
 Central end-to-end runbook (all phases):
 - `docs/0_overview/README.md`
 
+## Runtime Data Note
+Runtime outputs under `data/` are local generated artifacts and are not intended to be versioned in GitHub.
+This includes VAULT partitions, staging/cleansing/core DBs, Redis-backed VAULT outputs, logs, and local model artifacts.
+
+## Ingestion Runtime Quickstart
+Two ingestion runtime modes are documented:
+
+- Direct VAULT path:
+  - Recommended entrypoint: `python scripts/1_ingestion/orchestrator_auto_shard.py --vault-root data/vault2 --workers 4 --log-level INFO`
+  - Manual fallback: `python scripts/1_ingestion/ingest_all_exchanges_ws.py ...`
+- Redis-decoupled path:
+  - Start Redis first.
+  - Start `redis_stream_to_vault_writer.py` second.
+  - Start `orchestrator_redis_auto_shard.py` third for the normal multi-worker publisher runtime.
+  - `ccxt_to_redis_stream.py` remains available as manual single-process fallback.
+  - Redis is a short-lived operational buffer only; VAULT remains the system of record.
+  - Size retention from measured peak event rate: `stream_maxlen = peak_events_per_second * desired_buffer_seconds`.
+  - The current product baseline starts with about one minute of backlog capacity as an initial sizing target.
+  - If `--exchanges` is omitted, publishers start from all supported `ccxt.pro` exchanges and then apply the shared default exclusion list from the original ingestion runtime.
+
+Recommended Podman start for Redis:
+
+```bash
+scripts/1_ingestion/start_redis_podman.sh
+```
+
+Reason:
+- This avoids the `podman compose` provider dependency on hosts where neither `podman-compose` nor `docker-compose` is installed.
+
+Detailed operational commands and startup order:
+- `scripts/1_ingestion/README.md`
+- `docs/0_overview/redis_event_contract.md`
+
 ## Staging Exporter
 The staging exporter creates a bounded staging snapshot from worker ingestion databases.
 

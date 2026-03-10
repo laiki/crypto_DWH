@@ -1,6 +1,80 @@
 # Next Session Tasks
 
-Last updated: 2026-03-05
+Last updated: 2026-03-09
+
+## Completed in This Session (2026-03-09)
+1. Productized the Redis-decoupled ingestion path.
+   - Artifacts:
+     - `scripts/1_ingestion/ccxt_to_redis_stream.py`
+     - `scripts/1_ingestion/orchestrator_redis_auto_shard.py`
+     - `scripts/1_ingestion/redis_stream_to_vault_writer.py`
+     - `scripts/1_ingestion/poc_ccxt_to_redis_stream.py`
+     - `scripts/1_ingestion/poc_redis_stream_to_vault_writer.py`
+   - Scope:
+     - introduced product script names for Redis publisher, auto-sharded orchestrator, and VAULT writer
+     - kept old `poc_*` entrypoints as backward-compatible wrappers
+     - switched Redis writer default target to `data/vault2_redis`
+
+2. Implemented Redis publisher auto-sharding for multi-worker collection.
+   - Artifacts:
+     - `scripts/1_ingestion/orchestrator_redis_auto_shard.py`
+     - `scripts/1_ingestion/ccxt_to_redis_stream.py`
+   - Scope:
+     - profiles exchange traffic before runtime
+     - computes shard plans and distributes exchanges across worker processes
+     - supervises worker processes with restart behavior analogous to the direct VAULT orchestrator
+
+3. Aligned Redis product defaults with the original direct-ingestion exchange policy.
+   - Artifacts:
+     - `scripts/1_ingestion/ccxt_to_redis_stream.py`
+     - `scripts/1_ingestion/orchestrator_redis_auto_shard.py`
+     - `scripts/1_ingestion/ingestion_common.py`
+   - Scope:
+     - default selection starts from all supported `ccxt.pro` exchanges
+     - the shared default exclusion list remains active unless explicitly narrowed:
+       `alpaca`, `arkham`, `bequant`, `bitfinex`, `bitmex`, `bitopro`, `blockchaincom`, `oxfun`, `probit`
+     - CLI help text now documents these defaults explicitly
+
+4. Finalized Redis retention stance for operations.
+   - Artifacts:
+     - `scripts/1_ingestion/README.md`
+     - `docs/0_overview/redis_event_contract.md`
+     - `README.md`
+   - Scope:
+     - Redis is documented as a short-lived operational buffer only
+     - VAULT remains the only system of record
+     - sizing rule documented as
+       `stream_maxlen = peak_events_per_second * desired_buffer_seconds`
+     - current product baseline keeps about one minute of backlog as a starting target
+
+5. Documented Podman-first startup and Redis runtime order.
+   - Artifacts:
+     - `scripts/1_ingestion/start_redis_podman.sh`
+     - `scripts/1_ingestion/README.md`
+     - `docs/0_overview/redis_event_contract.md`
+     - `README.md`
+   - Scope:
+     - documents `scripts/1_ingestion/start_redis_podman.sh` as recommended local Redis start path
+     - clarifies that `podman compose` requires an installed compose provider
+     - fixes required runtime order to:
+       1. start Redis
+       2. start `redis_stream_to_vault_writer.py`
+       3. start `orchestrator_redis_auto_shard.py`
+
+## Immediate Operator Checklist
+1. Start Redis:
+   - `scripts/1_ingestion/start_redis_podman.sh`
+
+2. Start the VAULT writer:
+   - `python scripts/1_ingestion/redis_stream_to_vault_writer.py --redis-url redis://localhost:6379/0 --stream ingest:events:v1 --group cg.vault_writer --consumer writer-1 --dlq-stream ingest:events:dlq:v1 --stream-maxlen 50000 --dlq-maxlen 10000 --vault-root data/vault2_redis --vault-layer ingestion --log-level INFO`
+
+3. Start the publisher orchestrator:
+   - `python scripts/1_ingestion/orchestrator_redis_auto_shard.py --redis-url redis://localhost:6379/0 --stream ingest:events:v1 --stream-maxlen 50000 --workers 4 --only-spot --max-symbols-per-exchange 100 --log-level INFO --worker-log-level INFO`
+
+4. Runtime expectation:
+   - if `--exchanges` is omitted, runtime starts from all supported `ccxt.pro` exchanges and then applies the shared default exclusion list
+   - use `--symbols` when startup scope should be bounded for the first live run
+   - start the writer before publishers so Redis stays only a short operational buffer and not an accumulating backlog store
 
 ## Completed in This Session (2026-03-05)
 1. Extended forecasting model registry with explicit test-score persistence for model artifacts.

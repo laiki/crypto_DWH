@@ -98,22 +98,23 @@ The proposed Redis-based ingestion split is a strong architectural option:
    - additional external adapters can publish into the same event contracts.
 2. Backbone:
    - Redis PubSub for low-latency fan-out.
-   - Redis Streams for durability, replay, and dead-letter handling.
+   - Redis Streams for short-lived buffering, consumer decoupling, and dead-letter handling.
 3. Processing:
    - schema validation, dedup/idempotency, and normalization happen before sink writes.
 4. Sinks:
    - dedicated writer services persist into SQLite VAULT (current), Postgres, or data lake.
+   - VAULT is the system of record; Redis is not a historical store.
 
 ### Why this is useful
 1. Source and storage are decoupled.
 2. Adding a new source does not require DB-writer changes.
 3. Switching DB technology does not require source-collector changes.
-4. Replay and backfill become operationally manageable (with Streams).
+4. Short replay and backlog handling become operationally manageable (with Streams).
 
 ### Design cautions
 1. Keep a strict event schema version (`event_type`, `schema_version`, `exchange`, `symbol`, `ts`, payload).
 2. Enforce idempotent writes in sink services (dedup key per event).
-3. Prefer Redis Streams over PubSub for critical persistence paths.
+3. Prefer Redis Streams over PubSub for the operational buffer path that feeds persistent writers.
 4. Add consumer lag and DLQ monitoring from day one.
 
 ### Diagrams
