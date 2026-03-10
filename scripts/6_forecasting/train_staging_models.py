@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
-Train regression models from staging history and write cleansing-based forecasts.
+Train regression models from staging history and register model artifacts.
 
 Pipeline:
-1) Determine leakage-safe training cutoff from cleansing run start.
-2) Build per-series staging training frames (resampled to cleansing cadence).
+1) Resolve one or more staging DB inputs.
+2) Build per-series staging training frames (resampled to target cadence).
 3) Train Ridge + HistGradientBoosting models for two horizons:
    - 1 * bin_seconds
    - N * bin_seconds (configurable multiple)
-4) Run inference on cleansing series and persist forecast rows for dashboard use.
+4) Evaluate with holdout plus TimeSeriesSplit.
 5) Persist model artifacts and model/training metadata.
 """
 
@@ -61,7 +61,7 @@ except Exception as exc:  # noqa: BLE001
         )
 
 
-LOGGER_NAME = "train_staging_models_and_forecasts"
+LOGGER_NAME = "train_staging_models"
 
 
 @dataclass(frozen=True)
@@ -77,8 +77,6 @@ class PairWorkerTask:
     symbol: str
     cleansing_rows: int
     staging_db_paths: tuple[str, ...]
-    cleansing_db_path: str
-    cleansing_run_id: str
     training_cutoff_utc: str
     bin_seconds: int
     lag_steps: tuple[int, ...]
@@ -208,8 +206,8 @@ def safe_name(value: str) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Train regression models from staging history and write forecasts "
-            "for cleansing run rows into forecast tables."
+            "Train regression models from staging history and register "
+            "model artifacts plus evaluation metadata."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -219,19 +217,14 @@ def parse_args() -> argparse.Namespace:
         help="Staging DB input used for leakage-safe training history reads. Accepts a single .db file, a directory, or a glob pattern.",
     )
     parser.add_argument(
-        "--cleansing-db",
-        default="data/cleansing/latest_cleansing.db",
-        help="Cleansing DB path used for cutoff resolution and forecast inference.",
-    )
-    parser.add_argument(
-        "--cleansing-run-id",
+        "--training-cutoff-utc",
         default=None,
-        help="Optional cleansing run_id. If omitted, latest run_id is used.",
+        help="Optional UTC cutoff for training history. Only staging rows before this timestamp are used. If omitted, all available staging history is used.",
     )
     parser.add_argument(
         "--forecast-db",
         default="data/core/core_kpi.db",
-        help="SQLite DB path where forecast tables are written.",
+        help="SQLite DB path where training registry tables are written.",
     )
     parser.add_argument(
         "--model-dir",
@@ -241,8 +234,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--bin-seconds",
         type=int,
-        default=None,
-        help="Optional bin size override. If omitted, derived from cleansing run.",
+        default=60,
+        help="Training cadence in seconds used for staging resampling.",
     )
     parser.add_argument(
         "--secondary-horizon-multiple",
@@ -354,8 +347,8 @@ def parse_args() -> argparse.Namespace:
 def validate_args(args: argparse.Namespace) -> None:
     if args.secondary_horizon_multiple <= 1:
         raise SystemExit("--secondary-horizon-multiple must be > 1.")
-    if args.bin_seconds is not None and args.bin_seconds <= 0:
-        raise SystemExit("--bin-seconds must be > 0 when set.")
+    if args.bin_seconds <= 0:
+        raise SystemExit("--bin-seconds must be > 0.")
     if args.limit_series is not None and args.limit_series <= 0:
         raise SystemExit("--limit-series must be > 0 when set.")
     if not 0.01 <= args.test_size <= 0.5:
@@ -399,6 +392,79 @@ def resolve_staging_db_paths(path_raw: str) -> list[Path]:
             raise SystemExit(f"No staging DB files found in directory: {candidate}")
         return db_paths
     raise SystemExit(f"Staging DB input does not exist: {candidate}")
+
+
+def resolve_training_cutoff_utc(*, requested_cutoff_utc: str | None, staging_max_utc: str | None) -> str:
+    if requested_cutoff_utc:
+        return requested_cutoff_utc
+    if staging_max_utc is None:
+        raise SystemExit("No staging ingestion timestamps found in market_ticks. Cannot derive training cutoff.")
+    staging_max_ts = pd.to_datetime(staging_max_utc, utc=True, errors="coerce")
+    if pd.isna(staging_max_ts):
+        raise SystemExit(f"Could not parse staging max timestamp: {staging_max_utc}")
+    return (staging_max_ts + pd.Timedelta(seconds=1)).isoformat()
+
+
+def load_scope_pairs_from_staging(
+    staging_db_paths: list[Path],
+    *,
+    exchange_id_filter: str | None,
+    symbol_filters: list[str],
+    training_cutoff_utc: str,
+) -> list[SeriesScope]:
+    cutoff_ts = pd.to_datetime(training_cutoff_utc, utc=True, errors="coerce")
+    if pd.isna(cutoff_ts):
+        raise SystemExit(f"Could not parse --training-cutoff-utc: {training_cutoff_utc}")
+    cutoff_epoch_s = int(cutoff_ts.timestamp())
+    price_expr = staging_price_sql_expr()
+    aggregated_counts: dict[tuple[str, str], int] = {}
+
+    for staging_db_path in staging_db_paths:
+        connection = sqlite3.connect(f"file:{staging_db_path}?mode=ro", uri=True)
+        try:
+            table_exists = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='market_ticks' LIMIT 1"
+            ).fetchone()
+            if table_exists is None:
+                continue
+            conditions = [
+                "ingestion_ts_epoch_s < ?",
+                f"{price_expr} IS NOT NULL",
+            ]
+            params: list[Any] = [cutoff_epoch_s]
+            if exchange_id_filter:
+                conditions.append("lower(exchange_id) = ?")
+                params.append(exchange_id_filter.lower())
+            symbol_clause, symbol_params = build_case_insensitive_symbol_clause(
+                column_name="symbol",
+                symbols=symbol_filters,
+            )
+            if symbol_clause:
+                conditions.append(symbol_clause)
+                params.extend(symbol_params)
+
+            rows = connection.execute(
+                f"""
+                SELECT exchange_id, symbol, COUNT(*) AS row_count
+                FROM market_ticks
+                WHERE {" AND ".join(conditions)}
+                GROUP BY exchange_id, symbol
+                """,
+                params,
+            ).fetchall()
+        finally:
+            connection.close()
+
+        for exchange_id, symbol, row_count in rows:
+            key = (str(exchange_id), str(symbol))
+            aggregated_counts[key] = aggregated_counts.get(key, 0) + int(row_count)
+
+    result = [
+        SeriesScope(exchange_id=exchange_id, symbol=symbol, cleansing_rows=row_count)
+        for (exchange_id, symbol), row_count in aggregated_counts.items()
+    ]
+    result.sort(key=lambda item: (-item.cleansing_rows, item.exchange_id, item.symbol))
+    return result
 def resolve_cleansing_run_id(connection: sqlite3.Connection, requested: str | None) -> str:
     if requested:
         row = connection.execute(
@@ -528,25 +594,33 @@ def load_staging_series_before_cutoff_single(
     *,
     exchange_id: str,
     symbol: str,
-    cutoff_utc: str,
+    cutoff_utc: str | None,
 ) -> pd.DataFrame:
-    cutoff_ts = pd.to_datetime(cutoff_utc, utc=True, errors="coerce")
-    if pd.isna(cutoff_ts):
-        return pd.DataFrame(columns=["ingestion_ts_utc", "price_value"])
-    cutoff_epoch_s = int(cutoff_ts.timestamp())
+    cutoff_epoch_s: int | None = None
+    if cutoff_utc is not None:
+        cutoff_ts = pd.to_datetime(cutoff_utc, utc=True, errors="coerce")
+        if pd.isna(cutoff_ts):
+            return pd.DataFrame(columns=["ingestion_ts_utc", "price_value"])
+        cutoff_epoch_s = int(cutoff_ts.timestamp())
     exchange_norm = exchange_id.lower()
     symbol_norm = symbol.lower()
 
     price_expr = staging_price_sql_expr()
+    conditions = [
+        "exchange_id_norm = ?",
+        "symbol_norm = ?",
+        f"{price_expr} IS NOT NULL",
+    ]
+    params: list[Any] = [exchange_norm, symbol_norm]
+    if cutoff_epoch_s is not None:
+        conditions.append("ingestion_ts_epoch_s < ?")
+        params.append(cutoff_epoch_s)
     sql = f"""
         SELECT
             ingestion_ts_utc,
             {price_expr} AS price_value
         FROM market_ticks
-        WHERE exchange_id_norm = ?
-          AND symbol_norm = ?
-          AND ingestion_ts_epoch_s < ?
-          AND {price_expr} IS NOT NULL
+        WHERE {" AND ".join(conditions)}
         ORDER BY ingestion_ts_epoch_s ASC
     """
     connection = sqlite3.connect(f"file:{staging_db_path}?mode=ro", uri=True)
@@ -556,7 +630,7 @@ def load_staging_series_before_cutoff_single(
         ).fetchone()
         if table_exists is None:
             return pd.DataFrame(columns=["ingestion_ts_utc", "price_value"])
-        merged = pd.read_sql_query(sql, connection, params=(exchange_norm, symbol_norm, cutoff_epoch_s))
+        merged = pd.read_sql_query(sql, connection, params=params)
     finally:
         connection.close()
 
@@ -575,7 +649,7 @@ def load_staging_series_before_cutoff(
     *,
     exchange_id: str,
     symbol: str,
-    cutoff_utc: str,
+    cutoff_utc: str | None,
 ) -> pd.DataFrame:
     frames = [
         load_staging_series_before_cutoff_single(
@@ -1252,35 +1326,6 @@ def process_pair_task(task: PairWorkerTask) -> dict[str, Any]:
         result["model_slots_skipped"] = models_per_pair
         return result
 
-    with sqlite3.connect(f"file:{task.cleansing_db_path}?mode=ro", uri=True) as cleansing_connection:
-        cleansing_series = load_cleansing_series(
-            cleansing_connection,
-            cleansing_run_id=task.cleansing_run_id,
-            exchange_id=task.exchange_id,
-            symbol=task.symbol,
-        )
-    if cleansing_series.empty:
-        result["skipped_series_item"] = {
-            "exchange_id": task.exchange_id,
-            "symbol": task.symbol,
-            "reason": "no_cleansing_rows",
-        }
-        result["model_slots_processed"] = models_per_pair
-        result["model_slots_skipped"] = models_per_pair
-        return result
-
-    feature_table_cleansing = build_feature_table(
-        cleansing_series,
-        lag_steps=list(task.lag_steps),
-        rolling_windows=list(task.rolling_windows),
-    )
-    actual_price_by_epoch = dict(
-        zip(
-            cleansing_series["bucket_epoch_s"].astype(int).tolist(),
-            cleansing_series["price"].astype(float).tolist(),
-        )
-    )
-
     for horizon_step, horizon_seconds in zip(task.horizons_steps, task.horizons_seconds):
         X_all, y_all = build_training_frame(
             feature_table_staging,
@@ -1340,40 +1385,6 @@ def process_pair_task(task: PairWorkerTask) -> dict[str, Any]:
                     model_path,
                 )
 
-                cleansing_infer = build_cleansing_inference_frame(
-                    feature_table_cleansing,
-                    feature_columns,
-                    horizon_seconds=int(horizon_seconds),
-                )
-                prediction_rows: list[tuple[Any, ...]] = []
-                if not cleansing_infer.empty:
-                    X_infer = cleansing_infer[feature_columns].astype(float)
-                    y_pred = production_model.predict(X_infer).astype(float)
-                    generated_at_utc = utc_now_iso()
-                    for row_idx, predicted_price in enumerate(y_pred):
-                        generated_epoch = int(cleansing_infer.iloc[row_idx]["bucket_epoch_s"])
-                        target_epoch = int(cleansing_infer.iloc[row_idx]["target_bucket_epoch_s"])
-                        generated_utc = cleansing_infer.iloc[row_idx]["bucket_start_utc"].strftime("%Y-%m-%dT%H:%M:%S%z")
-                        target_utc = str(cleansing_infer.iloc[row_idx]["target_bucket_start_utc"])
-                        actual_price = actual_price_by_epoch.get(target_epoch)
-                        abs_error = (
-                            abs(float(actual_price) - float(predicted_price))
-                            if actual_price is not None
-                            else None
-                        )
-                        prediction_rows.append(
-                            (
-                                generated_utc,
-                                int(generated_epoch),
-                                target_utc,
-                                int(target_epoch),
-                                float(predicted_price),
-                                float(actual_price) if actual_price is not None else None,
-                                float(abs_error) if abs_error is not None else None,
-                                generated_at_utc,
-                            )
-                        )
-
                 result["model_results"].append(
                     {
                         "status": "trained",
@@ -1389,7 +1400,7 @@ def process_pair_task(task: PairWorkerTask) -> dict[str, Any]:
                         "cv_fold_count": int(cv_fold_count),
                         "holdout_metrics": holdout_metrics,
                         "cv_mean_metrics": cv_mean_metrics,
-                        "prediction_rows": prediction_rows,
+                        "prediction_rows": [],
                         "error_message": None,
                     }
                 )
@@ -1517,331 +1528,277 @@ def main() -> None:
 
     staging_db_paths = resolve_staging_db_paths(args.staging_db)
 
-    cleansing_db_path = resolve_file(args.cleansing_db)
-    if not cleansing_db_path.is_file():
-        raise SystemExit(f"Cleansing DB does not exist: {cleansing_db_path}")
-
     forecast_db_path = resolve_file(args.forecast_db)
     forecast_db_path.parent.mkdir(parents=True, exist_ok=True)
     model_dir = resolve_file(args.model_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
+    staging_min_utc, staging_max_utc = summarize_staging_time_window(staging_db_paths)
+    if staging_min_utc is None:
+        raise SystemExit("No staging ingestion timestamps found in market_ticks. Cannot train forecasting models.")
 
-    with sqlite3.connect(str(cleansing_db_path)) as cleansing_conn:
-        cleansing_run_id = resolve_cleansing_run_id(cleansing_conn, args.cleansing_run_id)
-        training_cutoff_utc = resolve_training_cutoff(cleansing_conn, cleansing_run_id)
-        derived_bin_seconds = derive_bin_seconds(cleansing_conn, cleansing_run_id)
-        bin_seconds = int(args.bin_seconds or derived_bin_seconds or 60)
-        staging_min_utc, staging_max_utc = summarize_staging_time_window(staging_db_paths)
+    training_cutoff_utc = resolve_training_cutoff_utc(
+        requested_cutoff_utc=args.training_cutoff_utc,
+        staging_max_utc=staging_max_utc,
+    )
+    bin_seconds = int(args.bin_seconds)
+    scope_pairs = load_scope_pairs_from_staging(
+        staging_db_paths,
+        exchange_id_filter=args.exchange_id,
+        symbol_filters=symbol_filters,
+        training_cutoff_utc=training_cutoff_utc,
+    )
+    if args.limit_series is not None:
+        scope_pairs = scope_pairs[: args.limit_series]
 
-        scope_pairs = load_scope_pairs(
-            cleansing_conn,
-            cleansing_run_id=cleansing_run_id,
-            exchange_id_filter=args.exchange_id,
-            symbol_filters=symbol_filters,
+    if not scope_pairs:
+        raise SystemExit("No staging exchange/symbol pairs found for selected filters.")
+
+    log("INFO", f"Training cutoff UTC: {training_cutoff_utc}")
+    log("INFO", f"Bin seconds: {bin_seconds}")
+    log("INFO", f"Scope pairs: {len(scope_pairs)}")
+    log("INFO", f"Staging input: {args.staging_db}")
+    log("INFO", f"Resolved staging DB count: {len(staging_db_paths)}")
+    log("INFO", f"Staging time window UTC: min={staging_min_utc or '-'} max={staging_max_utc or '-'}")
+
+    horizons_steps = [1, int(args.secondary_horizon_multiple)]
+    horizons_seconds = [bin_seconds * step for step in horizons_steps]
+    log("INFO", f"Training horizons seconds: {horizons_seconds}")
+
+    training_run_id = "forecast_train_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
+
+    forecast_conn = sqlite3.connect(str(forecast_db_path))
+    try:
+        ensure_forecast_tables(forecast_conn)
+        insert_training_run_start(
+            forecast_conn,
+            training_run_id=training_run_id,
+            args=args,
+            staging_db_count=len(staging_db_paths),
+            staging_input=args.staging_db,
+            cleansing_db_path=Path("-"),
+            cleansing_run_id="-",
+            forecast_db_path=forecast_db_path,
+            training_cutoff_utc=training_cutoff_utc,
+            bin_seconds=bin_seconds,
+            lag_steps=lag_steps,
+            rolling_windows=rolling_windows,
+            series_total=len(scope_pairs),
         )
-        if args.limit_series is not None:
-            scope_pairs = scope_pairs[: args.limit_series]
 
-        if not scope_pairs:
-            raise SystemExit("No cleansing exchange/symbol pairs found for selected filters.")
+        models = create_models(args)
+        series_trained = 0
+        models_trained = 0
+        predictions_written = 0
+        skipped_series: list[dict[str, Any]] = []
+        failed_models: list[dict[str, Any]] = []
+        failed_model_slots = 0
+        skipped_model_slots = 0
+        processed_pairs = 0
+        processed_model_slots = 0
+        models_per_pair = len(horizons_steps) * len(models)
+        total_pairs = len(scope_pairs)
+        total_model_slots = total_pairs * models_per_pair
+        progress_started_monotonic = time.monotonic()
+        last_progress_logged_monotonic = progress_started_monotonic - float(args.progress_interval_seconds)
+        last_completed_pair = "-"
 
-        log("INFO", f"Cleansing run: {cleansing_run_id}")
-        log("INFO", f"Training cutoff UTC: {training_cutoff_utc}")
-        log("INFO", f"Bin seconds: {bin_seconds}")
-        log("INFO", f"Scope pairs: {len(scope_pairs)}")
-        log("INFO", f"Staging input: {args.staging_db}")
-        log("INFO", f"Resolved staging DB count: {len(staging_db_paths)}")
-        log("INFO", f"Staging time window UTC: min={staging_min_utc or '-'} max={staging_max_utc or '-'}")
-        if staging_min_utc is None:
-            raise SystemExit("No staging ingestion timestamps found in market_ticks. Cannot train forecasting models.")
-        cutoff_ts = pd.to_datetime(training_cutoff_utc, utc=True, errors="coerce")
-        staging_min_ts = pd.to_datetime(staging_min_utc, utc=True, errors="coerce")
-        if pd.isna(cutoff_ts) or pd.isna(staging_min_ts):
-            log(
-                "WARNING",
-                "Could not parse staging/cutoff timestamps reliably. Continuing without no-history preflight check.",
+        def maybe_log_progress(*, force: bool = False) -> None:
+            nonlocal last_progress_logged_monotonic
+            if not args.progress:
+                return
+            now_monotonic = time.monotonic()
+            if (not force) and (
+                now_monotonic - last_progress_logged_monotonic < float(args.progress_interval_seconds)
+            ):
+                return
+            log_progress(
+                total_pairs=total_pairs,
+                processed_pairs=processed_pairs,
+                total_model_slots=total_model_slots,
+                processed_model_slots=processed_model_slots,
+                trained_models=models_trained,
+                failed_models=failed_model_slots,
+                skipped_model_slots=skipped_model_slots,
+                predictions_written=predictions_written,
+                started_monotonic=progress_started_monotonic,
+                last_pair=last_completed_pair,
             )
-        elif staging_min_ts >= cutoff_ts:
-            raise SystemExit(
-                "No leakage-safe staging history available before cleansing cutoff. "
-                f"training_cutoff_utc={training_cutoff_utc}, staging_min_utc={staging_min_utc}, "
-                f"staging_max_utc={staging_max_utc}. "
-                "Provide older staging rows before the cutoff."
-            )
+            last_progress_logged_monotonic = now_monotonic
 
-        horizons_steps = [1, int(args.secondary_horizon_multiple)]
-        horizons_seconds = [bin_seconds * step for step in horizons_steps]
-        log("INFO", f"Forecast horizons seconds: {horizons_seconds}")
+        maybe_log_progress(force=True)
 
-        training_run_id = "forecast_train_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
-
-        forecast_conn = sqlite3.connect(str(forecast_db_path))
-        try:
-            ensure_forecast_tables(forecast_conn)
-            insert_training_run_start(
-                forecast_conn,
-                training_run_id=training_run_id,
-                args=args,
-                staging_db_count=len(staging_db_paths),
-                staging_input=args.staging_db,
-                cleansing_db_path=cleansing_db_path,
-                cleansing_run_id=cleansing_run_id,
-                forecast_db_path=forecast_db_path,
+        model_names = list(models.keys())
+        worker_tasks = [
+            PairWorkerTask(
+                exchange_id=pair.exchange_id,
+                symbol=pair.symbol,
+                cleansing_rows=int(pair.cleansing_rows),
+                staging_db_paths=tuple(str(path) for path in staging_db_paths),
                 training_cutoff_utc=training_cutoff_utc,
-                bin_seconds=bin_seconds,
-                lag_steps=lag_steps,
-                rolling_windows=rolling_windows,
-                series_total=len(scope_pairs),
+                bin_seconds=int(bin_seconds),
+                lag_steps=tuple(lag_steps),
+                rolling_windows=tuple(rolling_windows),
+                min_train_rows=int(args.min_train_rows),
+                test_size=float(args.test_size),
+                cv_splits=int(args.cv_splits),
+                ridge_alpha=float(args.ridge_alpha),
+                hgb_max_iter=int(args.hgb_max_iter),
+                hgb_learning_rate=float(args.hgb_learning_rate),
+                horizons_steps=tuple(int(step) for step in horizons_steps),
+                horizons_seconds=tuple(int(seconds) for seconds in horizons_seconds),
+                training_run_id=training_run_id,
+                model_dir=str(model_dir),
             )
+            for pair in scope_pairs
+        ]
+        log("INFO", f"Worker processes: {args.workers}")
 
-            models = create_models(args)
-            series_trained = 0
-            models_trained = 0
-            predictions_written = 0
-            skipped_series: list[dict[str, Any]] = []
-            failed_models: list[dict[str, Any]] = []
-            failed_model_slots = 0
-            skipped_model_slots = 0
-            processed_pairs = 0
-            processed_model_slots = 0
-            models_per_pair = len(horizons_steps) * len(models)
-            total_pairs = len(scope_pairs)
-            total_model_slots = total_pairs * models_per_pair
-            progress_started_monotonic = time.monotonic()
-            last_progress_logged_monotonic = progress_started_monotonic - float(args.progress_interval_seconds)
-            last_completed_pair = "-"
+        def persist_pair_result(result: dict[str, Any]) -> None:
+            nonlocal series_trained
+            nonlocal models_trained
+            nonlocal predictions_written
+            nonlocal failed_model_slots
+            nonlocal skipped_model_slots
+            nonlocal processed_pairs
+            nonlocal processed_model_slots
+            nonlocal last_completed_pair
 
-            def maybe_log_progress(*, force: bool = False) -> None:
-                nonlocal last_progress_logged_monotonic
-                if not args.progress:
-                    return
-                now_monotonic = time.monotonic()
-                if (not force) and (
-                    now_monotonic - last_progress_logged_monotonic < float(args.progress_interval_seconds)
-                ):
-                    return
-                log_progress(
-                    total_pairs=total_pairs,
-                    processed_pairs=processed_pairs,
-                    total_model_slots=total_model_slots,
-                    processed_model_slots=processed_model_slots,
-                    trained_models=models_trained,
-                    failed_models=failed_model_slots,
-                    skipped_model_slots=skipped_model_slots,
-                    predictions_written=predictions_written,
-                    started_monotonic=progress_started_monotonic,
-                    last_pair=last_completed_pair,
-                )
-                last_progress_logged_monotonic = now_monotonic
+            processed_pairs += 1
+            processed_model_slots += int(result.get("model_slots_processed", 0))
+            failed_model_slots += int(result.get("model_slots_failed", 0))
+            skipped_model_slots += int(result.get("model_slots_skipped", 0))
+            last_completed_pair = str(result.get("pair_key", "-"))
 
-            maybe_log_progress(force=True)
-
-            model_names = list(models.keys())
-            worker_tasks = [
-                PairWorkerTask(
-                    exchange_id=pair.exchange_id,
-                    symbol=pair.symbol,
-                    cleansing_rows=int(pair.cleansing_rows),
-                    staging_db_paths=tuple(str(path) for path in staging_db_paths),
-                    cleansing_db_path=str(cleansing_db_path),
-                    cleansing_run_id=cleansing_run_id,
-                    training_cutoff_utc=training_cutoff_utc,
-                    bin_seconds=int(bin_seconds),
-                    lag_steps=tuple(lag_steps),
-                    rolling_windows=tuple(rolling_windows),
-                    min_train_rows=int(args.min_train_rows),
-                    test_size=float(args.test_size),
-                    cv_splits=int(args.cv_splits),
-                    ridge_alpha=float(args.ridge_alpha),
-                    hgb_max_iter=int(args.hgb_max_iter),
-                    hgb_learning_rate=float(args.hgb_learning_rate),
-                    horizons_steps=tuple(int(step) for step in horizons_steps),
-                    horizons_seconds=tuple(int(seconds) for seconds in horizons_seconds),
-                    training_run_id=training_run_id,
-                    model_dir=str(model_dir),
-                )
-                for pair in scope_pairs
-            ]
-            log("INFO", f"Worker processes: {args.workers}")
-
-            def persist_pair_result(result: dict[str, Any]) -> None:
-                nonlocal series_trained
-                nonlocal models_trained
-                nonlocal predictions_written
-                nonlocal failed_model_slots
-                nonlocal skipped_model_slots
-                nonlocal processed_pairs
-                nonlocal processed_model_slots
-                nonlocal last_completed_pair
-
-                processed_pairs += 1
-                processed_model_slots += int(result.get("model_slots_processed", 0))
-                failed_model_slots += int(result.get("model_slots_failed", 0))
-                skipped_model_slots += int(result.get("model_slots_skipped", 0))
-                last_completed_pair = str(result.get("pair_key", "-"))
-
-                skipped_item = result.get("skipped_series_item")
-                if isinstance(skipped_item, dict):
-                    skipped_series.append(skipped_item)
-                    if args.log_skip_details:
-                        log(
-                            "WARNING",
-                            f"Skip pair exchange={skipped_item.get('exchange_id')} "
-                            f"symbol={skipped_item.get('symbol')} reason={skipped_item.get('reason')}",
-                        )
-
-                if int(result.get("pair_trained_models", 0)) > 0:
-                    series_trained += 1
-
-                for model_result in result.get("model_results", []):
-                    status = str(model_result.get("status", "")).lower()
-                    holdout_metrics = model_result.get("holdout_metrics") or {
-                        "mae": None,
-                        "rmse": None,
-                        "mape": None,
-                        "r2": None,
-                    }
-                    cv_mean_metrics = model_result.get("cv_mean_metrics") or {
-                        "mae": None,
-                        "rmse": None,
-                        "mape": None,
-                        "r2": None,
-                    }
-                    exchange_id = str(model_result.get("exchange_id", result.get("exchange_id", "")))
-                    symbol = str(model_result.get("symbol", result.get("symbol", "")))
-                    model_name = str(model_result.get("model_name", "unknown_model"))
-                    horizon_steps = int(model_result.get("horizon_steps", 0))
-                    horizon_seconds = int(model_result.get("horizon_seconds", 0))
-                    error_message = model_result.get("error_message")
-                    feature_config = model_result.get("feature_config") or {
-                        "bin_seconds": int(bin_seconds),
-                        "horizon_steps": horizon_steps,
-                        "horizon_seconds": horizon_seconds,
-                        "lag_steps": lag_steps,
-                        "rolling_windows": rolling_windows,
-                        "feature_columns": [],
-                        "training_cutoff_utc": training_cutoff_utc,
-                    }
-
-                    model_id = insert_model_registry_row(
-                        forecast_conn,
-                        training_run_id=training_run_id,
-                        exchange_id=exchange_id,
-                        symbol=symbol,
-                        model_name=model_name,
-                        horizon_steps=horizon_steps,
-                        horizon_seconds=horizon_seconds,
-                        artifact_path=Path(str(model_result.get("artifact_path", ""))),
-                        feature_config=feature_config,
-                        train_rows=int(model_result.get("train_rows", 0)),
-                        test_rows=int(model_result.get("test_rows", 0)),
-                        cv_fold_count=int(model_result.get("cv_fold_count", 0)),
-                        holdout_metrics=holdout_metrics,
-                        cv_mean_metrics=cv_mean_metrics,
-                        status="trained" if status == "trained" else "failed",
-                        error_message=str(error_message) if error_message is not None else None,
+            skipped_item = result.get("skipped_series_item")
+            if isinstance(skipped_item, dict):
+                skipped_series.append(skipped_item)
+                if args.log_skip_details:
+                    log(
+                        "WARNING",
+                        f"Skip pair exchange={skipped_item.get('exchange_id')} "
+                        f"symbol={skipped_item.get('symbol')} reason={skipped_item.get('reason')}",
                     )
 
-                    if status != "trained":
-                        failed_models.append(
-                            {
-                                "exchange_id": exchange_id,
-                                "symbol": symbol,
-                                "model_name": model_name,
-                                "horizon_seconds": horizon_seconds,
-                                "error": str(error_message),
-                            }
-                        )
-                        if args.log_skip_details:
-                            log(
-                                "ERROR",
-                                f"Model failed exchange={exchange_id} symbol={symbol} "
-                                f"model={model_name} horizon_s={horizon_seconds} error={error_message}",
-                            )
-                        continue
+            if int(result.get("pair_trained_models", 0)) > 0:
+                series_trained += 1
 
-                    models_trained += 1
-                    prediction_rows = model_result.get("prediction_rows") or []
-                    if prediction_rows:
-                        insert_rows: list[tuple[Any, ...]] = []
-                        for row in prediction_rows:
-                            (
-                                generated_utc,
-                                generated_epoch,
-                                target_utc,
-                                target_epoch,
-                                predicted_price,
-                                actual_price,
-                                abs_error,
-                                generated_at_utc,
-                            ) = row
-                            insert_rows.append(
-                                (
-                                    model_id,
-                                    training_run_id,
-                                    cleansing_run_id,
-                                    exchange_id,
-                                    symbol,
-                                    model_name,
-                                    int(horizon_seconds),
-                                    str(generated_utc),
-                                    int(generated_epoch),
-                                    str(target_utc),
-                                    int(target_epoch),
-                                    float(predicted_price),
-                                    float(actual_price) if actual_price is not None else None,
-                                    float(abs_error) if abs_error is not None else None,
-                                    str(generated_at_utc),
-                                )
-                            )
-                        forecast_conn.executemany(
-                            """
-                            INSERT INTO forecast_predictions (
-                                model_id,
-                                training_run_id,
-                                cleansing_run_id,
-                                exchange_id,
-                                symbol,
-                                model_name,
-                                horizon_seconds,
-                                forecast_generated_bucket_start_utc,
-                                forecast_generated_bucket_epoch_s,
-                                target_bucket_start_utc,
-                                target_bucket_epoch_s,
-                                predicted_price,
-                                actual_price,
-                                abs_error,
-                                generated_at_utc
-                            )
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            insert_rows,
-                        )
-                        forecast_conn.commit()
-                        predictions_written += len(insert_rows)
+            for model_result in result.get("model_results", []):
+                status = str(model_result.get("status", "")).lower()
+                holdout_metrics = model_result.get("holdout_metrics") or {
+                    "mae": None,
+                    "rmse": None,
+                    "mape": None,
+                    "r2": None,
+                }
+                cv_mean_metrics = model_result.get("cv_mean_metrics") or {
+                    "mae": None,
+                    "rmse": None,
+                    "mape": None,
+                    "r2": None,
+                }
+                exchange_id = str(model_result.get("exchange_id", result.get("exchange_id", "")))
+                symbol = str(model_result.get("symbol", result.get("symbol", "")))
+                model_name = str(model_result.get("model_name", "unknown_model"))
+                horizon_steps = int(model_result.get("horizon_steps", 0))
+                horizon_seconds = int(model_result.get("horizon_seconds", 0))
+                error_message = model_result.get("error_message")
+                feature_config = model_result.get("feature_config") or {
+                    "bin_seconds": int(bin_seconds),
+                    "horizon_steps": horizon_steps,
+                    "horizon_seconds": horizon_seconds,
+                    "lag_steps": lag_steps,
+                    "rolling_windows": rolling_windows,
+                    "feature_columns": [],
+                    "training_cutoff_utc": training_cutoff_utc,
+                }
 
-                    if args.log_pair_details:
-                        holdout_rmse = holdout_metrics.get("rmse")
-                        holdout_rmse_txt = f"{holdout_rmse:.8f}" if holdout_rmse is not None else "n/a"
+                insert_model_registry_row(
+                    forecast_conn,
+                    training_run_id=training_run_id,
+                    exchange_id=exchange_id,
+                    symbol=symbol,
+                    model_name=model_name,
+                    horizon_steps=horizon_steps,
+                    horizon_seconds=horizon_seconds,
+                    artifact_path=Path(str(model_result.get("artifact_path", ""))),
+                    feature_config=feature_config,
+                    train_rows=int(model_result.get("train_rows", 0)),
+                    test_rows=int(model_result.get("test_rows", 0)),
+                    cv_fold_count=int(model_result.get("cv_fold_count", 0)),
+                    holdout_metrics=holdout_metrics,
+                    cv_mean_metrics=cv_mean_metrics,
+                    status="trained" if status == "trained" else "failed",
+                    error_message=str(error_message) if error_message is not None else None,
+                )
+
+                if status != "trained":
+                    failed_models.append(
+                        {
+                            "exchange_id": exchange_id,
+                            "symbol": symbol,
+                            "model_name": model_name,
+                            "horizon_seconds": horizon_seconds,
+                            "error": str(error_message),
+                        }
+                    )
+                    if args.log_skip_details:
                         log(
-                            "INFO",
-                            f"Trained model exchange={exchange_id} symbol={symbol} "
-                            f"model={model_name} horizon_s={horizon_seconds} "
-                            f"holdout_rmse={holdout_rmse_txt} predictions={len(prediction_rows)}",
+                            "ERROR",
+                            f"Model failed exchange={exchange_id} symbol={symbol} "
+                            f"model={model_name} horizon_s={horizon_seconds} error={error_message}",
                         )
+                    continue
 
-                maybe_log_progress()
+                models_trained += 1
+                if args.log_pair_details:
+                    holdout_rmse = holdout_metrics.get("rmse")
+                    holdout_rmse_txt = f"{holdout_rmse:.8f}" if holdout_rmse is not None else "n/a"
+                    log(
+                        "INFO",
+                        f"Trained model exchange={exchange_id} symbol={symbol} "
+                        f"model={model_name} horizon_s={horizon_seconds} "
+                        f"holdout_rmse={holdout_rmse_txt}",
+                    )
 
-            if args.workers == 1:
+            maybe_log_progress()
+
+        if args.workers == 1:
+            for idx, task in enumerate(worker_tasks, start=1):
+                if args.log_pair_details:
+                    log(
+                        "INFO",
+                        f"Pair {idx}/{len(worker_tasks)} exchange={task.exchange_id} "
+                        f"symbol={task.symbol} staging_rows={task.cleansing_rows}",
+                    )
+                try:
+                    pair_result = process_pair_task(task)
+                except Exception as exc:  # noqa: BLE001
+                    pair_result = build_pair_worker_exception_result(
+                        task=task,
+                        model_names=model_names,
+                        error_message=f"worker_exception:{exc!r}",
+                    )
+                persist_pair_result(pair_result)
+        else:
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=int(args.workers),
+                mp_context=multiprocessing.get_context("spawn"),
+            ) as executor:
+                future_to_task: dict[concurrent.futures.Future[dict[str, Any]], PairWorkerTask] = {}
                 for idx, task in enumerate(worker_tasks, start=1):
                     if args.log_pair_details:
                         log(
                             "INFO",
-                            f"Pair {idx}/{len(worker_tasks)} exchange={task.exchange_id} "
-                            f"symbol={task.symbol} cleansing_rows={task.cleansing_rows}",
+                            f"Queue pair {idx}/{len(worker_tasks)} exchange={task.exchange_id} "
+                            f"symbol={task.symbol} staging_rows={task.cleansing_rows}",
                         )
+                    future = executor.submit(process_pair_task, task)
+                    future_to_task[future] = task
+
+                for future in concurrent.futures.as_completed(future_to_task):
+                    task = future_to_task[future]
                     try:
-                        pair_result = process_pair_task(task)
+                        pair_result = future.result()
                     except Exception as exc:  # noqa: BLE001
                         pair_result = build_pair_worker_exception_result(
                             task=task,
@@ -1849,55 +1806,28 @@ def main() -> None:
                             error_message=f"worker_exception:{exc!r}",
                         )
                     persist_pair_result(pair_result)
-            else:
-                with concurrent.futures.ProcessPoolExecutor(
-                    max_workers=int(args.workers),
-                    mp_context=multiprocessing.get_context("spawn"),
-                ) as executor:
-                    future_to_task: dict[concurrent.futures.Future[dict[str, Any]], PairWorkerTask] = {}
-                    for idx, task in enumerate(worker_tasks, start=1):
-                        if args.log_pair_details:
-                            log(
-                                "INFO",
-                                f"Queue pair {idx}/{len(worker_tasks)} exchange={task.exchange_id} "
-                                f"symbol={task.symbol} cleansing_rows={task.cleansing_rows}",
-                            )
-                        future = executor.submit(process_pair_task, task)
-                        future_to_task[future] = task
 
-                    for future in concurrent.futures.as_completed(future_to_task):
-                        task = future_to_task[future]
-                        try:
-                            pair_result = future.result()
-                        except Exception as exc:  # noqa: BLE001
-                            pair_result = build_pair_worker_exception_result(
-                                task=task,
-                                model_names=model_names,
-                                error_message=f"worker_exception:{exc!r}",
-                            )
-                        persist_pair_result(pair_result)
+        maybe_log_progress(force=True)
 
-            maybe_log_progress(force=True)
-
-            status = "completed"
-            notes = {
-                "skipped_series_count": len(skipped_series),
-                "failed_model_count": len(failed_models),
-                "skipped_series": skipped_series[:200],
-                "failed_models": failed_models[:200],
-                "horizons_seconds": horizons_seconds,
-            }
-            update_training_run_finish(
-                forecast_conn,
-                training_run_id=training_run_id,
-                status=status,
-                series_trained=series_trained,
-                models_trained=models_trained,
-                predictions_written=predictions_written,
-                notes=notes,
-            )
-        finally:
-            forecast_conn.close()
+        status = "completed"
+        notes = {
+            "skipped_series_count": len(skipped_series),
+            "failed_model_count": len(failed_models),
+            "skipped_series": skipped_series[:200],
+            "failed_models": failed_models[:200],
+            "horizons_seconds": horizons_seconds,
+        }
+        update_training_run_finish(
+            forecast_conn,
+            training_run_id=training_run_id,
+            status=status,
+            series_trained=series_trained,
+            models_trained=models_trained,
+            predictions_written=predictions_written,
+            notes=notes,
+        )
+    finally:
+        forecast_conn.close()
 
     log(
         "INFO",
