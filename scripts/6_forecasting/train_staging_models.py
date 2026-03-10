@@ -218,6 +218,12 @@ def parse_args() -> argparse.Namespace:
         help="Staging DB inputs used for leakage-safe training history reads. Accepts one or more .db files, directories, or glob patterns.",
     )
     parser.add_argument(
+        "--staging-db-exclude",
+        nargs="+",
+        default=None,
+        help="Optional staging DB inputs to exclude after resolution. Accepts one or more .db files, directories, or glob patterns.",
+    )
+    parser.add_argument(
         "--training-cutoff-utc",
         default=None,
         help="Optional UTC cutoff for training history. Only staging rows before this timestamp are used. If omitted, all available staging history is used.",
@@ -373,7 +379,7 @@ def resolve_file(path_raw: str) -> Path:
     return path
 
 
-def resolve_staging_db_paths(path_inputs: list[str]) -> list[Path]:
+def resolve_staging_db_paths(path_inputs: list[str], *, allow_empty: bool = False) -> list[Path]:
     resolved_paths: list[Path] = []
     seen: set[Path] = set()
     for path_raw in path_inputs:
@@ -381,7 +387,7 @@ def resolve_staging_db_paths(path_inputs: list[str]) -> list[Path]:
         if has_glob_syntax:
             matches = sorted(Path(item).resolve() for item in glob.glob(path_raw, recursive=True))
             db_paths = [path for path in matches if path.is_file() and path.suffix == ".db"]
-            if not db_paths:
+            if not db_paths and not allow_empty:
                 raise SystemExit(f"No staging DB files matched pattern: {path_raw}")
         else:
             candidate = resolve_file(path_raw)
@@ -391,10 +397,13 @@ def resolve_staging_db_paths(path_inputs: list[str]) -> list[Path]:
                 db_paths = [candidate]
             elif candidate.is_dir():
                 db_paths = sorted(path for path in candidate.glob("*.db") if path.is_file())
-                if not db_paths:
+                if not db_paths and not allow_empty:
                     raise SystemExit(f"No staging DB files found in directory: {candidate}")
             else:
-                raise SystemExit(f"Staging DB input does not exist: {candidate}")
+                if allow_empty:
+                    db_paths = []
+                else:
+                    raise SystemExit(f"Staging DB input does not exist: {candidate}")
 
         for db_path in db_paths:
             if db_path in seen:
@@ -402,7 +411,7 @@ def resolve_staging_db_paths(path_inputs: list[str]) -> list[Path]:
             seen.add(db_path)
             resolved_paths.append(db_path)
 
-    if not resolved_paths:
+    if not resolved_paths and not allow_empty:
         raise SystemExit("No staging DB files resolved from --staging-db inputs.")
     return resolved_paths
 
@@ -1571,6 +1580,18 @@ def main() -> None:
     symbol_filters = parse_csv_values(args.symbols)
 
     staging_db_paths = resolve_staging_db_paths(args.staging_db)
+    excluded_staging_db_paths = (
+        resolve_staging_db_paths(args.staging_db_exclude, allow_empty=True)
+        if args.staging_db_exclude
+        else []
+    )
+    excluded_staging_db_set = set(excluded_staging_db_paths)
+    staging_db_paths = [path for path in staging_db_paths if path not in excluded_staging_db_set]
+    if not staging_db_paths:
+        raise SystemExit(
+            "No staging DB files remain after applying --staging-db-exclude. "
+            "Adjust include or exclude inputs."
+        )
 
     forecast_db_path = resolve_file(args.forecast_db)
     forecast_db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1623,7 +1644,11 @@ def main() -> None:
     log("INFO", f"Bin seconds: {bin_seconds}")
     log("INFO", f"Scope pairs: {len(scope_pairs)}")
     log("INFO", f"Staging inputs: {', '.join(args.staging_db)}")
+    if args.staging_db_exclude:
+        log("INFO", f"Staging excludes: {', '.join(args.staging_db_exclude)}")
     log("INFO", f"Resolved staging DB count: {len(staging_db_paths)}")
+    if excluded_staging_db_paths:
+        log("INFO", f"Resolved excluded staging DB count: {len(excluded_staging_db_paths)}")
     log("INFO", f"Staging time window UTC: min={staging_min_utc or '-'} max={staging_max_utc or '-'}")
     log("INFO", f"Training horizons seconds: {horizons_seconds}")
 

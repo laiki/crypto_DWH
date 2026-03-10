@@ -26,6 +26,7 @@ This decouples long training history from run-specific forecast generation.
 ### Training
 
 - Staging SQLite input (`market_ticks`), provided as one or more `.db` files, directories, or glob patterns spanning multiple staging slices
+- Optional exclude input to remove selected staging exports after include resolution
 - Writable forecast DB (typically Core DB)
 - Writable model artifact directory
 
@@ -42,6 +43,7 @@ This decouples long training history from run-specific forecast generation.
 ```bash
 python scripts/6_forecasting/train_staging_models.py \
   --staging-db "data/staging/*.db" \
+  --staging-db-exclude "data/staging/*_last_1h.db" \
   --forecast-db data/core/core_kpi.db \
   --model-dir data/forecasting/models \
   --bin-seconds 60 \
@@ -68,6 +70,17 @@ python scripts/6_forecasting/train_staging_models.py \
   --model-dir data/forecasting/models
 ```
 
+Example with include-directory plus explicit excludes:
+
+```bash
+python scripts/6_forecasting/train_staging_models.py \
+  --staging-db data/staging \
+  --staging-db-exclude \
+    data/staging/staging_export_20260310_083648_last_1h.db \
+    "data/staging/*_from_2h.db" \
+  --forecast-db data/core/core_kpi.db
+```
+
 ### 2. Forecast one cleansing run with trained models
 
 ```bash
@@ -90,6 +103,7 @@ If `--training-run-id` is omitted, the latest completed training run is used.
   - multiple files, for example `--staging-db a.db b.db c.db`
   - one directory, for example `data/staging`
   - one glob, for example `"data/staging/staging_export_20260310_*.db"`
+- `--staging-db-exclude` accepts the same input forms and is applied after include resolution.
 - Multiple staging DBs are merged for training-history lookup.
 - This allows model training over larger historical windows than a single staging export can provide.
 
