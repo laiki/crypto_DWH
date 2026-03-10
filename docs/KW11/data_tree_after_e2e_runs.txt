@@ -1,0 +1,887 @@
+[4.0K]  data
+├── [4.0K]  data/cleansing
+│   ├── [ 12M]  data/cleansing/cleaned_staging_export_20260310_083648_last_1h_60s.db
+│   ├── [ 34M]  data/cleansing/cleaned_staging_export_20260310_083648_last_1h_60s.db.json
+│   ├── [2.0K]  data/cleansing/cleaned_staging_export_20260310_083648_last_1h_60s.db.log
+│   ├── [ 12M]  data/cleansing/cleaned_staging_export_20260310_083651_last_1h_from_1h_60s.db
+│   ├── [ 33M]  data/cleansing/cleaned_staging_export_20260310_083651_last_1h_from_1h_60s.db.json
+│   ├── [1.8K]  data/cleansing/cleaned_staging_export_20260310_083651_last_1h_from_1h_60s.db.log
+│   ├── [ 12M]  data/cleansing/cleaned_staging_export_20260310_083654_last_1h_from_2h_60s.db
+│   ├── [ 33M]  data/cleansing/cleaned_staging_export_20260310_083654_last_1h_from_2h_60s.db.json
+│   └── [1.8K]  data/cleansing/cleaned_staging_export_20260310_083654_last_1h_from_2h_60s.db.log
+├── [4.0K]  data/core
+│   ├── [ 87M]  data/core/core_kpi_staging_export_20260310_083648_last_1h.db
+│   ├── [ 80M]  data/core/core_kpi_staging_export_20260310_083651_last_1h_from_1h.db
+│   └── [ 82M]  data/core/core_kpi_staging_export_20260310_083654_last_1h_from_2h.db
+├── [ 35K]  data/redis_orchestrator_plan.json
+├── [4.0K]  data/staging
+│   ├── [ 76M]  data/staging/staging_export_20260310_083648_last_1h.db
+│   ├── [ 69M]  data/staging/staging_export_20260310_083651_last_1h_from_1h.db
+│   └── [ 69M]  data/staging/staging_export_20260310_083654_last_1h_from_2h.db
+└── [4.0K]  data/vault2_redis
+    ├── [4.0K]  data/vault2_redis/ingestion
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=15
+    │   │   │   │   └── [ 68K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=15/part_aster_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=16
+    │   │   │   │   └── [ 68K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=16/part_aster_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=17
+    │   │   │   │   └── [ 80K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=17/part_aster_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=18
+    │   │   │   │   └── [ 88K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=18/part_aster_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=19
+    │   │   │   │   └── [ 84K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=19/part_aster_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=20
+    │   │   │   │   └── [ 80K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=20/part_aster_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=21
+    │   │   │   │   └── [100K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=21/part_aster_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=22
+    │   │   │   │   └── [ 76K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=22/part_aster_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=23
+    │   │   │       └── [ 76K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=23/part_aster_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=00
+    │   │       │   └── [ 60K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=00/part_aster_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=01
+    │   │       │   └── [ 80K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=01/part_aster_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=02
+    │   │       │   └── [ 72K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=02/part_aster_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=03
+    │   │           └── [ 56K]  data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=03/part_aster_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=15
+    │   │   │   │   └── [5.4M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=15/part_backpack_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=16
+    │   │   │   │   └── [4.9M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=16/part_backpack_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=17
+    │   │   │   │   └── [6.1M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=17/part_backpack_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=18
+    │   │   │   │   └── [4.8M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=18/part_backpack_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=19
+    │   │   │   │   └── [6.1M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=19/part_backpack_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=20
+    │   │   │   │   └── [5.6M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=20/part_backpack_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=21
+    │   │   │   │   └── [7.6M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=21/part_backpack_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=22
+    │   │   │   │   └── [7.9M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=22/part_backpack_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=23
+    │   │   │       └── [8.3M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=23/part_backpack_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10/hour=00
+    │   │       │   └── [9.2M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10/hour=00/part_backpack_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10/hour=01
+    │   │       │   └── [9.2M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10/hour=01/part_backpack_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10/hour=02
+    │   │       │   └── [8.3M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10/hour=02/part_backpack_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10/hour=03
+    │   │           └── [3.6M]  data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10/hour=03/part_backpack_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=14
+    │   │   │   │   └── [ 11M]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=14/part_binance_20260309_14.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=15
+    │   │   │   │   └── [200K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=15/part_binance_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=16
+    │   │   │   │   └── [228K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=16/part_binance_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=17
+    │   │   │   │   └── [208K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=17/part_binance_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=18
+    │   │   │   │   └── [232K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=18/part_binance_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=19
+    │   │   │   │   └── [344K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=19/part_binance_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=20
+    │   │   │   │   └── [216K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=20/part_binance_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=21
+    │   │   │   │   └── [220K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=21/part_binance_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=22
+    │   │   │   │   └── [284K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=22/part_binance_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=23
+    │   │   │       └── [232K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-09/hour=23/part_binance_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-10/hour=00
+    │   │       │   └── [292K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-10/hour=00/part_binance_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-10/hour=01
+    │   │       │   └── [260K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-10/hour=01/part_binance_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-10/hour=02
+    │   │       │   └── [312K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-10/hour=02/part_binance_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-10/hour=03
+    │   │           └── [164K]  data/vault2_redis/ingestion/exchange=binance/date=2026-03-10/hour=03/part_binance_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=15
+    │   │   │   │   └── [ 36K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=15/part_binanceus_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=16
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=16/part_binanceus_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=17
+    │   │   │   │   └── [ 36K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=17/part_binanceus_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=18
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=18/part_binanceus_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=19
+    │   │   │   │   └── [ 40K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=19/part_binanceus_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=20
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=20/part_binanceus_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=21
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=21/part_binanceus_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=22
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=22/part_binanceus_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=23
+    │   │   │       └── [ 32K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-09/hour=23/part_binanceus_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-10/hour=00
+    │   │       │   └── [ 32K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-10/hour=00/part_binanceus_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-10/hour=01
+    │   │       │   └── [ 32K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-10/hour=01/part_binanceus_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-10/hour=02
+    │   │       │   └── [ 36K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-10/hour=02/part_binanceus_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-10/hour=03
+    │   │           └── [ 32K]  data/vault2_redis/ingestion/exchange=binanceus/date=2026-03-10/hour=03/part_binanceus_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=15
+    │   │   │   │   └── [1.3M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=15/part_bingx_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=16
+    │   │   │   │   └── [1.5M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=16/part_bingx_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=17
+    │   │   │   │   └── [1.6M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=17/part_bingx_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=18
+    │   │   │   │   └── [2.1M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=18/part_bingx_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=19
+    │   │   │   │   └── [2.0M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=19/part_bingx_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=20
+    │   │   │   │   └── [2.4M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=20/part_bingx_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=21
+    │   │   │   │   └── [1.6M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=21/part_bingx_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=22
+    │   │   │   │   └── [1.9M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=22/part_bingx_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=23
+    │   │   │       └── [1.8M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-09/hour=23/part_bingx_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-10/hour=00
+    │   │       │   └── [2.1M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-10/hour=00/part_bingx_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-10/hour=01
+    │   │       │   └── [2.0M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-10/hour=01/part_bingx_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-10/hour=02
+    │   │       │   └── [2.0M]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-10/hour=02/part_bingx_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-10/hour=03
+    │   │           └── [932K]  data/vault2_redis/ingestion/exchange=bingx/date=2026-03-10/hour=03/part_bingx_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=15
+    │   │   │   │   └── [2.9M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=15/part_bitget_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=16
+    │   │   │   │   └── [2.4M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=16/part_bitget_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=17
+    │   │   │   │   └── [2.6M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=17/part_bitget_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=18
+    │   │   │   │   └── [5.5M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=18/part_bitget_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=19
+    │   │   │   │   └── [6.3M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=19/part_bitget_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=20
+    │   │   │   │   └── [8.3M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=20/part_bitget_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=21
+    │   │   │   │   └── [ 11M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=21/part_bitget_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=22
+    │   │   │   │   └── [9.6M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=22/part_bitget_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=23
+    │   │   │       └── [9.3M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-09/hour=23/part_bitget_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-10/hour=00
+    │   │       │   └── [8.9M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-10/hour=00/part_bitget_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-10/hour=01
+    │   │       │   └── [9.3M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-10/hour=01/part_bitget_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-10/hour=02
+    │   │       │   └── [ 10M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-10/hour=02/part_bitget_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-10/hour=03
+    │   │           └── [4.8M]  data/vault2_redis/ingestion/exchange=bitget/date=2026-03-10/hour=03/part_bitget_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=00
+    │   │       │   └── [240K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=00/part_bithumb_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=01
+    │   │       │   └── [204K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=01/part_bithumb_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=02
+    │   │       │   └── [124K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=02/part_bithumb_20260310_02.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=03
+    │   │       │   └── [112K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=03/part_bithumb_20260310_03.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=04
+    │   │       │   └── [124K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=04/part_bithumb_20260310_04.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=05
+    │   │       │   └── [180K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=05/part_bithumb_20260310_05.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=06
+    │   │       │   └── [224K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=06/part_bithumb_20260310_06.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=07
+    │   │       │   └── [272K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=07/part_bithumb_20260310_07.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=08
+    │   │       │   └── [232K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=08/part_bithumb_20260310_08.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=09
+    │   │       │   └── [300K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=09/part_bithumb_20260310_09.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=10
+    │   │       │   └── [308K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=10/part_bithumb_20260310_10.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=11
+    │   │       │   └── [248K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=11/part_bithumb_20260310_11.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=12
+    │   │           └── [156K]  data/vault2_redis/ingestion/exchange=bithumb/date=2026-03-10/hour=12/part_bithumb_20260310_12.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=15
+    │   │   │   │   └── [192K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=15/part_bittrade_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=16
+    │   │   │   │   └── [176K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=16/part_bittrade_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=17
+    │   │   │   │   └── [164K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=17/part_bittrade_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=18
+    │   │   │   │   └── [152K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=18/part_bittrade_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=19
+    │   │   │   │   └── [216K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=19/part_bittrade_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=20
+    │   │   │   │   └── [184K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=20/part_bittrade_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=21
+    │   │   │   │   └── [212K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=21/part_bittrade_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=22
+    │   │   │   │   └── [204K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=22/part_bittrade_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=23
+    │   │   │       └── [124K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-09/hour=23/part_bittrade_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-10/hour=00
+    │   │       │   └── [176K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-10/hour=00/part_bittrade_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-10/hour=01
+    │   │       │   └── [220K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-10/hour=01/part_bittrade_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-10/hour=02
+    │   │       │   └── [160K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-10/hour=02/part_bittrade_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-10/hour=03
+    │   │           └── [ 76K]  data/vault2_redis/ingestion/exchange=bittrade/date=2026-03-10/hour=03/part_bittrade_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=15
+    │   │   │   │   └── [5.8M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=15/part_bitvavo_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=16
+    │   │   │   │   └── [7.4M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=16/part_bitvavo_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=17
+    │   │   │   │   └── [7.9M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=17/part_bitvavo_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=18
+    │   │   │   │   └── [7.9M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=18/part_bitvavo_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=19
+    │   │   │   │   └── [8.0M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=19/part_bitvavo_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=20
+    │   │   │   │   └── [7.9M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=20/part_bitvavo_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=21
+    │   │   │   │   └── [7.4M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=21/part_bitvavo_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=22
+    │   │   │   │   └── [7.5M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=22/part_bitvavo_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=23
+    │   │   │       └── [7.4M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-09/hour=23/part_bitvavo_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-10/hour=00
+    │   │       │   └── [8.2M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-10/hour=00/part_bitvavo_20260310_00.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-10/hour=01
+    │   │           └── [5.8M]  data/vault2_redis/ingestion/exchange=bitvavo/date=2026-03-10/hour=01/part_bitvavo_20260310_01.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=bullish
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=bullish/date=2026-03-09
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=bullish/date=2026-03-09/hour=15
+    │   │           └── [216K]  data/vault2_redis/ingestion/exchange=bullish/date=2026-03-09/hour=15/part_bullish_20260309_15.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbase
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=coinbase/date=2026-03-09
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=coinbase/date=2026-03-09/hour=15
+    │   │           └── [ 44K]  data/vault2_redis/ingestion/exchange=coinbase/date=2026-03-09/hour=15/part_coinbase_20260309_15.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=15
+    │   │   │   │   └── [552K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=15/part_coinbaseadvanced_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=16
+    │   │   │   │   └── [608K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=16/part_coinbaseadvanced_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=17
+    │   │   │   │   └── [708K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=17/part_coinbaseadvanced_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=18
+    │   │   │   │   └── [744K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=18/part_coinbaseadvanced_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=19
+    │   │   │   │   └── [832K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=19/part_coinbaseadvanced_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=20
+    │   │   │   │   └── [920K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=20/part_coinbaseadvanced_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=21
+    │   │   │   │   └── [784K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=21/part_coinbaseadvanced_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=22
+    │   │   │   │   └── [840K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=22/part_coinbaseadvanced_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=23
+    │   │   │       └── [720K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=23/part_coinbaseadvanced_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=00
+    │   │       │   └── [748K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=00/part_coinbaseadvanced_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=01
+    │   │       │   └── [804K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=01/part_coinbaseadvanced_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=02
+    │   │       │   └── [812K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=02/part_coinbaseadvanced_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=03
+    │   │           └── [428K]  data/vault2_redis/ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=03/part_coinbaseadvanced_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseexchange
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=15
+    │   │       │   └── [184K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=15/part_coinbaseexchange_20260309_15.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=16
+    │   │       │   └── [168K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=16/part_coinbaseexchange_20260309_16.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=17
+    │   │       │   └── [156K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=17/part_coinbaseexchange_20260309_17.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=18
+    │   │       │   └── [172K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=18/part_coinbaseexchange_20260309_18.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=19
+    │   │           └── [ 56K]  data/vault2_redis/ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=19/part_coinbaseexchange_20260309_19.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=15
+    │   │   │   │   └── [ 56K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=15/part_coinex_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=16
+    │   │   │   │   └── [ 68K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=16/part_coinex_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=17
+    │   │   │   │   └── [ 56K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=17/part_coinex_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=18
+    │   │   │   │   └── [ 72K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=18/part_coinex_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=19
+    │   │   │   │   └── [ 68K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=19/part_coinex_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=20
+    │   │   │   │   └── [ 72K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=20/part_coinex_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=21
+    │   │   │   │   └── [ 72K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=21/part_coinex_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=22
+    │   │   │   │   └── [ 56K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=22/part_coinex_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=23
+    │   │   │       └── [ 48K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-09/hour=23/part_coinex_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-10/hour=00
+    │   │       │   └── [ 56K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-10/hour=00/part_coinex_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-10/hour=01
+    │   │       │   └── [ 68K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-10/hour=01/part_coinex_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-10/hour=02
+    │   │       │   └── [ 60K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-10/hour=02/part_coinex_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-10/hour=03
+    │   │           └── [ 52K]  data/vault2_redis/ingestion/exchange=coinex/date=2026-03-10/hour=03/part_coinex_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=15
+    │   │   │   │   └── [120K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=15/part_coinone_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=16
+    │   │   │   │   └── [156K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=16/part_coinone_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=17
+    │   │   │   │   └── [152K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=17/part_coinone_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=18
+    │   │   │   │   └── [180K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=18/part_coinone_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=19
+    │   │   │   │   └── [164K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=19/part_coinone_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=20
+    │   │   │   │   └── [156K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=20/part_coinone_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=21
+    │   │   │   │   └── [176K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=21/part_coinone_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=22
+    │   │   │   │   └── [180K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=22/part_coinone_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=23
+    │   │   │       └── [148K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-09/hour=23/part_coinone_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-10/hour=00
+    │   │       │   └── [192K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-10/hour=00/part_coinone_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-10/hour=01
+    │   │       │   └── [164K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-10/hour=01/part_coinone_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-10/hour=02
+    │   │       │   └── [120K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-10/hour=02/part_coinone_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-10/hour=03
+    │   │           └── [136K]  data/vault2_redis/ingestion/exchange=coinone/date=2026-03-10/hour=03/part_coinone_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=cryptocom
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=15
+    │   │       │   └── [1.7M]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=15/part_cryptocom_20260309_15.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=16
+    │   │       │   └── [1.7M]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=16/part_cryptocom_20260309_16.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=17
+    │   │       │   └── [1.8M]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=17/part_cryptocom_20260309_17.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=18
+    │   │       │   └── [2.6M]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=18/part_cryptocom_20260309_18.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=19
+    │   │           └── [1.2M]  data/vault2_redis/ingestion/exchange=cryptocom/date=2026-03-09/hour=19/part_cryptocom_20260309_19.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=15
+    │   │   │   │   └── [436K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=15/part_deribit_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=16
+    │   │   │   │   └── [516K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=16/part_deribit_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=17
+    │   │   │   │   └── [524K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=17/part_deribit_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=18
+    │   │   │   │   └── [492K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=18/part_deribit_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=19
+    │   │   │   │   └── [628K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=19/part_deribit_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=20
+    │   │   │   │   └── [536K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=20/part_deribit_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=21
+    │   │   │   │   └── [508K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=21/part_deribit_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=22
+    │   │   │   │   └── [592K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=22/part_deribit_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=23
+    │   │   │       └── [524K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-09/hour=23/part_deribit_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-10/hour=00
+    │   │       │   └── [588K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-10/hour=00/part_deribit_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-10/hour=01
+    │   │       │   └── [588K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-10/hour=01/part_deribit_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-10/hour=02
+    │   │       │   └── [600K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-10/hour=02/part_deribit_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-10/hour=03
+    │   │           └── [332K]  data/vault2_redis/ingestion/exchange=deribit/date=2026-03-10/hour=03/part_deribit_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2024-08-27
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2024-08-27/hour=11
+    │   │   │       └── [ 24K]  data/vault2_redis/ingestion/exchange=exmo/date=2024-08-27/hour=11/part_exmo_20240827_11.db
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=15
+    │   │   │   │   └── [ 14M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=15/part_exmo_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=16
+    │   │   │   │   └── [ 15M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=16/part_exmo_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=17
+    │   │   │   │   └── [ 13M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=17/part_exmo_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=18
+    │   │   │   │   └── [ 16M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=18/part_exmo_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=19
+    │   │   │   │   └── [ 16M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=19/part_exmo_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=20
+    │   │   │   │   └── [ 17M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=20/part_exmo_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=21
+    │   │   │   │   └── [ 20M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=21/part_exmo_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=22
+    │   │   │   │   └── [ 20M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=22/part_exmo_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=23
+    │   │   │       └── [ 16M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-09/hour=23/part_exmo_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-10/hour=00
+    │   │       │   └── [ 16M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-10/hour=00/part_exmo_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-10/hour=01
+    │   │       │   └── [ 16M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-10/hour=01/part_exmo_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-10/hour=02
+    │   │       │   └── [ 20M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-10/hour=02/part_exmo_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-10/hour=03
+    │   │           └── [6.5M]  data/vault2_redis/ingestion/exchange=exmo/date=2026-03-10/hour=03/part_exmo_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=15
+    │   │   │   │   └── [560K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=15/part_gate_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=16
+    │   │   │   │   └── [620K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=16/part_gate_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=17
+    │   │   │   │   └── [536K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=17/part_gate_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=18
+    │   │   │   │   └── [684K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=18/part_gate_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=19
+    │   │   │   │   └── [708K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=19/part_gate_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=20
+    │   │   │   │   └── [656K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=20/part_gate_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=21
+    │   │   │   │   └── [820K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=21/part_gate_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=22
+    │   │   │   │   └── [892K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=22/part_gate_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=23
+    │   │   │       └── [712K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-09/hour=23/part_gate_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-10/hour=00
+    │   │       │   └── [824K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-10/hour=00/part_gate_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-10/hour=01
+    │   │       │   └── [796K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-10/hour=01/part_gate_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-10/hour=02
+    │   │       │   └── [920K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-10/hour=02/part_gate_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-10/hour=03
+    │   │           └── [444K]  data/vault2_redis/ingestion/exchange=gate/date=2026-03-10/hour=03/part_gate_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=15
+    │   │   │   │   └── [360K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=15/part_gateio_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=16
+    │   │   │   │   └── [488K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=16/part_gateio_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=17
+    │   │   │   │   └── [468K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=17/part_gateio_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=18
+    │   │   │   │   └── [476K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=18/part_gateio_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=19
+    │   │   │   │   └── [596K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=19/part_gateio_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=20
+    │   │   │   │   └── [712K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=20/part_gateio_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=21
+    │   │   │   │   └── [724K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=21/part_gateio_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=22
+    │   │   │   │   └── [724K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=22/part_gateio_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=23
+    │   │   │       └── [612K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-09/hour=23/part_gateio_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-10/hour=00
+    │   │       │   └── [728K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-10/hour=00/part_gateio_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-10/hour=01
+    │   │       │   └── [780K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-10/hour=01/part_gateio_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-10/hour=02
+    │   │       │   └── [836K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-10/hour=02/part_gateio_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-10/hour=03
+    │   │           └── [380K]  data/vault2_redis/ingestion/exchange=gateio/date=2026-03-10/hour=03/part_gateio_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hitbtc
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=hitbtc/date=2026-03-09
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=hitbtc/date=2026-03-09/hour=15
+    │   │           └── [ 32K]  data/vault2_redis/ingestion/exchange=hitbtc/date=2026-03-09/hour=15/part_hitbtc_20260309_15.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=htx
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=htx/date=2026-03-09
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=htx/date=2026-03-09/hour=15
+    │   │           └── [ 44K]  data/vault2_redis/ingestion/exchange=htx/date=2026-03-09/hour=15/part_htx_20260309_15.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=huobi
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=15
+    │   │       │   └── [392K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=15/part_huobi_20260309_15.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=16
+    │   │       │   └── [236K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=16/part_huobi_20260309_16.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=17
+    │   │       │   └── [212K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=17/part_huobi_20260309_17.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=18
+    │   │       │   └── [312K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=18/part_huobi_20260309_18.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=19
+    │   │           └── [ 88K]  data/vault2_redis/ingestion/exchange=huobi/date=2026-03-09/hour=19/part_huobi_20260309_19.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=15
+    │   │   │   │   └── [952K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=15/part_hyperliquid_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=16
+    │   │   │   │   └── [976K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=16/part_hyperliquid_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=17
+    │   │   │   │   └── [1.1M]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=17/part_hyperliquid_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=18
+    │   │   │   │   └── [1.1M]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=18/part_hyperliquid_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=19
+    │   │   │   │   └── [928K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=19/part_hyperliquid_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=20
+    │   │   │   │   └── [1.3M]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=20/part_hyperliquid_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=21
+    │   │   │   │   └── [1.4M]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=21/part_hyperliquid_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=22
+    │   │   │   │   └── [1.4M]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=22/part_hyperliquid_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=23
+    │   │   │       └── [1.4M]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-09/hour=23/part_hyperliquid_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-10/hour=00
+    │   │       │   └── [1.1M]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-10/hour=00/part_hyperliquid_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-10/hour=01
+    │   │       │   └── [1.1M]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-10/hour=01/part_hyperliquid_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-10/hour=02
+    │   │       │   └── [944K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-10/hour=02/part_hyperliquid_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-10/hour=03
+    │   │           └── [632K]  data/vault2_redis/ingestion/exchange=hyperliquid/date=2026-03-10/hour=03/part_hyperliquid_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=15
+    │   │   │   │   └── [ 40K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=15/part_kraken_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=16
+    │   │   │   │   └── [ 40K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=16/part_kraken_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=17
+    │   │   │   │   └── [ 36K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=17/part_kraken_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=18
+    │   │   │   │   └── [ 36K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=18/part_kraken_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=19
+    │   │   │   │   └── [ 68K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=19/part_kraken_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=20
+    │   │   │   │   └── [ 48K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=20/part_kraken_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=21
+    │   │   │   │   └── [ 48K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=21/part_kraken_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=22
+    │   │   │   │   └── [ 40K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=22/part_kraken_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=23
+    │   │   │       └── [ 32K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-09/hour=23/part_kraken_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-10/hour=00
+    │   │       │   └── [ 44K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-10/hour=00/part_kraken_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-10/hour=01
+    │   │       │   └── [ 44K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-10/hour=01/part_kraken_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-10/hour=02
+    │   │       │   └── [ 56K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-10/hour=02/part_kraken_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-10/hour=03
+    │   │           └── [ 36K]  data/vault2_redis/ingestion/exchange=kraken/date=2026-03-10/hour=03/part_kraken_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=kucoin
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=kucoin/date=2026-03-09
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=kucoin/date=2026-03-09/hour=12
+    │   │       │   └── [ 24K]  data/vault2_redis/ingestion/exchange=kucoin/date=2026-03-09/hour=12/part_kucoin_20260309_12.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=kucoin/date=2026-03-09/hour=13
+    │   │       │   └── [ 24K]  data/vault2_redis/ingestion/exchange=kucoin/date=2026-03-09/hour=13/part_kucoin_20260309_13.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=kucoin/date=2026-03-09/hour=14
+    │   │       │   └── [ 40K]  data/vault2_redis/ingestion/exchange=kucoin/date=2026-03-09/hour=14/part_kucoin_20260309_14.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=kucoin/date=2026-03-09/hour=15
+    │   │           └── [120K]  data/vault2_redis/ingestion/exchange=kucoin/date=2026-03-09/hour=15/part_kucoin_20260309_15.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=15
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=15/part_mexc_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=16
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=16/part_mexc_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=17
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=17/part_mexc_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=18
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=18/part_mexc_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=19
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=19/part_mexc_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=20
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=20/part_mexc_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=21
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=21/part_mexc_20260309_21.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=22
+    │   │   │       └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-09/hour=22/part_mexc_20260309_22.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-10/hour=00
+    │   │       │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-10/hour=00/part_mexc_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-10/hour=01
+    │   │       │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-10/hour=01/part_mexc_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-10/hour=02
+    │   │       │   └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-10/hour=02/part_mexc_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-10/hour=03
+    │   │           └── [ 24K]  data/vault2_redis/ingestion/exchange=mexc/date=2026-03-10/hour=03/part_mexc_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=myokx
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=myokx/date=2026-03-09
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=myokx/date=2026-03-09/hour=15
+    │   │           └── [ 84K]  data/vault2_redis/ingestion/exchange=myokx/date=2026-03-09/hour=15/part_myokx_20260309_15.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-07
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-07/hour=08
+    │   │   │       └── [ 32K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-07/hour=08/part_ndax_20260307_08.db
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-08
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-08/hour=00
+    │   │   │   │   └── [ 40K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-08/hour=00/part_ndax_20260308_00.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-08/hour=22
+    │   │   │       └── [ 36K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-08/hour=22/part_ndax_20260308_22.db
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=01
+    │   │   │   │   └── [ 48K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=01/part_ndax_20260309_01.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=03
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=03/part_ndax_20260309_03.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=04
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=04/part_ndax_20260309_04.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=07
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=07/part_ndax_20260309_07.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=08
+    │   │   │   │   └── [ 96K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=08/part_ndax_20260309_08.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=12
+    │   │   │   │   └── [ 56K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=12/part_ndax_20260309_12.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=13
+    │   │   │   │   └── [ 48K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=13/part_ndax_20260309_13.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=14
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=14/part_ndax_20260309_14.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=15
+    │   │   │   │   └── [ 76K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=15/part_ndax_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=16
+    │   │   │   │   └── [112K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=16/part_ndax_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=17
+    │   │   │   │   └── [ 72K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=17/part_ndax_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=18
+    │   │   │   │   └── [ 76K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=18/part_ndax_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=19
+    │   │   │   │   └── [140K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=19/part_ndax_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=20
+    │   │   │   │   └── [ 64K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=20/part_ndax_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=21
+    │   │   │   │   └── [104K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=21/part_ndax_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=22
+    │   │   │   │   └── [120K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=22/part_ndax_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=23
+    │   │   │       └── [ 68K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-09/hour=23/part_ndax_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-10/hour=00
+    │   │       │   └── [ 96K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-10/hour=00/part_ndax_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-10/hour=01
+    │   │       │   └── [ 96K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-10/hour=01/part_ndax_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-10/hour=02
+    │   │       │   └── [ 84K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-10/hour=02/part_ndax_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-10/hour=03
+    │   │           └── [ 36K]  data/vault2_redis/ingestion/exchange=ndax/date=2026-03-10/hour=03/part_ndax_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=okx
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=okx/date=2026-03-09
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=okx/date=2026-03-09/hour=15
+    │   │           └── [ 76K]  data/vault2_redis/ingestion/exchange=okx/date=2026-03-09/hour=15/part_okx_20260309_15.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=okxus
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=okxus/date=2026-03-09
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=okxus/date=2026-03-09/hour=15
+    │   │           └── [104K]  data/vault2_redis/ingestion/exchange=okxus/date=2026-03-09/hour=15/part_okxus_20260309_15.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=15
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=15/part_onetrading_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=16
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=16/part_onetrading_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=17
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=17/part_onetrading_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=18
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=18/part_onetrading_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=19
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=19/part_onetrading_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=20
+    │   │   │   │   └── [ 32K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=20/part_onetrading_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=21
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=21/part_onetrading_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=22
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=22/part_onetrading_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=23
+    │   │   │       └── [ 24K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-09/hour=23/part_onetrading_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-10/hour=00
+    │   │       │   └── [ 24K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-10/hour=00/part_onetrading_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-10/hour=01
+    │   │       │   └── [ 32K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-10/hour=01/part_onetrading_20260310_01.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-10/hour=02
+    │   │           └── [ 24K]  data/vault2_redis/ingestion/exchange=onetrading/date=2026-03-10/hour=02/part_onetrading_20260310_02.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=p2b
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=p2b/date=2026-03-09
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=p2b/date=2026-03-09/hour=15
+    │   │           └── [200K]  data/vault2_redis/ingestion/exchange=p2b/date=2026-03-09/hour=15/part_p2b_20260309_15.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=15
+    │   │   │   │   └── [108K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=15/part_phemex_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=16
+    │   │   │   │   └── [116K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=16/part_phemex_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=17
+    │   │   │   │   └── [108K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=17/part_phemex_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=18
+    │   │   │   │   └── [140K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=18/part_phemex_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=19
+    │   │   │   │   └── [164K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=19/part_phemex_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=20
+    │   │   │   │   └── [168K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=20/part_phemex_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=21
+    │   │   │   │   └── [164K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=21/part_phemex_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=22
+    │   │   │   │   └── [208K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=22/part_phemex_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=23
+    │   │   │       └── [180K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-09/hour=23/part_phemex_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-10/hour=00
+    │   │       │   └── [196K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-10/hour=00/part_phemex_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-10/hour=01
+    │   │       │   └── [160K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-10/hour=01/part_phemex_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-10/hour=02
+    │   │       │   └── [200K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-10/hour=02/part_phemex_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-10/hour=03
+    │   │           └── [ 84K]  data/vault2_redis/ingestion/exchange=phemex/date=2026-03-10/hour=03/part_phemex_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=poloniex
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=15
+    │   │       │   └── [240K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=15/part_poloniex_20260309_15.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=16
+    │   │       │   └── [212K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=16/part_poloniex_20260309_16.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=17
+    │   │       │   └── [228K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=17/part_poloniex_20260309_17.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=18
+    │   │       │   └── [444K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=18/part_poloniex_20260309_18.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=19
+    │   │       │   └── [480K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=19/part_poloniex_20260309_19.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=20
+    │   │           └── [244K]  data/vault2_redis/ingestion/exchange=poloniex/date=2026-03-09/hour=20/part_poloniex_20260309_20.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=toobit
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=15
+    │   │       │   └── [6.0M]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=15/part_toobit_20260309_15.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=16
+    │   │       │   └── [6.2M]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=16/part_toobit_20260309_16.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=17
+    │   │       │   └── [7.1M]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=17/part_toobit_20260309_17.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=18
+    │   │       │   └── [7.7M]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=18/part_toobit_20260309_18.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=19
+    │   │       │   └── [7.4M]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=19/part_toobit_20260309_19.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=20
+    │   │           └── [3.9M]  data/vault2_redis/ingestion/exchange=toobit/date=2026-03-09/hour=20/part_toobit_20260309_20.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=14
+    │   │   │   │   └── [ 24K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=14/part_upbit_20260309_14.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=15
+    │   │   │   │   └── [184K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=15/part_upbit_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=16
+    │   │   │   │   └── [160K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=16/part_upbit_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=17
+    │   │   │   │   └── [100K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=17/part_upbit_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=18
+    │   │   │   │   └── [112K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=18/part_upbit_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=19
+    │   │   │   │   └── [196K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=19/part_upbit_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=20
+    │   │   │   │   └── [160K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=20/part_upbit_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=21
+    │   │   │   │   └── [164K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=21/part_upbit_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=22
+    │   │   │   │   └── [360K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=22/part_upbit_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=23
+    │   │   │       └── [380K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-09/hour=23/part_upbit_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-10/hour=00
+    │   │       │   └── [684K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-10/hour=00/part_upbit_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-10/hour=01
+    │   │       │   └── [532K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-10/hour=01/part_upbit_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-10/hour=02
+    │   │       │   └── [564K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-10/hour=02/part_upbit_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-10/hour=03
+    │   │           └── [264K]  data/vault2_redis/ingestion/exchange=upbit/date=2026-03-10/hour=03/part_upbit_20260310_03.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=whitebit
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=whitebit/date=2026-03-09
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=whitebit/date=2026-03-09/hour=15
+    │   │       │   └── [4.7M]  data/vault2_redis/ingestion/exchange=whitebit/date=2026-03-09/hour=15/part_whitebit_20260309_15.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=whitebit/date=2026-03-09/hour=16
+    │   │       │   └── [4.0M]  data/vault2_redis/ingestion/exchange=whitebit/date=2026-03-09/hour=16/part_whitebit_20260309_16.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=whitebit/date=2026-03-09/hour=17
+    │   │           └── [3.1M]  data/vault2_redis/ingestion/exchange=whitebit/date=2026-03-09/hour=17/part_whitebit_20260309_17.db
+    │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo
+    │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=15
+    │   │   │   │   └── [4.0M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=15/part_woo_20260309_15.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=16
+    │   │   │   │   └── [4.0M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=16/part_woo_20260309_16.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=17
+    │   │   │   │   └── [4.5M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=17/part_woo_20260309_17.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=18
+    │   │   │   │   └── [5.6M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=18/part_woo_20260309_18.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=19
+    │   │   │   │   └── [6.1M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=19/part_woo_20260309_19.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=20
+    │   │   │   │   └── [7.1M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=20/part_woo_20260309_20.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=21
+    │   │   │   │   └── [6.5M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=21/part_woo_20260309_21.db
+    │   │   │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=22
+    │   │   │   │   └── [7.3M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=22/part_woo_20260309_22.db
+    │   │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=23
+    │   │   │       └── [6.6M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-09/hour=23/part_woo_20260309_23.db
+    │   │   └── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-10
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-10/hour=00
+    │   │       │   └── [7.1M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-10/hour=00/part_woo_20260310_00.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-10/hour=01
+    │   │       │   └── [6.7M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-10/hour=01/part_woo_20260310_01.db
+    │   │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-10/hour=02
+    │   │       │   └── [6.4M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-10/hour=02/part_woo_20260310_02.db
+    │   │       └── [4.0K]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-10/hour=03
+    │   │           └── [3.8M]  data/vault2_redis/ingestion/exchange=woo/date=2026-03-10/hour=03/part_woo_20260310_03.db
+    │   └── [4.0K]  data/vault2_redis/ingestion/exchange=xt
+    │       ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09
+    │       │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=15
+    │       │   │   └── [352K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=15/part_xt_20260309_15.db
+    │       │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=16
+    │       │   │   └── [440K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=16/part_xt_20260309_16.db
+    │       │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=17
+    │       │   │   └── [260K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=17/part_xt_20260309_17.db
+    │       │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=18
+    │       │   │   └── [380K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=18/part_xt_20260309_18.db
+    │       │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=19
+    │       │   │   └── [584K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=19/part_xt_20260309_19.db
+    │       │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=20
+    │       │   │   └── [532K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=20/part_xt_20260309_20.db
+    │       │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=21
+    │       │   │   └── [412K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=21/part_xt_20260309_21.db
+    │       │   ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=22
+    │       │   │   └── [424K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=22/part_xt_20260309_22.db
+    │       │   └── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=23
+    │       │       └── [352K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-09/hour=23/part_xt_20260309_23.db
+    │       └── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-10
+    │           ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-10/hour=00
+    │           │   └── [320K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-10/hour=00/part_xt_20260310_00.db
+    │           ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-10/hour=01
+    │           │   └── [432K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-10/hour=01/part_xt_20260310_01.db
+    │           ├── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-10/hour=02
+    │           │   └── [504K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-10/hour=02/part_xt_20260310_02.db
+    │           └── [4.0K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-10/hour=03
+    │               └── [280K]  data/vault2_redis/ingestion/exchange=xt/date=2026-03-10/hour=03/part_xt_20260310_03.db
+    └── [4.0K]  data/vault2_redis/meta
+        └── [165M]  data/vault2_redis/meta/vault_manifest.db
+
+491 directories, 394 files

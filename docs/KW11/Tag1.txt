@@ -44,8 +44,10 @@ Tag 1 der Projektarbeit
 		ML forecast Modelle trainieren
 		forecasts durchführen und in DB speichern
 		Dashboard um forecasts erweitern
+		
   - Tag 3:
 		Weitere Arbeiten an ML forecasts
 		Wenn möglich Deep Learning forecasts hinzufügen
+		
   - Tag 4:
 		Präsentation

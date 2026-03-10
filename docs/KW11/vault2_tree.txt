@@ -1,0 +1,867 @@
+[4.0K]  [01;34m.[0m
+├── [4.0K]  [01;34m./ingestion[0m
+│   ├── [4.0K]  [01;34m./ingestion/exchange=aster[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [ 68K]  ./ingestion/exchange=aster/date=2026-03-09/hour=15/part_aster_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [ 68K]  ./ingestion/exchange=aster/date=2026-03-09/hour=16/part_aster_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [ 80K]  ./ingestion/exchange=aster/date=2026-03-09/hour=17/part_aster_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [ 88K]  ./ingestion/exchange=aster/date=2026-03-09/hour=18/part_aster_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [ 84K]  ./ingestion/exchange=aster/date=2026-03-09/hour=19/part_aster_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [ 80K]  ./ingestion/exchange=aster/date=2026-03-09/hour=20/part_aster_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [100K]  ./ingestion/exchange=aster/date=2026-03-09/hour=21/part_aster_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [ 76K]  ./ingestion/exchange=aster/date=2026-03-09/hour=22/part_aster_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-09/hour=23[0m
+│   │   │       └── [ 76K]  ./ingestion/exchange=aster/date=2026-03-09/hour=23/part_aster_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-10/hour=00[0m
+│   │       │   └── [ 60K]  ./ingestion/exchange=aster/date=2026-03-10/hour=00/part_aster_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-10/hour=01[0m
+│   │       │   └── [ 80K]  ./ingestion/exchange=aster/date=2026-03-10/hour=01/part_aster_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-10/hour=02[0m
+│   │       │   └── [ 72K]  ./ingestion/exchange=aster/date=2026-03-10/hour=02/part_aster_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=aster/date=2026-03-10/hour=03[0m
+│   │           └── [ 56K]  ./ingestion/exchange=aster/date=2026-03-10/hour=03/part_aster_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=backpack[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [5.4M]  ./ingestion/exchange=backpack/date=2026-03-09/hour=15/part_backpack_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [4.9M]  ./ingestion/exchange=backpack/date=2026-03-09/hour=16/part_backpack_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [6.1M]  ./ingestion/exchange=backpack/date=2026-03-09/hour=17/part_backpack_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [4.8M]  ./ingestion/exchange=backpack/date=2026-03-09/hour=18/part_backpack_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [6.1M]  ./ingestion/exchange=backpack/date=2026-03-09/hour=19/part_backpack_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [5.6M]  ./ingestion/exchange=backpack/date=2026-03-09/hour=20/part_backpack_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [7.6M]  ./ingestion/exchange=backpack/date=2026-03-09/hour=21/part_backpack_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [7.9M]  ./ingestion/exchange=backpack/date=2026-03-09/hour=22/part_backpack_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-09/hour=23[0m
+│   │   │       └── [8.3M]  ./ingestion/exchange=backpack/date=2026-03-09/hour=23/part_backpack_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-10/hour=00[0m
+│   │       │   └── [9.2M]  ./ingestion/exchange=backpack/date=2026-03-10/hour=00/part_backpack_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-10/hour=01[0m
+│   │       │   └── [9.2M]  ./ingestion/exchange=backpack/date=2026-03-10/hour=01/part_backpack_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-10/hour=02[0m
+│   │       │   └── [8.3M]  ./ingestion/exchange=backpack/date=2026-03-10/hour=02/part_backpack_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=backpack/date=2026-03-10/hour=03[0m
+│   │           └── [3.6M]  ./ingestion/exchange=backpack/date=2026-03-10/hour=03/part_backpack_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=binance[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=14[0m
+│   │   │   │   └── [ 11M]  ./ingestion/exchange=binance/date=2026-03-09/hour=14/part_binance_20260309_14.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [200K]  ./ingestion/exchange=binance/date=2026-03-09/hour=15/part_binance_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [228K]  ./ingestion/exchange=binance/date=2026-03-09/hour=16/part_binance_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [208K]  ./ingestion/exchange=binance/date=2026-03-09/hour=17/part_binance_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [232K]  ./ingestion/exchange=binance/date=2026-03-09/hour=18/part_binance_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [344K]  ./ingestion/exchange=binance/date=2026-03-09/hour=19/part_binance_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [216K]  ./ingestion/exchange=binance/date=2026-03-09/hour=20/part_binance_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [220K]  ./ingestion/exchange=binance/date=2026-03-09/hour=21/part_binance_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [284K]  ./ingestion/exchange=binance/date=2026-03-09/hour=22/part_binance_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-09/hour=23[0m
+│   │   │       └── [232K]  ./ingestion/exchange=binance/date=2026-03-09/hour=23/part_binance_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-10/hour=00[0m
+│   │       │   └── [292K]  ./ingestion/exchange=binance/date=2026-03-10/hour=00/part_binance_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-10/hour=01[0m
+│   │       │   └── [260K]  ./ingestion/exchange=binance/date=2026-03-10/hour=01/part_binance_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-10/hour=02[0m
+│   │       │   └── [312K]  ./ingestion/exchange=binance/date=2026-03-10/hour=02/part_binance_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=binance/date=2026-03-10/hour=03[0m
+│   │           └── [164K]  ./ingestion/exchange=binance/date=2026-03-10/hour=03/part_binance_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [ 36K]  ./ingestion/exchange=binanceus/date=2026-03-09/hour=15/part_binanceus_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=binanceus/date=2026-03-09/hour=16/part_binanceus_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [ 36K]  ./ingestion/exchange=binanceus/date=2026-03-09/hour=17/part_binanceus_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=binanceus/date=2026-03-09/hour=18/part_binanceus_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [ 40K]  ./ingestion/exchange=binanceus/date=2026-03-09/hour=19/part_binanceus_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=binanceus/date=2026-03-09/hour=20/part_binanceus_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=binanceus/date=2026-03-09/hour=21/part_binanceus_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=binanceus/date=2026-03-09/hour=22/part_binanceus_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-09/hour=23[0m
+│   │   │       └── [ 32K]  ./ingestion/exchange=binanceus/date=2026-03-09/hour=23/part_binanceus_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-10/hour=00[0m
+│   │       │   └── [ 32K]  ./ingestion/exchange=binanceus/date=2026-03-10/hour=00/part_binanceus_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-10/hour=01[0m
+│   │       │   └── [ 32K]  ./ingestion/exchange=binanceus/date=2026-03-10/hour=01/part_binanceus_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-10/hour=02[0m
+│   │       │   └── [ 36K]  ./ingestion/exchange=binanceus/date=2026-03-10/hour=02/part_binanceus_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=binanceus/date=2026-03-10/hour=03[0m
+│   │           └── [ 32K]  ./ingestion/exchange=binanceus/date=2026-03-10/hour=03/part_binanceus_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=bingx[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [1.3M]  ./ingestion/exchange=bingx/date=2026-03-09/hour=15/part_bingx_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [1.5M]  ./ingestion/exchange=bingx/date=2026-03-09/hour=16/part_bingx_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [1.6M]  ./ingestion/exchange=bingx/date=2026-03-09/hour=17/part_bingx_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [2.1M]  ./ingestion/exchange=bingx/date=2026-03-09/hour=18/part_bingx_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [2.0M]  ./ingestion/exchange=bingx/date=2026-03-09/hour=19/part_bingx_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [2.4M]  ./ingestion/exchange=bingx/date=2026-03-09/hour=20/part_bingx_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [1.6M]  ./ingestion/exchange=bingx/date=2026-03-09/hour=21/part_bingx_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [1.9M]  ./ingestion/exchange=bingx/date=2026-03-09/hour=22/part_bingx_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-09/hour=23[0m
+│   │   │       └── [1.8M]  ./ingestion/exchange=bingx/date=2026-03-09/hour=23/part_bingx_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-10/hour=00[0m
+│   │       │   └── [2.1M]  ./ingestion/exchange=bingx/date=2026-03-10/hour=00/part_bingx_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-10/hour=01[0m
+│   │       │   └── [2.0M]  ./ingestion/exchange=bingx/date=2026-03-10/hour=01/part_bingx_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-10/hour=02[0m
+│   │       │   └── [2.0M]  ./ingestion/exchange=bingx/date=2026-03-10/hour=02/part_bingx_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=bingx/date=2026-03-10/hour=03[0m
+│   │           └── [932K]  ./ingestion/exchange=bingx/date=2026-03-10/hour=03/part_bingx_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=bitget[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [2.9M]  ./ingestion/exchange=bitget/date=2026-03-09/hour=15/part_bitget_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [2.4M]  ./ingestion/exchange=bitget/date=2026-03-09/hour=16/part_bitget_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [2.6M]  ./ingestion/exchange=bitget/date=2026-03-09/hour=17/part_bitget_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [5.5M]  ./ingestion/exchange=bitget/date=2026-03-09/hour=18/part_bitget_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [6.3M]  ./ingestion/exchange=bitget/date=2026-03-09/hour=19/part_bitget_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [8.3M]  ./ingestion/exchange=bitget/date=2026-03-09/hour=20/part_bitget_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [ 11M]  ./ingestion/exchange=bitget/date=2026-03-09/hour=21/part_bitget_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [9.6M]  ./ingestion/exchange=bitget/date=2026-03-09/hour=22/part_bitget_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-09/hour=23[0m
+│   │   │       └── [9.3M]  ./ingestion/exchange=bitget/date=2026-03-09/hour=23/part_bitget_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-10/hour=00[0m
+│   │       │   └── [8.9M]  ./ingestion/exchange=bitget/date=2026-03-10/hour=00/part_bitget_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-10/hour=01[0m
+│   │       │   └── [9.3M]  ./ingestion/exchange=bitget/date=2026-03-10/hour=01/part_bitget_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-10/hour=02[0m
+│   │       │   └── [ 10M]  ./ingestion/exchange=bitget/date=2026-03-10/hour=02/part_bitget_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=bitget/date=2026-03-10/hour=03[0m
+│   │           └── [4.8M]  ./ingestion/exchange=bitget/date=2026-03-10/hour=03/part_bitget_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=bithumb[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=00[0m
+│   │       │   └── [240K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=00/part_bithumb_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=01[0m
+│   │       │   └── [204K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=01/part_bithumb_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=02[0m
+│   │       │   └── [124K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=02/part_bithumb_20260310_02.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=03[0m
+│   │       │   └── [112K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=03/part_bithumb_20260310_03.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=04[0m
+│   │       │   └── [124K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=04/part_bithumb_20260310_04.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=05[0m
+│   │       │   └── [180K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=05/part_bithumb_20260310_05.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=06[0m
+│   │       │   └── [224K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=06/part_bithumb_20260310_06.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=07[0m
+│   │       │   └── [272K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=07/part_bithumb_20260310_07.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=08[0m
+│   │       │   └── [232K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=08/part_bithumb_20260310_08.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=09[0m
+│   │       │   └── [300K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=09/part_bithumb_20260310_09.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=10[0m
+│   │       │   └── [308K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=10/part_bithumb_20260310_10.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=11[0m
+│   │       │   └── [248K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=11/part_bithumb_20260310_11.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=bithumb/date=2026-03-10/hour=12[0m
+│   │           └── [156K]  ./ingestion/exchange=bithumb/date=2026-03-10/hour=12/part_bithumb_20260310_12.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [192K]  ./ingestion/exchange=bittrade/date=2026-03-09/hour=15/part_bittrade_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [176K]  ./ingestion/exchange=bittrade/date=2026-03-09/hour=16/part_bittrade_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [164K]  ./ingestion/exchange=bittrade/date=2026-03-09/hour=17/part_bittrade_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [152K]  ./ingestion/exchange=bittrade/date=2026-03-09/hour=18/part_bittrade_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [216K]  ./ingestion/exchange=bittrade/date=2026-03-09/hour=19/part_bittrade_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [184K]  ./ingestion/exchange=bittrade/date=2026-03-09/hour=20/part_bittrade_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [212K]  ./ingestion/exchange=bittrade/date=2026-03-09/hour=21/part_bittrade_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [204K]  ./ingestion/exchange=bittrade/date=2026-03-09/hour=22/part_bittrade_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-09/hour=23[0m
+│   │   │       └── [124K]  ./ingestion/exchange=bittrade/date=2026-03-09/hour=23/part_bittrade_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-10/hour=00[0m
+│   │       │   └── [176K]  ./ingestion/exchange=bittrade/date=2026-03-10/hour=00/part_bittrade_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-10/hour=01[0m
+│   │       │   └── [220K]  ./ingestion/exchange=bittrade/date=2026-03-10/hour=01/part_bittrade_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-10/hour=02[0m
+│   │       │   └── [160K]  ./ingestion/exchange=bittrade/date=2026-03-10/hour=02/part_bittrade_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=bittrade/date=2026-03-10/hour=03[0m
+│   │           └── [ 76K]  ./ingestion/exchange=bittrade/date=2026-03-10/hour=03/part_bittrade_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [5.8M]  ./ingestion/exchange=bitvavo/date=2026-03-09/hour=15/part_bitvavo_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [7.4M]  ./ingestion/exchange=bitvavo/date=2026-03-09/hour=16/part_bitvavo_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [7.9M]  ./ingestion/exchange=bitvavo/date=2026-03-09/hour=17/part_bitvavo_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [7.9M]  ./ingestion/exchange=bitvavo/date=2026-03-09/hour=18/part_bitvavo_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [8.0M]  ./ingestion/exchange=bitvavo/date=2026-03-09/hour=19/part_bitvavo_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [7.9M]  ./ingestion/exchange=bitvavo/date=2026-03-09/hour=20/part_bitvavo_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [7.4M]  ./ingestion/exchange=bitvavo/date=2026-03-09/hour=21/part_bitvavo_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [7.5M]  ./ingestion/exchange=bitvavo/date=2026-03-09/hour=22/part_bitvavo_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-09/hour=23[0m
+│   │   │       └── [7.4M]  ./ingestion/exchange=bitvavo/date=2026-03-09/hour=23/part_bitvavo_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-10/hour=00[0m
+│   │       │   └── [8.2M]  ./ingestion/exchange=bitvavo/date=2026-03-10/hour=00/part_bitvavo_20260310_00.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=bitvavo/date=2026-03-10/hour=01[0m
+│   │           └── [5.8M]  ./ingestion/exchange=bitvavo/date=2026-03-10/hour=01/part_bitvavo_20260310_01.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=bullish[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=bullish/date=2026-03-09[0m
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=bullish/date=2026-03-09/hour=15[0m
+│   │           └── [216K]  ./ingestion/exchange=bullish/date=2026-03-09/hour=15/part_bullish_20260309_15.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=coinbase[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=coinbase/date=2026-03-09[0m
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=coinbase/date=2026-03-09/hour=15[0m
+│   │           └── [ 44K]  ./ingestion/exchange=coinbase/date=2026-03-09/hour=15/part_coinbase_20260309_15.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [552K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=15/part_coinbaseadvanced_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [608K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=16/part_coinbaseadvanced_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [708K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=17/part_coinbaseadvanced_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [744K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=18/part_coinbaseadvanced_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [832K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=19/part_coinbaseadvanced_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [920K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=20/part_coinbaseadvanced_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [784K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=21/part_coinbaseadvanced_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [840K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=22/part_coinbaseadvanced_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=23[0m
+│   │   │       └── [720K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-09/hour=23/part_coinbaseadvanced_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=00[0m
+│   │       │   └── [748K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=00/part_coinbaseadvanced_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=01[0m
+│   │       │   └── [804K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=01/part_coinbaseadvanced_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=02[0m
+│   │       │   └── [812K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=02/part_coinbaseadvanced_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=03[0m
+│   │           └── [428K]  ./ingestion/exchange=coinbaseadvanced/date=2026-03-10/hour=03/part_coinbaseadvanced_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseexchange[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=coinbaseexchange/date=2026-03-09[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=15[0m
+│   │       │   └── [184K]  ./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=15/part_coinbaseexchange_20260309_15.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=16[0m
+│   │       │   └── [168K]  ./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=16/part_coinbaseexchange_20260309_16.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=17[0m
+│   │       │   └── [156K]  ./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=17/part_coinbaseexchange_20260309_17.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=18[0m
+│   │       │   └── [172K]  ./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=18/part_coinbaseexchange_20260309_18.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=19[0m
+│   │           └── [ 56K]  ./ingestion/exchange=coinbaseexchange/date=2026-03-09/hour=19/part_coinbaseexchange_20260309_19.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=coinex[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [ 56K]  ./ingestion/exchange=coinex/date=2026-03-09/hour=15/part_coinex_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [ 68K]  ./ingestion/exchange=coinex/date=2026-03-09/hour=16/part_coinex_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [ 56K]  ./ingestion/exchange=coinex/date=2026-03-09/hour=17/part_coinex_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [ 72K]  ./ingestion/exchange=coinex/date=2026-03-09/hour=18/part_coinex_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [ 68K]  ./ingestion/exchange=coinex/date=2026-03-09/hour=19/part_coinex_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [ 72K]  ./ingestion/exchange=coinex/date=2026-03-09/hour=20/part_coinex_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [ 72K]  ./ingestion/exchange=coinex/date=2026-03-09/hour=21/part_coinex_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [ 56K]  ./ingestion/exchange=coinex/date=2026-03-09/hour=22/part_coinex_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-09/hour=23[0m
+│   │   │       └── [ 48K]  ./ingestion/exchange=coinex/date=2026-03-09/hour=23/part_coinex_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-10/hour=00[0m
+│   │       │   └── [ 56K]  ./ingestion/exchange=coinex/date=2026-03-10/hour=00/part_coinex_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-10/hour=01[0m
+│   │       │   └── [ 68K]  ./ingestion/exchange=coinex/date=2026-03-10/hour=01/part_coinex_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-10/hour=02[0m
+│   │       │   └── [ 60K]  ./ingestion/exchange=coinex/date=2026-03-10/hour=02/part_coinex_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=coinex/date=2026-03-10/hour=03[0m
+│   │           └── [ 52K]  ./ingestion/exchange=coinex/date=2026-03-10/hour=03/part_coinex_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=coinone[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [120K]  ./ingestion/exchange=coinone/date=2026-03-09/hour=15/part_coinone_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [156K]  ./ingestion/exchange=coinone/date=2026-03-09/hour=16/part_coinone_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [152K]  ./ingestion/exchange=coinone/date=2026-03-09/hour=17/part_coinone_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [180K]  ./ingestion/exchange=coinone/date=2026-03-09/hour=18/part_coinone_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [164K]  ./ingestion/exchange=coinone/date=2026-03-09/hour=19/part_coinone_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [156K]  ./ingestion/exchange=coinone/date=2026-03-09/hour=20/part_coinone_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [176K]  ./ingestion/exchange=coinone/date=2026-03-09/hour=21/part_coinone_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [180K]  ./ingestion/exchange=coinone/date=2026-03-09/hour=22/part_coinone_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-09/hour=23[0m
+│   │   │       └── [148K]  ./ingestion/exchange=coinone/date=2026-03-09/hour=23/part_coinone_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-10/hour=00[0m
+│   │       │   └── [192K]  ./ingestion/exchange=coinone/date=2026-03-10/hour=00/part_coinone_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-10/hour=01[0m
+│   │       │   └── [164K]  ./ingestion/exchange=coinone/date=2026-03-10/hour=01/part_coinone_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-10/hour=02[0m
+│   │       │   └── [120K]  ./ingestion/exchange=coinone/date=2026-03-10/hour=02/part_coinone_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=coinone/date=2026-03-10/hour=03[0m
+│   │           └── [136K]  ./ingestion/exchange=coinone/date=2026-03-10/hour=03/part_coinone_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=cryptocom[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=cryptocom/date=2026-03-09[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=cryptocom/date=2026-03-09/hour=15[0m
+│   │       │   └── [1.7M]  ./ingestion/exchange=cryptocom/date=2026-03-09/hour=15/part_cryptocom_20260309_15.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=cryptocom/date=2026-03-09/hour=16[0m
+│   │       │   └── [1.7M]  ./ingestion/exchange=cryptocom/date=2026-03-09/hour=16/part_cryptocom_20260309_16.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=cryptocom/date=2026-03-09/hour=17[0m
+│   │       │   └── [1.8M]  ./ingestion/exchange=cryptocom/date=2026-03-09/hour=17/part_cryptocom_20260309_17.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=cryptocom/date=2026-03-09/hour=18[0m
+│   │       │   └── [2.6M]  ./ingestion/exchange=cryptocom/date=2026-03-09/hour=18/part_cryptocom_20260309_18.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=cryptocom/date=2026-03-09/hour=19[0m
+│   │           └── [1.2M]  ./ingestion/exchange=cryptocom/date=2026-03-09/hour=19/part_cryptocom_20260309_19.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=deribit[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [436K]  ./ingestion/exchange=deribit/date=2026-03-09/hour=15/part_deribit_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [516K]  ./ingestion/exchange=deribit/date=2026-03-09/hour=16/part_deribit_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [524K]  ./ingestion/exchange=deribit/date=2026-03-09/hour=17/part_deribit_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [492K]  ./ingestion/exchange=deribit/date=2026-03-09/hour=18/part_deribit_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [628K]  ./ingestion/exchange=deribit/date=2026-03-09/hour=19/part_deribit_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [536K]  ./ingestion/exchange=deribit/date=2026-03-09/hour=20/part_deribit_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [508K]  ./ingestion/exchange=deribit/date=2026-03-09/hour=21/part_deribit_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [592K]  ./ingestion/exchange=deribit/date=2026-03-09/hour=22/part_deribit_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-09/hour=23[0m
+│   │   │       └── [524K]  ./ingestion/exchange=deribit/date=2026-03-09/hour=23/part_deribit_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-10/hour=00[0m
+│   │       │   └── [588K]  ./ingestion/exchange=deribit/date=2026-03-10/hour=00/part_deribit_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-10/hour=01[0m
+│   │       │   └── [588K]  ./ingestion/exchange=deribit/date=2026-03-10/hour=01/part_deribit_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-10/hour=02[0m
+│   │       │   └── [600K]  ./ingestion/exchange=deribit/date=2026-03-10/hour=02/part_deribit_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=deribit/date=2026-03-10/hour=03[0m
+│   │           └── [332K]  ./ingestion/exchange=deribit/date=2026-03-10/hour=03/part_deribit_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=exmo[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2024-08-27[0m
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2024-08-27/hour=11[0m
+│   │   │       └── [ 24K]  ./ingestion/exchange=exmo/date=2024-08-27/hour=11/part_exmo_20240827_11.db
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [ 14M]  ./ingestion/exchange=exmo/date=2026-03-09/hour=15/part_exmo_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [ 15M]  ./ingestion/exchange=exmo/date=2026-03-09/hour=16/part_exmo_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [ 13M]  ./ingestion/exchange=exmo/date=2026-03-09/hour=17/part_exmo_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [ 16M]  ./ingestion/exchange=exmo/date=2026-03-09/hour=18/part_exmo_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [ 16M]  ./ingestion/exchange=exmo/date=2026-03-09/hour=19/part_exmo_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [ 17M]  ./ingestion/exchange=exmo/date=2026-03-09/hour=20/part_exmo_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [ 20M]  ./ingestion/exchange=exmo/date=2026-03-09/hour=21/part_exmo_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [ 20M]  ./ingestion/exchange=exmo/date=2026-03-09/hour=22/part_exmo_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-09/hour=23[0m
+│   │   │       └── [ 16M]  ./ingestion/exchange=exmo/date=2026-03-09/hour=23/part_exmo_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-10/hour=00[0m
+│   │       │   └── [ 16M]  ./ingestion/exchange=exmo/date=2026-03-10/hour=00/part_exmo_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-10/hour=01[0m
+│   │       │   └── [ 16M]  ./ingestion/exchange=exmo/date=2026-03-10/hour=01/part_exmo_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-10/hour=02[0m
+│   │       │   └── [ 20M]  ./ingestion/exchange=exmo/date=2026-03-10/hour=02/part_exmo_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=exmo/date=2026-03-10/hour=03[0m
+│   │           └── [6.5M]  ./ingestion/exchange=exmo/date=2026-03-10/hour=03/part_exmo_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=gate[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [560K]  ./ingestion/exchange=gate/date=2026-03-09/hour=15/part_gate_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [620K]  ./ingestion/exchange=gate/date=2026-03-09/hour=16/part_gate_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [536K]  ./ingestion/exchange=gate/date=2026-03-09/hour=17/part_gate_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [684K]  ./ingestion/exchange=gate/date=2026-03-09/hour=18/part_gate_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [708K]  ./ingestion/exchange=gate/date=2026-03-09/hour=19/part_gate_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [656K]  ./ingestion/exchange=gate/date=2026-03-09/hour=20/part_gate_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [820K]  ./ingestion/exchange=gate/date=2026-03-09/hour=21/part_gate_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [892K]  ./ingestion/exchange=gate/date=2026-03-09/hour=22/part_gate_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-09/hour=23[0m
+│   │   │       └── [712K]  ./ingestion/exchange=gate/date=2026-03-09/hour=23/part_gate_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-10/hour=00[0m
+│   │       │   └── [824K]  ./ingestion/exchange=gate/date=2026-03-10/hour=00/part_gate_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-10/hour=01[0m
+│   │       │   └── [796K]  ./ingestion/exchange=gate/date=2026-03-10/hour=01/part_gate_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-10/hour=02[0m
+│   │       │   └── [920K]  ./ingestion/exchange=gate/date=2026-03-10/hour=02/part_gate_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=gate/date=2026-03-10/hour=03[0m
+│   │           └── [444K]  ./ingestion/exchange=gate/date=2026-03-10/hour=03/part_gate_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=gateio[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [360K]  ./ingestion/exchange=gateio/date=2026-03-09/hour=15/part_gateio_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [488K]  ./ingestion/exchange=gateio/date=2026-03-09/hour=16/part_gateio_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [468K]  ./ingestion/exchange=gateio/date=2026-03-09/hour=17/part_gateio_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [476K]  ./ingestion/exchange=gateio/date=2026-03-09/hour=18/part_gateio_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [596K]  ./ingestion/exchange=gateio/date=2026-03-09/hour=19/part_gateio_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [712K]  ./ingestion/exchange=gateio/date=2026-03-09/hour=20/part_gateio_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [724K]  ./ingestion/exchange=gateio/date=2026-03-09/hour=21/part_gateio_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [724K]  ./ingestion/exchange=gateio/date=2026-03-09/hour=22/part_gateio_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-09/hour=23[0m
+│   │   │       └── [612K]  ./ingestion/exchange=gateio/date=2026-03-09/hour=23/part_gateio_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-10/hour=00[0m
+│   │       │   └── [728K]  ./ingestion/exchange=gateio/date=2026-03-10/hour=00/part_gateio_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-10/hour=01[0m
+│   │       │   └── [780K]  ./ingestion/exchange=gateio/date=2026-03-10/hour=01/part_gateio_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-10/hour=02[0m
+│   │       │   └── [836K]  ./ingestion/exchange=gateio/date=2026-03-10/hour=02/part_gateio_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=gateio/date=2026-03-10/hour=03[0m
+│   │           └── [380K]  ./ingestion/exchange=gateio/date=2026-03-10/hour=03/part_gateio_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=hitbtc[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=hitbtc/date=2026-03-09[0m
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=hitbtc/date=2026-03-09/hour=15[0m
+│   │           └── [ 32K]  ./ingestion/exchange=hitbtc/date=2026-03-09/hour=15/part_hitbtc_20260309_15.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=htx[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=htx/date=2026-03-09[0m
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=htx/date=2026-03-09/hour=15[0m
+│   │           └── [ 44K]  ./ingestion/exchange=htx/date=2026-03-09/hour=15/part_htx_20260309_15.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=huobi[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=huobi/date=2026-03-09[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=huobi/date=2026-03-09/hour=15[0m
+│   │       │   └── [392K]  ./ingestion/exchange=huobi/date=2026-03-09/hour=15/part_huobi_20260309_15.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=huobi/date=2026-03-09/hour=16[0m
+│   │       │   └── [236K]  ./ingestion/exchange=huobi/date=2026-03-09/hour=16/part_huobi_20260309_16.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=huobi/date=2026-03-09/hour=17[0m
+│   │       │   └── [212K]  ./ingestion/exchange=huobi/date=2026-03-09/hour=17/part_huobi_20260309_17.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=huobi/date=2026-03-09/hour=18[0m
+│   │       │   └── [312K]  ./ingestion/exchange=huobi/date=2026-03-09/hour=18/part_huobi_20260309_18.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=huobi/date=2026-03-09/hour=19[0m
+│   │           └── [ 88K]  ./ingestion/exchange=huobi/date=2026-03-09/hour=19/part_huobi_20260309_19.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [952K]  ./ingestion/exchange=hyperliquid/date=2026-03-09/hour=15/part_hyperliquid_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [976K]  ./ingestion/exchange=hyperliquid/date=2026-03-09/hour=16/part_hyperliquid_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [1.1M]  ./ingestion/exchange=hyperliquid/date=2026-03-09/hour=17/part_hyperliquid_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [1.1M]  ./ingestion/exchange=hyperliquid/date=2026-03-09/hour=18/part_hyperliquid_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [928K]  ./ingestion/exchange=hyperliquid/date=2026-03-09/hour=19/part_hyperliquid_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [1.3M]  ./ingestion/exchange=hyperliquid/date=2026-03-09/hour=20/part_hyperliquid_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [1.4M]  ./ingestion/exchange=hyperliquid/date=2026-03-09/hour=21/part_hyperliquid_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [1.4M]  ./ingestion/exchange=hyperliquid/date=2026-03-09/hour=22/part_hyperliquid_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-09/hour=23[0m
+│   │   │       └── [1.4M]  ./ingestion/exchange=hyperliquid/date=2026-03-09/hour=23/part_hyperliquid_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-10/hour=00[0m
+│   │       │   └── [1.1M]  ./ingestion/exchange=hyperliquid/date=2026-03-10/hour=00/part_hyperliquid_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-10/hour=01[0m
+│   │       │   └── [1.1M]  ./ingestion/exchange=hyperliquid/date=2026-03-10/hour=01/part_hyperliquid_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-10/hour=02[0m
+│   │       │   └── [944K]  ./ingestion/exchange=hyperliquid/date=2026-03-10/hour=02/part_hyperliquid_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=hyperliquid/date=2026-03-10/hour=03[0m
+│   │           └── [632K]  ./ingestion/exchange=hyperliquid/date=2026-03-10/hour=03/part_hyperliquid_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=kraken[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [ 40K]  ./ingestion/exchange=kraken/date=2026-03-09/hour=15/part_kraken_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [ 40K]  ./ingestion/exchange=kraken/date=2026-03-09/hour=16/part_kraken_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [ 36K]  ./ingestion/exchange=kraken/date=2026-03-09/hour=17/part_kraken_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [ 36K]  ./ingestion/exchange=kraken/date=2026-03-09/hour=18/part_kraken_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [ 68K]  ./ingestion/exchange=kraken/date=2026-03-09/hour=19/part_kraken_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [ 48K]  ./ingestion/exchange=kraken/date=2026-03-09/hour=20/part_kraken_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [ 48K]  ./ingestion/exchange=kraken/date=2026-03-09/hour=21/part_kraken_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [ 40K]  ./ingestion/exchange=kraken/date=2026-03-09/hour=22/part_kraken_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-09/hour=23[0m
+│   │   │       └── [ 32K]  ./ingestion/exchange=kraken/date=2026-03-09/hour=23/part_kraken_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-10/hour=00[0m
+│   │       │   └── [ 44K]  ./ingestion/exchange=kraken/date=2026-03-10/hour=00/part_kraken_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-10/hour=01[0m
+│   │       │   └── [ 44K]  ./ingestion/exchange=kraken/date=2026-03-10/hour=01/part_kraken_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-10/hour=02[0m
+│   │       │   └── [ 56K]  ./ingestion/exchange=kraken/date=2026-03-10/hour=02/part_kraken_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=kraken/date=2026-03-10/hour=03[0m
+│   │           └── [ 36K]  ./ingestion/exchange=kraken/date=2026-03-10/hour=03/part_kraken_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=kucoin[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=kucoin/date=2026-03-09[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=kucoin/date=2026-03-09/hour=12[0m
+│   │       │   └── [ 24K]  ./ingestion/exchange=kucoin/date=2026-03-09/hour=12/part_kucoin_20260309_12.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=kucoin/date=2026-03-09/hour=13[0m
+│   │       │   └── [ 24K]  ./ingestion/exchange=kucoin/date=2026-03-09/hour=13/part_kucoin_20260309_13.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=kucoin/date=2026-03-09/hour=14[0m
+│   │       │   └── [ 40K]  ./ingestion/exchange=kucoin/date=2026-03-09/hour=14/part_kucoin_20260309_14.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=kucoin/date=2026-03-09/hour=15[0m
+│   │           └── [120K]  ./ingestion/exchange=kucoin/date=2026-03-09/hour=15/part_kucoin_20260309_15.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=mexc[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-09/hour=15/part_mexc_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-09/hour=16/part_mexc_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-09/hour=17/part_mexc_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-09/hour=18/part_mexc_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-09/hour=19/part_mexc_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-09/hour=20/part_mexc_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-09/hour=21/part_mexc_20260309_21.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-09/hour=22[0m
+│   │   │       └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-09/hour=22/part_mexc_20260309_22.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-10/hour=00[0m
+│   │       │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-10/hour=00/part_mexc_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-10/hour=01[0m
+│   │       │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-10/hour=01/part_mexc_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-10/hour=02[0m
+│   │       │   └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-10/hour=02/part_mexc_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=mexc/date=2026-03-10/hour=03[0m
+│   │           └── [ 24K]  ./ingestion/exchange=mexc/date=2026-03-10/hour=03/part_mexc_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=myokx[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=myokx/date=2026-03-09[0m
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=myokx/date=2026-03-09/hour=15[0m
+│   │           └── [ 84K]  ./ingestion/exchange=myokx/date=2026-03-09/hour=15/part_myokx_20260309_15.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=ndax[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-07[0m
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-07/hour=08[0m
+│   │   │       └── [ 32K]  ./ingestion/exchange=ndax/date=2026-03-07/hour=08/part_ndax_20260307_08.db
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-08[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-08/hour=00[0m
+│   │   │   │   └── [ 40K]  ./ingestion/exchange=ndax/date=2026-03-08/hour=00/part_ndax_20260308_00.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-08/hour=22[0m
+│   │   │       └── [ 36K]  ./ingestion/exchange=ndax/date=2026-03-08/hour=22/part_ndax_20260308_22.db
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=01[0m
+│   │   │   │   └── [ 48K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=01/part_ndax_20260309_01.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=03[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=03/part_ndax_20260309_03.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=04[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=04/part_ndax_20260309_04.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=07[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=07/part_ndax_20260309_07.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=08[0m
+│   │   │   │   └── [ 96K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=08/part_ndax_20260309_08.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=12[0m
+│   │   │   │   └── [ 56K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=12/part_ndax_20260309_12.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=13[0m
+│   │   │   │   └── [ 48K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=13/part_ndax_20260309_13.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=14[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=14/part_ndax_20260309_14.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [ 76K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=15/part_ndax_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [112K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=16/part_ndax_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [ 72K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=17/part_ndax_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [ 76K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=18/part_ndax_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [140K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=19/part_ndax_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [ 64K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=20/part_ndax_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [104K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=21/part_ndax_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [120K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=22/part_ndax_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-09/hour=23[0m
+│   │   │       └── [ 68K]  ./ingestion/exchange=ndax/date=2026-03-09/hour=23/part_ndax_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-10/hour=00[0m
+│   │       │   └── [ 96K]  ./ingestion/exchange=ndax/date=2026-03-10/hour=00/part_ndax_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-10/hour=01[0m
+│   │       │   └── [ 96K]  ./ingestion/exchange=ndax/date=2026-03-10/hour=01/part_ndax_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-10/hour=02[0m
+│   │       │   └── [ 84K]  ./ingestion/exchange=ndax/date=2026-03-10/hour=02/part_ndax_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=ndax/date=2026-03-10/hour=03[0m
+│   │           └── [ 36K]  ./ingestion/exchange=ndax/date=2026-03-10/hour=03/part_ndax_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=okx[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=okx/date=2026-03-09[0m
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=okx/date=2026-03-09/hour=15[0m
+│   │           └── [ 76K]  ./ingestion/exchange=okx/date=2026-03-09/hour=15/part_okx_20260309_15.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=okxus[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=okxus/date=2026-03-09[0m
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=okxus/date=2026-03-09/hour=15[0m
+│   │           └── [104K]  ./ingestion/exchange=okxus/date=2026-03-09/hour=15/part_okxus_20260309_15.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=onetrading/date=2026-03-09/hour=15/part_onetrading_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=onetrading/date=2026-03-09/hour=16/part_onetrading_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=onetrading/date=2026-03-09/hour=17/part_onetrading_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=onetrading/date=2026-03-09/hour=18/part_onetrading_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=onetrading/date=2026-03-09/hour=19/part_onetrading_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [ 32K]  ./ingestion/exchange=onetrading/date=2026-03-09/hour=20/part_onetrading_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=onetrading/date=2026-03-09/hour=21/part_onetrading_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=onetrading/date=2026-03-09/hour=22/part_onetrading_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-09/hour=23[0m
+│   │   │       └── [ 24K]  ./ingestion/exchange=onetrading/date=2026-03-09/hour=23/part_onetrading_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-10/hour=00[0m
+│   │       │   └── [ 24K]  ./ingestion/exchange=onetrading/date=2026-03-10/hour=00/part_onetrading_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-10/hour=01[0m
+│   │       │   └── [ 32K]  ./ingestion/exchange=onetrading/date=2026-03-10/hour=01/part_onetrading_20260310_01.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=onetrading/date=2026-03-10/hour=02[0m
+│   │           └── [ 24K]  ./ingestion/exchange=onetrading/date=2026-03-10/hour=02/part_onetrading_20260310_02.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=p2b[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=p2b/date=2026-03-09[0m
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=p2b/date=2026-03-09/hour=15[0m
+│   │           └── [200K]  ./ingestion/exchange=p2b/date=2026-03-09/hour=15/part_p2b_20260309_15.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=phemex[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [108K]  ./ingestion/exchange=phemex/date=2026-03-09/hour=15/part_phemex_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [116K]  ./ingestion/exchange=phemex/date=2026-03-09/hour=16/part_phemex_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [108K]  ./ingestion/exchange=phemex/date=2026-03-09/hour=17/part_phemex_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [140K]  ./ingestion/exchange=phemex/date=2026-03-09/hour=18/part_phemex_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [164K]  ./ingestion/exchange=phemex/date=2026-03-09/hour=19/part_phemex_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [168K]  ./ingestion/exchange=phemex/date=2026-03-09/hour=20/part_phemex_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [164K]  ./ingestion/exchange=phemex/date=2026-03-09/hour=21/part_phemex_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [208K]  ./ingestion/exchange=phemex/date=2026-03-09/hour=22/part_phemex_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-09/hour=23[0m
+│   │   │       └── [180K]  ./ingestion/exchange=phemex/date=2026-03-09/hour=23/part_phemex_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-10/hour=00[0m
+│   │       │   └── [196K]  ./ingestion/exchange=phemex/date=2026-03-10/hour=00/part_phemex_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-10/hour=01[0m
+│   │       │   └── [160K]  ./ingestion/exchange=phemex/date=2026-03-10/hour=01/part_phemex_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-10/hour=02[0m
+│   │       │   └── [200K]  ./ingestion/exchange=phemex/date=2026-03-10/hour=02/part_phemex_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=phemex/date=2026-03-10/hour=03[0m
+│   │           └── [ 84K]  ./ingestion/exchange=phemex/date=2026-03-10/hour=03/part_phemex_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=poloniex[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=poloniex/date=2026-03-09[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=poloniex/date=2026-03-09/hour=15[0m
+│   │       │   └── [240K]  ./ingestion/exchange=poloniex/date=2026-03-09/hour=15/part_poloniex_20260309_15.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=poloniex/date=2026-03-09/hour=16[0m
+│   │       │   └── [212K]  ./ingestion/exchange=poloniex/date=2026-03-09/hour=16/part_poloniex_20260309_16.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=poloniex/date=2026-03-09/hour=17[0m
+│   │       │   └── [228K]  ./ingestion/exchange=poloniex/date=2026-03-09/hour=17/part_poloniex_20260309_17.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=poloniex/date=2026-03-09/hour=18[0m
+│   │       │   └── [444K]  ./ingestion/exchange=poloniex/date=2026-03-09/hour=18/part_poloniex_20260309_18.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=poloniex/date=2026-03-09/hour=19[0m
+│   │       │   └── [480K]  ./ingestion/exchange=poloniex/date=2026-03-09/hour=19/part_poloniex_20260309_19.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=poloniex/date=2026-03-09/hour=20[0m
+│   │           └── [244K]  ./ingestion/exchange=poloniex/date=2026-03-09/hour=20/part_poloniex_20260309_20.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=toobit[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=toobit/date=2026-03-09[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=toobit/date=2026-03-09/hour=15[0m
+│   │       │   └── [6.0M]  ./ingestion/exchange=toobit/date=2026-03-09/hour=15/part_toobit_20260309_15.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=toobit/date=2026-03-09/hour=16[0m
+│   │       │   └── [6.2M]  ./ingestion/exchange=toobit/date=2026-03-09/hour=16/part_toobit_20260309_16.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=toobit/date=2026-03-09/hour=17[0m
+│   │       │   └── [7.1M]  ./ingestion/exchange=toobit/date=2026-03-09/hour=17/part_toobit_20260309_17.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=toobit/date=2026-03-09/hour=18[0m
+│   │       │   └── [7.7M]  ./ingestion/exchange=toobit/date=2026-03-09/hour=18/part_toobit_20260309_18.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=toobit/date=2026-03-09/hour=19[0m
+│   │       │   └── [7.4M]  ./ingestion/exchange=toobit/date=2026-03-09/hour=19/part_toobit_20260309_19.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=toobit/date=2026-03-09/hour=20[0m
+│   │           └── [3.9M]  ./ingestion/exchange=toobit/date=2026-03-09/hour=20/part_toobit_20260309_20.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=upbit[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=14[0m
+│   │   │   │   └── [ 24K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=14/part_upbit_20260309_14.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [184K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=15/part_upbit_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [160K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=16/part_upbit_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [100K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=17/part_upbit_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [112K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=18/part_upbit_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [196K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=19/part_upbit_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [160K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=20/part_upbit_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [164K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=21/part_upbit_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [360K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=22/part_upbit_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-09/hour=23[0m
+│   │   │       └── [380K]  ./ingestion/exchange=upbit/date=2026-03-09/hour=23/part_upbit_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-10/hour=00[0m
+│   │       │   └── [684K]  ./ingestion/exchange=upbit/date=2026-03-10/hour=00/part_upbit_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-10/hour=01[0m
+│   │       │   └── [532K]  ./ingestion/exchange=upbit/date=2026-03-10/hour=01/part_upbit_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-10/hour=02[0m
+│   │       │   └── [564K]  ./ingestion/exchange=upbit/date=2026-03-10/hour=02/part_upbit_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=upbit/date=2026-03-10/hour=03[0m
+│   │           └── [264K]  ./ingestion/exchange=upbit/date=2026-03-10/hour=03/part_upbit_20260310_03.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=whitebit[0m
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=whitebit/date=2026-03-09[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=whitebit/date=2026-03-09/hour=15[0m
+│   │       │   └── [4.7M]  ./ingestion/exchange=whitebit/date=2026-03-09/hour=15/part_whitebit_20260309_15.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=whitebit/date=2026-03-09/hour=16[0m
+│   │       │   └── [4.0M]  ./ingestion/exchange=whitebit/date=2026-03-09/hour=16/part_whitebit_20260309_16.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=whitebit/date=2026-03-09/hour=17[0m
+│   │           └── [3.1M]  ./ingestion/exchange=whitebit/date=2026-03-09/hour=17/part_whitebit_20260309_17.db
+│   ├── [4.0K]  [01;34m./ingestion/exchange=woo[0m
+│   │   ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09[0m
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09/hour=15[0m
+│   │   │   │   └── [4.0M]  ./ingestion/exchange=woo/date=2026-03-09/hour=15/part_woo_20260309_15.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09/hour=16[0m
+│   │   │   │   └── [4.0M]  ./ingestion/exchange=woo/date=2026-03-09/hour=16/part_woo_20260309_16.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09/hour=17[0m
+│   │   │   │   └── [4.5M]  ./ingestion/exchange=woo/date=2026-03-09/hour=17/part_woo_20260309_17.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09/hour=18[0m
+│   │   │   │   └── [5.6M]  ./ingestion/exchange=woo/date=2026-03-09/hour=18/part_woo_20260309_18.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09/hour=19[0m
+│   │   │   │   └── [6.1M]  ./ingestion/exchange=woo/date=2026-03-09/hour=19/part_woo_20260309_19.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09/hour=20[0m
+│   │   │   │   └── [7.1M]  ./ingestion/exchange=woo/date=2026-03-09/hour=20/part_woo_20260309_20.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09/hour=21[0m
+│   │   │   │   └── [6.5M]  ./ingestion/exchange=woo/date=2026-03-09/hour=21/part_woo_20260309_21.db
+│   │   │   ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09/hour=22[0m
+│   │   │   │   └── [7.3M]  ./ingestion/exchange=woo/date=2026-03-09/hour=22/part_woo_20260309_22.db
+│   │   │   └── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-09/hour=23[0m
+│   │   │       └── [6.6M]  ./ingestion/exchange=woo/date=2026-03-09/hour=23/part_woo_20260309_23.db
+│   │   └── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-10[0m
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-10/hour=00[0m
+│   │       │   └── [7.1M]  ./ingestion/exchange=woo/date=2026-03-10/hour=00/part_woo_20260310_00.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-10/hour=01[0m
+│   │       │   └── [6.7M]  ./ingestion/exchange=woo/date=2026-03-10/hour=01/part_woo_20260310_01.db
+│   │       ├── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-10/hour=02[0m
+│   │       │   └── [6.4M]  ./ingestion/exchange=woo/date=2026-03-10/hour=02/part_woo_20260310_02.db
+│   │       └── [4.0K]  [01;34m./ingestion/exchange=woo/date=2026-03-10/hour=03[0m
+│   │           └── [3.8M]  ./ingestion/exchange=woo/date=2026-03-10/hour=03/part_woo_20260310_03.db
+│   └── [4.0K]  [01;34m./ingestion/exchange=xt[0m
+│       ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09[0m
+│       │   ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09/hour=15[0m
+│       │   │   └── [352K]  ./ingestion/exchange=xt/date=2026-03-09/hour=15/part_xt_20260309_15.db
+│       │   ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09/hour=16[0m
+│       │   │   └── [440K]  ./ingestion/exchange=xt/date=2026-03-09/hour=16/part_xt_20260309_16.db
+│       │   ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09/hour=17[0m
+│       │   │   └── [260K]  ./ingestion/exchange=xt/date=2026-03-09/hour=17/part_xt_20260309_17.db
+│       │   ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09/hour=18[0m
+│       │   │   └── [380K]  ./ingestion/exchange=xt/date=2026-03-09/hour=18/part_xt_20260309_18.db
+│       │   ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09/hour=19[0m
+│       │   │   └── [584K]  ./ingestion/exchange=xt/date=2026-03-09/hour=19/part_xt_20260309_19.db
+│       │   ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09/hour=20[0m
+│       │   │   └── [532K]  ./ingestion/exchange=xt/date=2026-03-09/hour=20/part_xt_20260309_20.db
+│       │   ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09/hour=21[0m
+│       │   │   └── [412K]  ./ingestion/exchange=xt/date=2026-03-09/hour=21/part_xt_20260309_21.db
+│       │   ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09/hour=22[0m
+│       │   │   └── [424K]  ./ingestion/exchange=xt/date=2026-03-09/hour=22/part_xt_20260309_22.db
+│       │   └── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-09/hour=23[0m
+│       │       └── [352K]  ./ingestion/exchange=xt/date=2026-03-09/hour=23/part_xt_20260309_23.db
+│       └── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-10[0m
+│           ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-10/hour=00[0m
+│           │   └── [320K]  ./ingestion/exchange=xt/date=2026-03-10/hour=00/part_xt_20260310_00.db
+│           ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-10/hour=01[0m
+│           │   └── [432K]  ./ingestion/exchange=xt/date=2026-03-10/hour=01/part_xt_20260310_01.db
+│           ├── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-10/hour=02[0m
+│           │   └── [504K]  ./ingestion/exchange=xt/date=2026-03-10/hour=02/part_xt_20260310_02.db
+│           └── [4.0K]  [01;34m./ingestion/exchange=xt/date=2026-03-10/hour=03[0m
+│               └── [280K]  ./ingestion/exchange=xt/date=2026-03-10/hour=03/part_xt_20260310_03.db
+└── [4.0K]  [01;34m./meta[0m
+    └── [165M]  ./meta/vault_manifest.db
+
+487 directories, 378 files
