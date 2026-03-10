@@ -724,6 +724,37 @@ def summarize_staging_time_window(staging_db_paths: list[Path]) -> tuple[str | N
     return min_utc, max_utc
 
 
+def estimate_max_training_rows(
+    *,
+    staging_min_utc: str,
+    training_cutoff_utc: str,
+    bin_seconds: int,
+    lag_steps: list[int],
+    rolling_windows: list[int],
+    horizons_steps: list[int],
+) -> dict[str, int]:
+    staging_min_ts = pd.to_datetime(staging_min_utc, utc=True, errors="coerce")
+    training_cutoff_ts = pd.to_datetime(training_cutoff_utc, utc=True, errors="coerce")
+    if pd.isna(staging_min_ts) or pd.isna(training_cutoff_ts):
+        raise SystemExit(
+            "Could not parse staging/cutoff timestamps for training preflight. "
+            f"staging_min_utc={staging_min_utc!r} training_cutoff_utc={training_cutoff_utc!r}"
+        )
+
+    available_seconds = max(0, int((training_cutoff_ts - staging_min_ts).total_seconds()))
+    max_resampled_rows = available_seconds // int(bin_seconds)
+    indicator_warmup_rows = max([20, *lag_steps, *rolling_windows])
+    max_horizon_steps = max(horizons_steps)
+    max_trainable_rows = max(0, max_resampled_rows - indicator_warmup_rows - max_horizon_steps)
+    return {
+        "available_seconds": available_seconds,
+        "max_resampled_rows": max_resampled_rows,
+        "indicator_warmup_rows": indicator_warmup_rows,
+        "max_horizon_steps": max_horizon_steps,
+        "max_trainable_rows": max_trainable_rows,
+    }
+
+
 def resample_staging_series(staging_series: pd.DataFrame, *, bin_seconds: int) -> pd.DataFrame:
     if staging_series.empty:
         return pd.DataFrame(columns=["bucket_start_utc", "bucket_epoch_s", "price"])
@@ -1554,6 +1585,28 @@ def main() -> None:
         staging_max_utc=staging_max_utc,
     )
     bin_seconds = int(args.bin_seconds)
+    horizons_steps = [1, int(args.secondary_horizon_multiple)]
+    horizons_seconds = [bin_seconds * step for step in horizons_steps]
+    preflight_rows = estimate_max_training_rows(
+        staging_min_utc=staging_min_utc,
+        training_cutoff_utc=training_cutoff_utc,
+        bin_seconds=bin_seconds,
+        lag_steps=lag_steps,
+        rolling_windows=rolling_windows,
+        horizons_steps=horizons_steps,
+    )
+    if preflight_rows["max_trainable_rows"] < int(args.min_train_rows):
+        history_hours = preflight_rows["available_seconds"] / 3600.0
+        raise SystemExit(
+            "Training preflight failed: available staging history cannot satisfy --min-train-rows. "
+            f"history_hours={history_hours:.2f}, "
+            f"max_resampled_rows={preflight_rows['max_resampled_rows']}, "
+            f"indicator_warmup_rows={preflight_rows['indicator_warmup_rows']}, "
+            f"max_horizon_steps={preflight_rows['max_horizon_steps']}, "
+            f"max_trainable_rows={preflight_rows['max_trainable_rows']}, "
+            f"required_min_train_rows={int(args.min_train_rows)}. "
+            "Provide more staging history or lower --min-train-rows."
+        )
     scope_pairs = load_scope_pairs_from_staging(
         staging_db_paths,
         exchange_id_filter=args.exchange_id,
@@ -1572,9 +1625,6 @@ def main() -> None:
     log("INFO", f"Staging inputs: {', '.join(args.staging_db)}")
     log("INFO", f"Resolved staging DB count: {len(staging_db_paths)}")
     log("INFO", f"Staging time window UTC: min={staging_min_utc or '-'} max={staging_max_utc or '-'}")
-
-    horizons_steps = [1, int(args.secondary_horizon_multiple)]
-    horizons_seconds = [bin_seconds * step for step in horizons_steps]
     log("INFO", f"Training horizons seconds: {horizons_seconds}")
 
     training_run_id = "forecast_train_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
