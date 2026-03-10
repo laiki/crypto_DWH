@@ -658,7 +658,12 @@ def load_staging_series_before_cutoff_single(
 
     if merged.empty:
         return pd.DataFrame(columns=["ingestion_ts_utc", "price_value"])
-    merged["ingestion_ts_utc"] = pd.to_datetime(merged["ingestion_ts_utc"], utc=True, errors="coerce")
+    merged["ingestion_ts_utc"] = pd.to_datetime(
+        merged["ingestion_ts_utc"],
+        utc=True,
+        errors="coerce",
+        format="ISO8601",
+    )
     merged["price_value"] = pd.to_numeric(merged["price_value"], errors="coerce")
     merged = merged.dropna(subset=["ingestion_ts_utc", "price_value"])
     merged = merged.sort_values(by=["ingestion_ts_utc"], ascending=[True])
@@ -686,7 +691,12 @@ def load_staging_series_before_cutoff(
     if not non_empty_frames:
         return pd.DataFrame(columns=["ingestion_ts_utc", "price_value"])
     merged = pd.concat(non_empty_frames, ignore_index=True)
-    merged["ingestion_ts_utc"] = pd.to_datetime(merged["ingestion_ts_utc"], utc=True, errors="coerce")
+    merged["ingestion_ts_utc"] = pd.to_datetime(
+        merged["ingestion_ts_utc"],
+        utc=True,
+        errors="coerce",
+        format="ISO8601",
+    )
     merged["price_value"] = pd.to_numeric(merged["price_value"], errors="coerce")
     merged = merged.dropna(subset=["ingestion_ts_utc", "price_value"])
     merged = merged.sort_values(by=["ingestion_ts_utc"], ascending=[True])

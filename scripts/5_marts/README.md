@@ -74,10 +74,12 @@ When a VAULT root is provided, the dashboard discovers partition DBs recursively
 Runtime behavior:
 - symbol start page can render violin distributions of `price_diff_pct` per symbol (selected run/window)
 - price curve and price deviation are computed for a selected `run_id` and selectable UTC window
+- forecast comparison is enabled automatically when the selected Core DB contains `forecast_predictions`
 - observed coverage KPI is computed from `vw_mart_dashboard_symbol_observed_quality_base` and grouped into quality bands (`0-50%`, `50-75%`, `75-90%`, `90-100%`)
 - no fixed 24h or daily-only restriction for these two panels
 - platform quality uses cache table when available, otherwise falls back to mart view
 - symbol deviation panels use cache table when available, otherwise fall back to mart view or raw query
+- forecast tab uses `forecast_predictions` and, when present, `forecast_model_registry` for training metrics
 
 ## Build Precomputed Dashboard Cache (Recommended)
 Cache is recommended for fast platform quality panel loading:

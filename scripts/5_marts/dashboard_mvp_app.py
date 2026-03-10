@@ -566,6 +566,83 @@ ORDER BY refresh_ts_utc DESC
 LIMIT 1;
 """
 
+SQL_FORECAST_CONFIGS = """
+SELECT
+    training_run_id,
+    exchange_id,
+    symbol,
+    model_name,
+    horizon_seconds,
+    COUNT(*) AS prediction_count,
+    SUM(CASE WHEN actual_price IS NOT NULL THEN 1 ELSE 0 END) AS actual_count,
+    AVG(abs_error) AS mean_abs_error,
+    MIN(target_bucket_start_utc) AS min_target_bucket_start_utc,
+    MAX(target_bucket_start_utc) AS max_target_bucket_start_utc
+FROM forecast_predictions
+WHERE cleansing_run_id = :run_id
+  AND symbol = :symbol
+GROUP BY training_run_id, exchange_id, symbol, model_name, horizon_seconds
+ORDER BY training_run_id DESC, exchange_id ASC, model_name ASC, horizon_seconds ASC;
+"""
+
+SQL_FORECAST_SERIES = """
+SELECT
+    training_run_id,
+    cleansing_run_id,
+    exchange_id,
+    symbol,
+    model_name,
+    horizon_seconds,
+    forecast_generated_bucket_start_utc,
+    forecast_generated_bucket_epoch_s,
+    target_bucket_start_utc,
+    target_bucket_epoch_s,
+    predicted_price,
+    actual_price,
+    abs_error
+FROM forecast_predictions
+WHERE cleansing_run_id = :run_id
+  AND symbol = :symbol
+  AND training_run_id = :training_run_id
+  AND exchange_id = :exchange_id
+  AND model_name = :model_name
+  AND horizon_seconds = :horizon_seconds
+ORDER BY target_bucket_epoch_s ASC, forecast_generated_bucket_epoch_s ASC;
+"""
+
+SQL_FORECAST_MODEL_REGISTRY = """
+SELECT
+    training_run_id,
+    exchange_id,
+    symbol,
+    model_name,
+    horizon_seconds,
+    train_rows,
+    test_rows,
+    cv_fold_count,
+    holdout_mae,
+    holdout_rmse,
+    holdout_mape,
+    holdout_r2,
+    cv_mean_mae,
+    cv_mean_rmse,
+    cv_mean_mape,
+    cv_mean_r2,
+    artifact_path,
+    created_utc,
+    status,
+    error_message
+FROM forecast_model_registry
+WHERE training_run_id = :training_run_id
+  AND exchange_id = :exchange_id
+  AND symbol = :symbol
+  AND model_name = :model_name
+  AND horizon_seconds = :horizon_seconds
+  AND status = 'trained'
+ORDER BY created_utc DESC
+LIMIT 1;
+"""
+
 
 @st.cache_data(show_spinner=False, ttl=180)
 def _query_dataframe_cached(
@@ -1072,6 +1149,8 @@ def main() -> None:
     has_symbol_deviation_view = "vw_mart_dashboard_symbol_deviation_bucket" in existing_objects
     has_symbol_observed_quality_view = "vw_mart_dashboard_symbol_observed_quality_base" in existing_objects
     has_cleansed_market = "cleansed_market" in existing_objects
+    has_forecast_predictions = "forecast_predictions" in existing_objects
+    has_forecast_model_registry = "forecast_model_registry" in existing_objects
 
     if not has_cleansed_market:
         st.error("Missing required table: cleansed_market")
@@ -1099,6 +1178,13 @@ def main() -> None:
             st.success("Observed quality source: mart view")
         else:
             st.warning("Observed quality source: raw fallback from cleansed_market")
+
+        if has_forecast_predictions and has_forecast_model_registry:
+            st.success("Forecast source: forecast_predictions + forecast_model_registry")
+        elif has_forecast_predictions:
+            st.warning("Forecast source: forecast_predictions only (missing registry table)")
+        else:
+            st.caption("Forecast source unavailable in selected Core DB")
 
         if ingestion_db_path.is_dir():
             st.caption(f"Raw ingestion directory: {ingestion_db_path}")
@@ -1304,6 +1390,31 @@ def main() -> None:
             )
             st.caption(
                 f"Selected symbol exchanges (active bands): {len(observed_quality_allowed_exchanges)}"
+            )
+
+    forecast_configs_df = pd.DataFrame()
+    if has_forecast_predictions:
+        forecast_configs_df = _query_dataframe(
+            db_path,
+            SQL_FORECAST_CONFIGS,
+            params={"run_id": selected_run_id, "symbol": selected_symbol},
+        )
+        if not forecast_configs_df.empty:
+            forecast_configs_df["training_run_id"] = forecast_configs_df["training_run_id"].astype(str)
+            forecast_configs_df["exchange_id"] = forecast_configs_df["exchange_id"].astype(str)
+            forecast_configs_df["symbol"] = forecast_configs_df["symbol"].astype(str)
+            forecast_configs_df["model_name"] = forecast_configs_df["model_name"].astype(str)
+            forecast_configs_df["horizon_seconds"] = pd.to_numeric(
+                forecast_configs_df["horizon_seconds"], errors="coerce"
+            )
+            forecast_configs_df["prediction_count"] = pd.to_numeric(
+                forecast_configs_df["prediction_count"], errors="coerce"
+            )
+            forecast_configs_df["actual_count"] = pd.to_numeric(
+                forecast_configs_df["actual_count"], errors="coerce"
+            )
+            forecast_configs_df["mean_abs_error"] = pd.to_numeric(
+                forecast_configs_df["mean_abs_error"], errors="coerce"
             )
 
     if has_platform_quality_cache:
@@ -1550,9 +1661,14 @@ def main() -> None:
         f"Observed bands: {', '.join(selected_observed_quality_bands) if selected_observed_quality_bands else 'none'}"
     )
 
-    tab_curve, tab_deviation, tab_quality = st.tabs(
-        ["Price Curve (Window)", "Price Deviation (Window)", "Platform Quality"]
-    )
+    tab_labels = ["Price Curve (Window)", "Price Deviation (Window)", "Platform Quality"]
+    if has_forecast_predictions:
+        tab_labels.append("Forecasts")
+    tabs = st.tabs(tab_labels)
+    tab_curve = tabs[0]
+    tab_deviation = tabs[1]
+    tab_quality = tabs[2]
+    tab_forecast = tabs[3] if has_forecast_predictions else None
 
     with tab_curve:
         st.write("Price development for selected symbol in selected UTC window.")
@@ -2430,6 +2546,258 @@ def main() -> None:
                     config=PLOTLY_CHART_CONFIG,
                     key="quality_latency_bar",
                 )
+
+    if tab_forecast is not None:
+        with tab_forecast:
+            st.write(
+                "Forecast overlays from `forecast_predictions` for the selected cleansing run and symbol."
+            )
+            if forecast_configs_df.empty:
+                st.info(
+                    "No forecast rows available for the selected cleansing run and symbol in the chosen Core DB."
+                )
+            else:
+                training_run_options = forecast_configs_df["training_run_id"].astype(str).drop_duplicates().tolist()
+                selected_forecast_training_run = st.selectbox(
+                    "Training Run",
+                    options=training_run_options,
+                    index=0,
+                    key=f"forecast_training_run_{selected_run_id}_{selected_symbol}",
+                )
+                filtered_forecast_configs_df = forecast_configs_df[
+                    forecast_configs_df["training_run_id"].astype(str) == selected_forecast_training_run
+                ].copy()
+
+                exchange_options = (
+                    filtered_forecast_configs_df["exchange_id"].astype(str).drop_duplicates().sort_values().tolist()
+                )
+                selected_forecast_exchange = st.selectbox(
+                    "Forecast Exchange",
+                    options=exchange_options,
+                    index=0,
+                    key=f"forecast_exchange_{selected_run_id}_{selected_symbol}",
+                )
+                filtered_forecast_configs_df = filtered_forecast_configs_df[
+                    filtered_forecast_configs_df["exchange_id"].astype(str) == selected_forecast_exchange
+                ].copy()
+
+                model_options = (
+                    filtered_forecast_configs_df["model_name"].astype(str).drop_duplicates().sort_values().tolist()
+                )
+                selected_forecast_model = st.selectbox(
+                    "Forecast Model",
+                    options=model_options,
+                    index=0,
+                    key=f"forecast_model_{selected_run_id}_{selected_symbol}",
+                )
+                filtered_forecast_configs_df = filtered_forecast_configs_df[
+                    filtered_forecast_configs_df["model_name"].astype(str) == selected_forecast_model
+                ].copy()
+
+                horizon_options = sorted(
+                    {
+                        int(value)
+                        for value in filtered_forecast_configs_df["horizon_seconds"].dropna().astype(int).tolist()
+                    }
+                )
+                selected_forecast_horizon = st.selectbox(
+                    "Forecast Horizon (seconds)",
+                    options=horizon_options,
+                    index=0,
+                    key=f"forecast_horizon_{selected_run_id}_{selected_symbol}",
+                )
+
+                selected_forecast_config_df = filtered_forecast_configs_df[
+                    filtered_forecast_configs_df["horizon_seconds"].astype(int) == int(selected_forecast_horizon)
+                ].copy()
+                forecast_summary_row = selected_forecast_config_df.iloc[0]
+
+                forecast_series_df = _query_dataframe(
+                    db_path,
+                    SQL_FORECAST_SERIES,
+                    params={
+                        "run_id": selected_run_id,
+                        "symbol": selected_symbol,
+                        "training_run_id": selected_forecast_training_run,
+                        "exchange_id": selected_forecast_exchange,
+                        "model_name": selected_forecast_model,
+                        "horizon_seconds": int(selected_forecast_horizon),
+                    },
+                )
+                if forecast_series_df.empty:
+                    st.warning("No forecast rows found for the selected configuration.")
+                else:
+                    forecast_series_df["target_bucket_start_utc"] = pd.to_datetime(
+                        forecast_series_df["target_bucket_start_utc"], utc=True, errors="coerce"
+                    )
+                    forecast_series_df["forecast_generated_bucket_start_utc"] = pd.to_datetime(
+                        forecast_series_df["forecast_generated_bucket_start_utc"], utc=True, errors="coerce"
+                    )
+                    numeric_forecast_columns = [
+                        "horizon_seconds",
+                        "forecast_generated_bucket_epoch_s",
+                        "target_bucket_epoch_s",
+                        "predicted_price",
+                        "actual_price",
+                        "abs_error",
+                    ]
+                    for numeric_column in numeric_forecast_columns:
+                        forecast_series_df[numeric_column] = pd.to_numeric(
+                            forecast_series_df[numeric_column], errors="coerce"
+                        )
+                    forecast_series_df = forecast_series_df.dropna(
+                        subset=["target_bucket_start_utc", "predicted_price"]
+                    ).copy()
+                    forecast_series_df = forecast_series_df.sort_values(
+                        by=["target_bucket_epoch_s", "forecast_generated_bucket_epoch_s"],
+                        ascending=[True, True],
+                    ).reset_index(drop=True)
+
+                    model_registry_df = pd.DataFrame()
+                    if has_forecast_model_registry:
+                        model_registry_df = _query_dataframe(
+                            db_path,
+                            SQL_FORECAST_MODEL_REGISTRY,
+                            params={
+                                "training_run_id": selected_forecast_training_run,
+                                "exchange_id": selected_forecast_exchange,
+                                "symbol": selected_symbol,
+                                "model_name": selected_forecast_model,
+                                "horizon_seconds": int(selected_forecast_horizon),
+                            },
+                        )
+                        if not model_registry_df.empty:
+                            metric_columns = [
+                                "train_rows",
+                                "test_rows",
+                                "cv_fold_count",
+                                "holdout_mae",
+                                "holdout_rmse",
+                                "holdout_mape",
+                                "holdout_r2",
+                                "cv_mean_mae",
+                                "cv_mean_rmse",
+                                "cv_mean_mape",
+                                "cv_mean_r2",
+                            ]
+                            for metric_column in metric_columns:
+                                model_registry_df[metric_column] = pd.to_numeric(
+                                    model_registry_df[metric_column], errors="coerce"
+                                )
+
+                    actual_available_df = forecast_series_df[forecast_series_df["actual_price"].notna()].copy()
+                    metric_col_1, metric_col_2, metric_col_3, metric_col_4 = st.columns(4)
+                    metric_col_1.metric("Predictions", int(len(forecast_series_df)))
+                    metric_col_2.metric("Actual Coverage", int(actual_available_df.shape[0]))
+                    metric_col_3.metric(
+                        "Mean Abs Error",
+                        _format_float(forecast_summary_row.get("mean_abs_error"), decimals=6),
+                    )
+                    metric_col_4.metric("Horizon (s)", int(selected_forecast_horizon))
+
+                    forecast_figure = go.Figure()
+                    forecast_figure.add_trace(
+                        go.Scatter(
+                            x=forecast_series_df["target_bucket_start_utc"],
+                            y=forecast_series_df["predicted_price"],
+                            mode="lines",
+                            name=f"Predicted ({selected_forecast_model})",
+                            line={"color": "#ea580c", "width": 2},
+                        )
+                    )
+                    if not actual_available_df.empty:
+                        forecast_figure.add_trace(
+                            go.Scatter(
+                                x=actual_available_df["target_bucket_start_utc"],
+                                y=actual_available_df["actual_price"],
+                                mode="lines",
+                                name="Actual",
+                                line={"color": "#2563eb", "width": 2},
+                            )
+                        )
+                    forecast_figure.update_layout(
+                        template=plotly_template,
+                        height=380,
+                        margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                        xaxis_title="Target UTC Timestamp",
+                        yaxis_title="Price",
+                        legend_title="Series",
+                    )
+                    st.plotly_chart(
+                        forecast_figure,
+                        width="stretch",
+                        config=PLOTLY_CHART_CONFIG,
+                        key=(
+                            f"forecast_curve_{selected_run_id}_{selected_symbol}_"
+                            f"{selected_forecast_training_run}_{selected_forecast_exchange}_"
+                            f"{selected_forecast_model}_{selected_forecast_horizon}"
+                        ),
+                    )
+
+                    if not actual_available_df.empty:
+                        error_figure = px.bar(
+                            actual_available_df,
+                            x="target_bucket_start_utc",
+                            y="abs_error",
+                            template=plotly_template,
+                        )
+                        error_figure.update_layout(
+                            height=260,
+                            margin={"l": 20, "r": 20, "t": 20, "b": 10},
+                            xaxis_title="Target UTC Timestamp",
+                            yaxis_title="Absolute Error",
+                            showlegend=False,
+                        )
+                        st.plotly_chart(
+                            error_figure,
+                            width="stretch",
+                            config=PLOTLY_CHART_CONFIG,
+                            key=(
+                                f"forecast_error_{selected_run_id}_{selected_symbol}_"
+                                f"{selected_forecast_training_run}_{selected_forecast_exchange}_"
+                                f"{selected_forecast_model}_{selected_forecast_horizon}"
+                            ),
+                        )
+                    else:
+                        st.info(
+                            "No actual prices are available yet for this forecast horizon in the selected cleansing run."
+                        )
+
+                    st.caption(
+                        "Forecast coverage UTC: "
+                        f"{forecast_summary_row['min_target_bucket_start_utc']} -> "
+                        f"{forecast_summary_row['max_target_bucket_start_utc']}"
+                    )
+                    st.caption(
+                        f"Prediction count: {int(forecast_summary_row['prediction_count'])} | "
+                        f"Actual count: {int(forecast_summary_row['actual_count'])}"
+                    )
+
+                    if not model_registry_df.empty:
+                        registry_row = model_registry_df.iloc[0]
+                        st.write("Training Metrics")
+                        training_metric_col_1, training_metric_col_2, training_metric_col_3, training_metric_col_4 = st.columns(4)
+                        training_metric_col_1.metric(
+                            "Holdout RMSE",
+                            _format_float(registry_row.get("holdout_rmse"), decimals=6),
+                        )
+                        training_metric_col_2.metric(
+                            "Holdout R²",
+                            _format_float(registry_row.get("holdout_r2"), decimals=4),
+                        )
+                        training_metric_col_3.metric(
+                            "CV Mean RMSE",
+                            _format_float(registry_row.get("cv_mean_rmse"), decimals=6),
+                        )
+                        training_metric_col_4.metric(
+                            "Train/Test Rows",
+                            f"{int(registry_row.get('train_rows', 0))}/{int(registry_row.get('test_rows', 0))}",
+                        )
+                        with st.expander("Model Registry Details"):
+                            st.dataframe(model_registry_df, width="stretch", hide_index=True)
+
+                    with st.expander("Forecast Prediction Rows"):
+                        st.dataframe(forecast_series_df, width="stretch", hide_index=True)
 
 
 if __name__ == "__main__":
