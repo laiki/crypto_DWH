@@ -13,6 +13,10 @@ Pipeline order:
 
 All commands below assume execution from repo root (`/home/wgo/dev/crypto_DWH`).
 
+Runtime artifact note:
+- Paths under `data/` and `scripts/data/` in this runbook are execution-time output locations.
+- They are local generated artifacts and should not be treated as versioned repository content.
+
 ## Prerequisites
 
 ```bash

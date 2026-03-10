@@ -98,6 +98,10 @@ Detailed English documentation for all ingestion/orchestration scripts is availa
 Central end-to-end runbook (all phases):
 - `docs/0_overview/README.md`
 
+## Runtime Data Note
+Runtime outputs under `data/` are local generated artifacts and are not intended to be versioned in GitHub.
+This includes VAULT partitions, staging/cleansing/core DBs, Redis-backed VAULT outputs, logs, and local model artifacts.
+
 ## Ingestion Runtime Quickstart
 Two ingestion runtime modes are documented:
 

@@ -1,3 +1,4 @@
+data/
 data/*.csv
 data/*.html
 data/*.db-shm
@@ -21,3 +22,5 @@ scripts/**/logs/
 *.png
 
 *.joblib
+tmp/
+tmp/*
