@@ -25,7 +25,7 @@ This decouples long training history from run-specific forecast generation.
 
 ### Training
 
-- Staging SQLite input (`market_ticks`), provided as one `.db` file, a directory of staging `.db` files, or a glob pattern spanning multiple staging slices
+- Staging SQLite input (`market_ticks`), provided as one or more `.db` files, directories, or glob patterns spanning multiple staging slices
 - Writable forecast DB (typically Core DB)
 - Writable model artifact directory
 
@@ -56,6 +56,18 @@ Optional:
 - `--symbols "BTC/USDT,%eth/%"`
 - `--exchange-id binance`
 
+Example with an explicit list of staging DB files:
+
+```bash
+python scripts/6_forecasting/train_staging_models.py \
+  --staging-db \
+    data/staging/staging_export_20260310_083654_last_1h_from_2h.db \
+    data/staging/staging_export_20260310_083651_last_1h_from_1h.db \
+    data/staging/staging_export_20260310_083648_last_1h.db \
+  --forecast-db data/core/core_kpi.db \
+  --model-dir data/forecasting/models
+```
+
 ### 2. Forecast one cleansing run with trained models
 
 ```bash
@@ -75,6 +87,7 @@ If `--training-run-id` is omitted, the latest completed training run is used.
 
 - `--staging-db` accepts:
   - one file, for example `data/staging/latest_staging.db`
+  - multiple files, for example `--staging-db a.db b.db c.db`
   - one directory, for example `data/staging`
   - one glob, for example `"data/staging/staging_export_20260310_*.db"`
 - Multiple staging DBs are merged for training-history lookup.

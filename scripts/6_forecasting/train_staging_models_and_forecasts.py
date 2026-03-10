@@ -215,8 +215,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--staging-db",
-        default="data/staging/latest_staging.db",
-        help="Staging DB input used for leakage-safe training history reads. Accepts a single .db file, a directory, or a glob pattern.",
+        nargs="+",
+        default=["data/staging/latest_staging.db"],
+        help="Staging DB inputs used for leakage-safe training history reads. Accepts one or more .db files, directories, or glob patterns.",
     )
     parser.add_argument(
         "--cleansing-db",
@@ -379,26 +380,38 @@ def resolve_file(path_raw: str) -> Path:
     return path
 
 
-def resolve_staging_db_paths(path_raw: str) -> list[Path]:
-    has_glob_syntax = any(token in path_raw for token in ("*", "?", "["))
-    if has_glob_syntax:
-        matches = sorted(Path(item).resolve() for item in glob.glob(path_raw, recursive=True))
-        db_paths = [path for path in matches if path.is_file() and path.suffix == ".db"]
-        if not db_paths:
-            raise SystemExit(f"No staging DB files matched pattern: {path_raw}")
-        return db_paths
+def resolve_staging_db_paths(path_inputs: list[str]) -> list[Path]:
+    resolved_paths: list[Path] = []
+    seen: set[Path] = set()
+    for path_raw in path_inputs:
+        has_glob_syntax = any(token in path_raw for token in ("*", "?", "["))
+        if has_glob_syntax:
+            matches = sorted(Path(item).resolve() for item in glob.glob(path_raw, recursive=True))
+            db_paths = [path for path in matches if path.is_file() and path.suffix == ".db"]
+            if not db_paths:
+                raise SystemExit(f"No staging DB files matched pattern: {path_raw}")
+        else:
+            candidate = resolve_file(path_raw)
+            if candidate.is_file():
+                if candidate.suffix != ".db":
+                    raise SystemExit(f"Staging input is not a .db file: {candidate}")
+                db_paths = [candidate]
+            elif candidate.is_dir():
+                db_paths = sorted(path for path in candidate.glob("*.db") if path.is_file())
+                if not db_paths:
+                    raise SystemExit(f"No staging DB files found in directory: {candidate}")
+            else:
+                raise SystemExit(f"Staging DB input does not exist: {candidate}")
 
-    candidate = resolve_file(path_raw)
-    if candidate.is_file():
-        if candidate.suffix != ".db":
-            raise SystemExit(f"Staging input is not a .db file: {candidate}")
-        return [candidate]
-    if candidate.is_dir():
-        db_paths = sorted(path for path in candidate.glob("*.db") if path.is_file())
-        if not db_paths:
-            raise SystemExit(f"No staging DB files found in directory: {candidate}")
-        return db_paths
-    raise SystemExit(f"Staging DB input does not exist: {candidate}")
+        for db_path in db_paths:
+            if db_path in seen:
+                continue
+            seen.add(db_path)
+            resolved_paths.append(db_path)
+
+    if not resolved_paths:
+        raise SystemExit("No staging DB files resolved from --staging-db inputs.")
+    return resolved_paths
 def resolve_cleansing_run_id(connection: sqlite3.Connection, requested: str | None) -> str:
     if requested:
         row = connection.execute(
@@ -1549,7 +1562,7 @@ def main() -> None:
         log("INFO", f"Training cutoff UTC: {training_cutoff_utc}")
         log("INFO", f"Bin seconds: {bin_seconds}")
         log("INFO", f"Scope pairs: {len(scope_pairs)}")
-        log("INFO", f"Staging input: {args.staging_db}")
+        log("INFO", f"Staging inputs: {', '.join(args.staging_db)}")
         log("INFO", f"Resolved staging DB count: {len(staging_db_paths)}")
         log("INFO", f"Staging time window UTC: min={staging_min_utc or '-'} max={staging_max_utc or '-'}")
         if staging_min_utc is None:
@@ -1583,7 +1596,7 @@ def main() -> None:
                 training_run_id=training_run_id,
                 args=args,
                 staging_db_count=len(staging_db_paths),
-                staging_input=args.staging_db,
+                staging_input=" ".join(args.staging_db),
                 cleansing_db_path=cleansing_db_path,
                 cleansing_run_id=cleansing_run_id,
                 forecast_db_path=forecast_db_path,
