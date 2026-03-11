@@ -782,21 +782,7 @@ def _query_ingestion_raw_ticks_cached(
         return pd.DataFrame(columns=expected_columns)
 
     ingestion_path = Path(ingestion_db_path_str).expanduser()
-    ingestion_db_files: list[Path] = []
-    if ingestion_path.is_file():
-        ingestion_db_files = [ingestion_path]
-    elif ingestion_path.is_dir():
-        ingestion_db_files = sorted(
-            db_file
-            for db_file in ingestion_path.glob("worker_*_crypto_ws_ticks.db")
-            if db_file.is_file()
-        )
-        if not ingestion_db_files:
-            ingestion_db_files = sorted(
-                db_file
-                for db_file in ingestion_path.glob("*crypto_ws_ticks.db")
-                if db_file.is_file()
-            )
+    ingestion_db_files = _discover_ingestion_db_files(ingestion_path)
 
     if not ingestion_db_files:
         return pd.DataFrame(columns=expected_columns)
@@ -1864,7 +1850,17 @@ def main() -> None:
                         )
                     else:
                         raw_window_start_utc = price_curve_plot["bucket_start_utc"].min().isoformat()
-                        raw_window_end_utc = price_curve_plot["bucket_start_utc"].max().isoformat()
+                        raw_bucket_times = price_curve_plot["bucket_start_utc"].sort_values()
+                        bucket_step_seconds = 60.0
+                        if len(raw_bucket_times) >= 2:
+                            bucket_diffs = raw_bucket_times.diff().dropna().dt.total_seconds()
+                            positive_diffs = bucket_diffs[bucket_diffs > 0]
+                            if not positive_diffs.empty:
+                                bucket_step_seconds = float(positive_diffs.median())
+                        raw_window_end_utc = (
+                            price_curve_plot["bucket_start_utc"].max()
+                            + pd.to_timedelta(bucket_step_seconds, unit="s")
+                        ).isoformat()
                         raw_exchanges = (
                             price_curve_plot["exchange_id"].astype(str).dropna().unique().tolist()
                         )
@@ -2695,6 +2691,11 @@ def main() -> None:
                     )
                     metric_col_4.metric("Horizon (s)", int(selected_forecast_horizon))
 
+                    st.write("Target-Time View")
+                    st.caption(
+                        "Plots each forecast on its target timestamp. "
+                        "This is the direct view for predicted vs realized value at the forecast horizon."
+                    )
                     forecast_figure = go.Figure()
                     forecast_figure.add_trace(
                         go.Scatter(
@@ -2731,7 +2732,7 @@ def main() -> None:
                             f"forecast_curve_{selected_run_id}_{selected_symbol}_"
                             f"{selected_forecast_training_run}_{selected_forecast_exchange}_"
                             f"{selected_forecast_model}_{selected_forecast_horizon}"
-                        ),
+                        )
                     )
 
                     if not actual_available_df.empty:
