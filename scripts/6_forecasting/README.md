@@ -19,9 +19,10 @@ This decouples long training history from run-specific forecast generation.
 
 - `train_staging_models.py`: training-only batch for staging history
 - `forecast_with_trained_models.py`: inference-only batch for cleansing runs
-- `train_ai_models.py`: training/evaluation batch for AI backends such as Chronos2
-- `forecast_with_ai_models.py`: inference-only batch for trained AI backends
+- `train_ai_models.py`: pretrained zero-shot evaluation/register batch for AI backends such as Chronos2
+- `forecast_with_ai_models.py`: inference-only batch for registered AI backends
 - `ai_model_backends.py`: backend registry for extensible AI forecasting backends
+- `fine_tune_ai_models.py`: reserved future entrypoint for true gradient-based AI fine-tuning
 - `train_staging_models_and_forecasts.py`: legacy combined entrypoint; kept for compatibility, but the split workflow above is preferred
 
 ## Input requirements
@@ -99,7 +100,7 @@ python scripts/6_forecasting/forecast_with_trained_models.py \
 
 If `--training-run-id` is omitted, the latest completed training run is used.
 
-### 3. Train AI forecasting backends from staging history
+### 3. Evaluate pretrained AI forecasting backends from staging history
 
 ```bash
 python scripts/6_forecasting/train_ai_models.py \
@@ -121,6 +122,10 @@ Optional:
 - `--max-context-points 1024`
 - `--symbols "BTC/%,ETH/%"`
 
+Important:
+- Chronos2 is currently used in pretrained zero-shot mode.
+- The script evaluates historical windows, registers artifacts and metrics, and does not fine-tune Chronos2 weights.
+
 ### 4. Create AI forecasts for one cleansing run
 
 ```bash
@@ -134,7 +139,12 @@ python scripts/6_forecasting/forecast_with_ai_models.py \
   --progress-interval-seconds 30
 ```
 
-If `--training-run-id` is omitted, the latest completed AI training run for the selected backend set is used.
+If `--training-run-id` is omitted, the latest completed AI evaluation run for the selected backend set is used.
+
+### 5. Future fine-tuning path
+
+`fine_tune_ai_models.py` is intentionally separate from the current zero-shot Chronos2 evaluation path.
+It is reserved for future optimizer-based weight fine-tuning and currently exits with a clear not-implemented message.
 
 ## Staging history selection
 
@@ -174,7 +184,7 @@ If `--training-run-id` is omitted, the latest completed AI training run for the 
 
 - AI backends reuse the same forecast registry and `forecast_predictions` table as the classical ML path.
 - Backend selection is explicit via `--model-backends`.
-- Chronos2 is the first implemented AI backend.
+- Chronos2 is the first implemented AI backend and currently runs in pretrained zero-shot mode.
 - Additional deep-learning or foundation-model backends can be added in `ai_model_backends.py` without changing the DB contract.
 
 ## Feature logic

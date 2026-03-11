@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
-Load trained AI forecasting artifacts and write predictions for a selected cleansing run.
+Load registered pretrained AI forecasting artifacts and write predictions for a
+selected cleansing run.
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ def log(level: str, message: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Apply trained AI forecasting artifacts to a cleansing run and persist forecast rows.",
+        description="Apply registered pretrained AI forecasting artifacts to a cleansing run and persist forecast rows.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -60,12 +61,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--forecast-db",
         default="data/core/core_kpi.db",
-        help="SQLite DB path where trained AI model registry rows and predictions are stored.",
+        help="SQLite DB path where registered pretrained AI model rows and predictions are stored.",
     )
     parser.add_argument(
         "--training-run-id",
         default=None,
-        help="Optional training_run_id to use. If omitted, latest completed AI training run is used.",
+        help="Optional evaluation run_id to use. If omitted, latest completed AI evaluation run is used.",
     )
     parser.add_argument(
         "--symbols",
@@ -106,7 +107,7 @@ def parse_args() -> argparse.Namespace:
         "--replace-existing",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Delete existing forecast rows for the selected training run and cleansing run before inserting new ones.",
+        help="Delete existing forecast rows for the selected evaluation run and cleansing run before inserting new ones.",
     )
     parser.add_argument(
         "--progress",
@@ -173,7 +174,7 @@ def resolve_training_run_id(connection: sqlite3.Connection, requested: str | Non
         [name.lower() for name in backend_names],
     ).fetchone()
     if row is None:
-        raise SystemExit("No completed AI training_run_id found in forecast_training_runs.")
+        raise SystemExit("No completed AI evaluation run_id found in forecast_training_runs.")
     return str(row[0])
 
 
@@ -438,7 +439,7 @@ def main() -> None:
             batch_size=int(args.batch_size),
         )
         if not tasks:
-            raise SystemExit("No trained AI models found for selected filters.")
+            raise SystemExit("No registered pretrained AI models found for selected filters.")
 
         if args.replace_existing:
             delete_existing_predictions(
@@ -451,7 +452,7 @@ def main() -> None:
             )
 
         unique_pairs = sorted({(task.exchange_id, task.symbol) for task in tasks})
-        log("INFO", f"Training run: {training_run_id}")
+        log("INFO", f"Evaluation run: {training_run_id}")
         log("INFO", f"Cleansing run: {cleansing_run_id}")
         log("INFO", f"AI backends: {backend_names}")
         log("INFO", f"Cleansing rows: {cleansing_row_count}")

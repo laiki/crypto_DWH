@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 """
-Train AI forecasting backends from staging history and register model artifacts.
+Evaluate pretrained AI forecasting backends on staging history and register
+artifacts plus metrics.
 
-The script is backend-extensible. Chronos2 is the first implemented backend.
+The current Chronos2 path does not fine-tune model weights. It performs
+zero-shot / inference-time evaluation on historical windows, then registers
+artifacts and metrics in the forecast DB. The script is backend-extensible.
 """
 
 from __future__ import annotations
@@ -51,8 +54,8 @@ def log(level: str, message: str) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Train AI forecasting backends from staging history and register "
-            "artifact metadata in the forecast DB."
+            "Evaluate pretrained AI forecasting backends on staging history "
+            "and register artifact metadata in the forecast DB."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -60,7 +63,7 @@ def parse_args() -> argparse.Namespace:
         "--staging-db",
         nargs="+",
         default=["data/staging/latest_staging.db"],
-        help="Staging DB inputs used for AI training. Accepts one or more .db files, directories, or glob patterns.",
+        help="Staging DB inputs used for pretrained AI evaluation. Accepts one or more .db files, directories, or glob patterns.",
     )
     parser.add_argument(
         "--staging-db-exclude",
@@ -76,7 +79,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--forecast-db",
         default="data/core/core_kpi.db",
-        help="SQLite DB path where AI training registry rows are written.",
+        help="SQLite DB path where AI evaluation registry rows are written.",
     )
     parser.add_argument(
         "--model-dir",
@@ -100,23 +103,23 @@ def parse_args() -> argparse.Namespace:
         "--symbol",
         dest="symbols",
         default=None,
-        help="Optional comma-separated symbol filter for AI training scope.",
+        help="Optional comma-separated symbol filter for pretrained AI evaluation scope.",
     )
     parser.add_argument(
         "--exchange-id",
         default=None,
-        help="Optional exchange_id filter for AI training scope.",
+        help="Optional exchange_id filter for pretrained AI evaluation scope.",
     )
     parser.add_argument(
         "--limit-series",
         type=int,
         default=None,
-        help="Optional maximum number of exchange/symbol series to process.",
+        help="Optional maximum number of exchange/symbol series to process during pretrained AI evaluation.",
     )
     parser.add_argument(
         "--model-backends",
         default="chronos2",
-        help="Comma-separated AI backend names to evaluate and register.",
+        help="Comma-separated pretrained AI backend names to evaluate and register.",
     )
     parser.add_argument(
         "--chronos-model-id",
@@ -132,7 +135,7 @@ def parse_args() -> argparse.Namespace:
         "--min-context-points",
         type=int,
         default=60,
-        help="Minimum number of resampled history points required before AI inference/training starts.",
+        help="Minimum number of resampled history points required before pretrained AI evaluation starts.",
     )
     parser.add_argument(
         "--max-context-points",
@@ -156,7 +159,7 @@ def parse_args() -> argparse.Namespace:
         "--workers",
         type=int,
         default=1,
-        help="Number of worker processes for per-pair AI training tasks.",
+        help="Number of worker processes for per-pair pretrained AI evaluation tasks.",
     )
     parser.add_argument(
         "--progress",
@@ -359,7 +362,10 @@ def main() -> None:
     model_dir.mkdir(parents=True, exist_ok=True)
     staging_min_utc, staging_max_utc = common.summarize_staging_time_window(staging_db_paths)
     if staging_min_utc is None:
-        raise SystemExit("No staging ingestion timestamps found in market_ticks. Cannot train AI forecasting models.")
+        raise SystemExit(
+            "No staging ingestion timestamps found in market_ticks. "
+            "Cannot evaluate pretrained AI forecasting backends."
+        )
 
     training_cutoff_utc = common.resolve_training_cutoff_utc(
         requested_cutoff_utc=args.training_cutoff_utc,
@@ -378,7 +384,7 @@ def main() -> None:
     )
     if preflight["max_trainable_rows"] < int(args.min_context_points):
         raise SystemExit(
-            "AI training preflight failed: available staging history cannot satisfy minimum context requirements. "
+            "Pretrained AI evaluation preflight failed: available staging history cannot satisfy minimum context requirements. "
             f"history_hours={preflight['available_seconds'] / 3600.0:.2f}, "
             f"max_resampled_rows={preflight['max_resampled_rows']}, "
             f"max_trainable_rows={preflight['max_trainable_rows']}, "
@@ -394,7 +400,7 @@ def main() -> None:
     if args.limit_series is not None:
         scope_pairs = scope_pairs[: int(args.limit_series)]
     if not scope_pairs:
-        raise SystemExit("No exchange/symbol scope pairs found for selected AI training filters.")
+        raise SystemExit("No exchange/symbol scope pairs found for selected pretrained AI evaluation filters.")
 
     log("INFO", f"Training cutoff UTC: {training_cutoff_utc}")
     log("INFO", f"Bin seconds: {bin_seconds}")
@@ -407,7 +413,7 @@ def main() -> None:
     log("INFO", f"Staging time window UTC: min={staging_min_utc or '-'} max={staging_max_utc or '-'}")
     log("INFO", f"Training horizons seconds: {horizons_seconds}")
 
-    training_run_id = "forecast_ai_train_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
+    training_run_id = "forecast_ai_eval_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
 
     forecast_conn = sqlite3.connect(str(forecast_db_path))
     try:
@@ -541,7 +547,7 @@ def main() -> None:
                     if args.log_skip_details:
                         log(
                             "WARNING",
-                            f"AI training failed exchange={model_result['exchange_id']} "
+                            f"AI evaluation failed exchange={model_result['exchange_id']} "
                             f"symbol={model_result['symbol']} model={model_result['model_name']} "
                             f"horizon_s={model_result['horizon_seconds']} error={model_result.get('error_message')}",
                         )
@@ -557,6 +563,7 @@ def main() -> None:
             predictions_written=0,
             notes={
                 "backend_names": backend_names,
+                "execution_mode": "pretrained_zero_shot_evaluation",
                 "chronos_model_id": args.chronos_model_id,
                 "device": ai.resolve_device(args.device),
                 "min_context_points": int(args.min_context_points),
@@ -584,7 +591,7 @@ def main() -> None:
 
     log(
         "INFO",
-        f"AI training run finished id={training_run_id} forecast_db={forecast_db_path} model_dir={model_dir}",
+        f"AI evaluation run finished id={training_run_id} forecast_db={forecast_db_path} model_dir={model_dir}",
     )
 
 

@@ -2,8 +2,10 @@
 """
 Backend registry for AI forecasting models.
 
-Chronos2 is implemented as the first backend. Additional AI backends can be
-added by extending BACKEND_FACTORIES with another AIModelBackend instance.
+Chronos2 is implemented as the first backend. The current Chronos2 path uses
+pretrained zero-shot / inference-time evaluation and registration, not weight
+fine-tuning. Additional AI backends can be added by extending
+BACKEND_FACTORIES with another AIModelBackend instance.
 """
 
 from __future__ import annotations
@@ -262,6 +264,7 @@ class Chronos2Backend(AIModelBackend):
         artifact_payload = {
             "backend_name": self.name,
             "backend_family": "foundation_model",
+            "execution_mode": "pretrained_zero_shot_evaluation",
             "pretrained_model_id": config.pretrained_model_id,
             "device": resolve_device(config.device),
             "min_context_points": int(config.min_context_points),

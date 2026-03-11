@@ -894,11 +894,19 @@ def safe_mape(y_true: np.ndarray, y_pred: np.ndarray, *, epsilon: float = 1e-9) 
     return float(np.mean(ratio) * 100.0)
 
 
+def safe_r2(y_true: np.ndarray, y_pred: np.ndarray, *, epsilon: float = 1e-12) -> float | None:
+    if len(y_true) < 2 or len(y_pred) < 2:
+        return None
+    if np.nanstd(y_true.astype(float)) <= epsilon:
+        return None
+    return float(r2_score(y_true, y_pred))
+
+
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float | None]:
     mae = float(mean_absolute_error(y_true, y_pred))
     rmse = float(math.sqrt(mean_squared_error(y_true, y_pred)))
     mape = safe_mape(y_true, y_pred)
-    r2 = float(r2_score(y_true, y_pred))
+    r2 = safe_r2(y_true, y_pred)
     return {"mae": mae, "rmse": rmse, "mape": mape, "r2": r2}
 
 
