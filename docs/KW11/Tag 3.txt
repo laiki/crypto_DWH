@@ -60,7 +60,6 @@ for c in `ls data/core/*2h*.db`; do
 done
 
 -----------------------------------
-######### <- currently beeing here
 
 time \
 ./scripts/6_forecasting/train_staging_models.py  \
@@ -70,7 +69,9 @@ time \
     --workers 4 \
     --symbols "BTC/USDC,ETH/USDC"
 
+-----------------------
 
+AI forecasting 
 
 
  
