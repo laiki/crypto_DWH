@@ -1,0 +1,76 @@
+
+    
+- Tag 3:
+    forecasts durchführen und in DB speichern
+    Dashboard um forecasts erweitern
+    Weitere Arbeiten an ML forecasts
+    Wenn möglich Deep Learning forecasts hinzufügen
+
+Staging erneut ausgeführt um 2 Stunden staging Intervalle zu haben, denn ansonsten ist eine forecast Darstelllung gegen ist Wert für 30Min forecasts durch feature warm-up nicht möglich, denn 30 Min feature warm-up gehen am Anfang des Staging verlohren.
+
+for offset in 0 1 2 3 4 5 6 7; do
+    echo $offset
+    python scripts/2_staging/staging_exporter.py \
+    --vault-root data/vault2_redis \
+    --hours 2 \
+    --start-relative-from-hour "$offset" \
+    --output-dir data/staging \
+    --log-level INFO
+done 
+----------
+Cleansing auf die neuen Exporte 
+for s in `ls data/staging/*2h*.db`  ; do
+    python ./scripts/3_cleansing/cleansing_resample.py  --input-db $s --fill-method forward_fill --workers 4
+done
+-------------------
+for s in `ls data/staging/*2h*.db` ; do 
+    stage="$(basename "$s" .db)" 
+    cleaned="data/cleansing/cleaned_${stage}_60s.db" 
+    core="data/core/core_kpi_${stage}.db"
+    python scripts/4_core/build_core_db.py \
+        --staging-db "$s" \
+        --cleansing-db "$cleaned" \
+        --output-db "$core" \
+        --views-sql scripts/4_core/core_kpi_views.sql \
+        --progress \
+        --progress-interval-seconds 30 
+done
+
+-------------------
+for s in `ls data/staging/*2h*.db` ; do 
+    stage="$(basename "$s" .db)" 
+    echo $stage
+    cleaned="data/cleansing/cleaned_${stage}_60s.db" 
+    core="data/core/core_kpi_${stage}.db"
+    
+    python scripts/4_core/core_validation_runner.py \
+        --staging-db $s \
+        --cleansing-db $cleaned \
+        --no-fail-on-error					
+
+done
+
+---------------------
+for c in `ls data/core/*2h*.db`; do 
+    python scripts/5_marts/build_dashboard_cache.py \
+        --db-path $c \
+        --apply-mart-views \
+        --progress \
+        --progress-interval-seconds 30		
+done
+
+-----------------------------------
+######### <- currently beeing here
+
+time \
+./scripts/6_forecasting/train_staging_models.py  \
+    --staging-db "data/staging/staging_export_20260311_*2h*.db" \
+    --staging-db-exclude "data/staging/staging_export_20260311_*_last_2h.db" \
+    --forecast-db data/core/core_kpi_staging_export_20260311_115106_last_2h.db  \
+    --workers 4 \
+    --symbols "BTC/USDC,ETH/USDC"
+
+
+
+
+ 

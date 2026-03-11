@@ -2,7 +2,7 @@ Tag 2 der Projektarbeit
 
 Plan Tag 2:
 	Daten-Pipeline laufen lassen -- done
-	Ergebnisse im Dashboard prüfen 
+	Ergebnisse im Dashboard prüfen -- ongoing
 	ML forecast Modelle trainieren
 	forecasts durchführen und in DB speichern
 	Dashboard um forecasts erweitern
@@ -27,6 +27,13 @@ Plan Tag 2:
 
 - Pipeline 
 	- Staging: 3 x jeweils eine Stunde exportieren aus dem nächtlichen 12 Stunden Lauf
+		Exports the last N hours from worker_*.db files.
+		Supports output formats: sqlite (default), csv, json.
+		Supports filters for exchanges and assets.
+		Prints unique exchange and asset lists from all selected source DBs.
+		Writes run metadata as JSON for traceability.
+		Supports incremental export mode with persisted watermark state.
+	
 		time\
 		for offset in 0 1 2; do
 			python scripts/2_staging/staging_exporter.py \
@@ -108,48 +115,7 @@ Plan Tag 2:
 						exchange_ts_utc TEXT,
 						raw_json TEXT NOT NULL
 					);
-			CREATE TABLE sqlite_sequence(name,seq);
-			CREATE INDEX idx_market_ticks_pair_ts
-						ON market_ticks(exchange_id_norm, symbol_norm, ingestion_ts_epoch_s);
-			CREATE INDEX idx_market_ticks_time
-						ON market_ticks(ingestion_ts_epoch_s);
-			CREATE TABLE connection_events (
-						id INTEGER PRIMARY KEY AUTOINCREMENT,
-						source_partition_id TEXT NOT NULL,
-						source_db_path TEXT NOT NULL,
-						source_row_id INTEGER NOT NULL,
-						event_ts_utc TEXT NOT NULL,
-						event_ts_epoch_s INTEGER NOT NULL,
-						exchange_id TEXT NOT NULL,
-						exchange_id_norm TEXT NOT NULL,
-						symbol TEXT,
-						symbol_norm TEXT,
-						asset_norm TEXT,
-						event_type TEXT NOT NULL,
-						details_json TEXT
-					);
-			CREATE INDEX idx_connection_events_ex_ts
-						ON connection_events(exchange_id_norm, event_ts_epoch_s);
-			CREATE TABLE staging_export_run_metadata (
-						run_id TEXT PRIMARY KEY,
-						created_utc TEXT NOT NULL,
-						vault_root TEXT NOT NULL,
-						manifest_db TEXT NOT NULL,
-						layer TEXT NOT NULL,
-						hours REAL NOT NULL,
-						start_relative_from_hour REAL NOT NULL,
-						window_start_epoch_s INTEGER NOT NULL,
-						window_end_epoch_s INTEGER NOT NULL,
-						window_start_utc TEXT NOT NULL,
-						window_end_utc TEXT NOT NULL,
-						exchange_filter_csv TEXT NOT NULL,
-						asset_filter_csv TEXT NOT NULL,
-						symbol_filter_csv TEXT NOT NULL,
-						partitions_selected INTEGER NOT NULL,
-						market_rows INTEGER NOT NULL,
-						connection_event_rows INTEGER NOT NULL,
-						runtime_seconds REAL NOT NULL
-					);
+			...	
 			
 			sqlite> select count(*) from market_ticks;
 			70304
@@ -188,6 +154,17 @@ Plan Tag 2:
 
 
 	- Cleansing: Alle 3 x 1 Stunde Exporte durchlaufen den Cleansing-Prozess
+		Data quality checks (--enable-dq, default enabled):
+
+		NULL ingestion timestamp and NULL effective price checks.
+		Invalid timestamp parse checks.
+		Non-positive price checks (<= 0).
+		Negative numeric value checks (price, bid, ask, last, base_volume, quote_volume).
+		bid > ask consistency checks.
+		Duplicate tick checks (same pair + timestamp + effective price).
+		Outlier return checks on observed bins (--dq-outlier-threshold-pct).
+		
+		
 		time\
 		for s in `ls data/staging/*.db`  ; do 
 			python ./scripts/3_cleansing/cleansing_resample.py  --input-db $s --fill-method interpolation --workers 4  
@@ -379,640 +356,281 @@ Plan Tag 2:
 						exchange_ts_utc TEXT,
 						raw_json TEXT NOT NULL
 					);
-			CREATE TABLE sqlite_sequence(name,seq);
-			CREATE INDEX idx_market_ticks_pair_ts
-						ON market_ticks(exchange_id_norm, symbol_norm, ingestion_ts_epoch_s);
-			CREATE INDEX idx_market_ticks_time
-						ON market_ticks(ingestion_ts_epoch_s);
-			CREATE TABLE connection_events (
-						id INTEGER PRIMARY KEY AUTOINCREMENT,
-						source_partition_id TEXT NOT NULL,
-						source_db_path TEXT NOT NULL,
-						source_row_id INTEGER NOT NULL,
-						event_ts_utc TEXT NOT NULL,
-						event_ts_epoch_s INTEGER NOT NULL,
-						exchange_id TEXT NOT NULL,
-						exchange_id_norm TEXT NOT NULL,
-						symbol TEXT,
-						symbol_norm TEXT,
-						asset_norm TEXT,
-						event_type TEXT NOT NULL,
-						details_json TEXT
-					);
-			CREATE INDEX idx_connection_events_ex_ts
-						ON connection_events(exchange_id_norm, event_ts_epoch_s);
-			CREATE TABLE cleansed_market (
-						id INTEGER PRIMARY KEY AUTOINCREMENT,
-						run_id TEXT NOT NULL,
-						bucket_start_utc TEXT NOT NULL,
-						bucket_epoch_s INTEGER NOT NULL,
-						exchange_id TEXT NOT NULL,
-						symbol TEXT NOT NULL,
-						bin_seconds INTEGER NOT NULL,
-						max_forward_fill_s INTEGER NOT NULL,
-						fill_method_mode TEXT NOT NULL,
-						price REAL,
-						source_ingestion_ts_utc TEXT,
-						source_ingestion_epoch_s INTEGER,
-						tick_count_in_bin INTEGER NOT NULL,
-						fill_method TEXT NOT NULL,
-						age_seconds REAL,
-						is_stale INTEGER NOT NULL,
-						is_missing INTEGER NOT NULL
-					);
-			CREATE INDEX idx_cleansed_market_pair_time
-						ON cleansed_market(exchange_id, symbol, bucket_epoch_s);
-			CREATE INDEX idx_cleansed_market_run
-						ON cleansed_market(run_id);
-			CREATE VIEW vw_core_latency_samples AS
-			SELECT
-				date(mt.ingestion_ts_utc) AS kpi_date_utc,
-				mt.exchange_id,
-				mt.symbol,
-				mt.ingestion_ts_utc,
-				mt.exchange_ts_utc,
-				(julianday(mt.ingestion_ts_utc) - julianday(mt.exchange_ts_utc)) * 86400000.0 AS latency_ms
-			FROM market_ticks AS mt
-			WHERE mt.ingestion_ts_utc IS NOT NULL
-			  AND mt.exchange_ts_utc IS NOT NULL
-			  AND strftime('%s', mt.ingestion_ts_utc) IS NOT NULL
-			  AND strftime('%s', mt.exchange_ts_utc) IS NOT NULL
-			  AND (julianday(mt.ingestion_ts_utc) - julianday(mt.exchange_ts_utc)) * 86400000.0 >= 0.0
-			/* vw_core_latency_samples(kpi_date_utc,exchange_id,symbol,ingestion_ts_utc,exchange_ts_utc,latency_ms) */;
-			CREATE VIEW vw_core_kpi_latency_daily AS
-			SELECT
-				kpi_date_utc,
-				exchange_id,
-				symbol,
-				COUNT(*) AS latency_sample_count,
-				ROUND(AVG(latency_ms), 3) AS avg_latency_ms,
-				ROUND(MIN(latency_ms), 3) AS min_latency_ms,
-				ROUND(MAX(latency_ms), 3) AS max_latency_ms
-			FROM vw_core_latency_samples
-			GROUP BY kpi_date_utc, exchange_id, symbol
-			/* vw_core_kpi_latency_daily(kpi_date_utc,exchange_id,symbol,latency_sample_count,avg_latency_ms,min_latency_ms,max_latency_ms) */;
-			CREATE VIEW vw_core_kpi_latency_hourly AS
-			SELECT
-				strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc) AS kpi_hour_utc,
-				exchange_id,
-				symbol,
-				COUNT(*) AS latency_sample_count,
-				ROUND(AVG(latency_ms), 3) AS avg_latency_ms,
-				ROUND(MIN(latency_ms), 3) AS min_latency_ms,
-				ROUND(MAX(latency_ms), 3) AS max_latency_ms
-			FROM vw_core_latency_samples
-			GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc), exchange_id, symbol
-			/* vw_core_kpi_latency_hourly(kpi_hour_utc,exchange_id,symbol,latency_sample_count,avg_latency_ms,min_latency_ms,max_latency_ms) */;
-			CREATE VIEW vw_core_update_intervals AS
-			WITH ordered_ticks AS (
-				SELECT
-					mt.exchange_id,
-					mt.symbol,
-					mt.ingestion_ts_utc,
-					LAG(mt.ingestion_ts_utc) OVER (
-						PARTITION BY mt.exchange_id, mt.symbol
-						ORDER BY mt.ingestion_ts_utc
-					) AS prev_ingestion_ts_utc
-				FROM market_ticks AS mt
-				WHERE mt.ingestion_ts_utc IS NOT NULL
-			)
-			SELECT
-				date(ingestion_ts_utc) AS kpi_date_utc,
-				exchange_id,
-				symbol,
-				ingestion_ts_utc,
-				prev_ingestion_ts_utc,
-				(julianday(ingestion_ts_utc) - julianday(prev_ingestion_ts_utc)) * 86400.0 AS update_interval_s
-			FROM ordered_ticks
-			WHERE prev_ingestion_ts_utc IS NOT NULL
-			  AND strftime('%s', ingestion_ts_utc) IS NOT NULL
-			  AND strftime('%s', prev_ingestion_ts_utc) IS NOT NULL
-			  AND (julianday(ingestion_ts_utc) - julianday(prev_ingestion_ts_utc)) * 86400.0 > 0.0
-			/* vw_core_update_intervals(kpi_date_utc,exchange_id,symbol,ingestion_ts_utc,prev_ingestion_ts_utc,update_interval_s) */;
-			CREATE VIEW vw_core_kpi_update_frequency_daily AS
-			SELECT
-				kpi_date_utc,
-				exchange_id,
-				symbol,
-				COUNT(*) AS interval_count,
-				ROUND(AVG(update_interval_s), 6) AS avg_update_interval_s,
-				ROUND(MIN(update_interval_s), 6) AS min_update_interval_s,
-				ROUND(MAX(update_interval_s), 6) AS max_update_interval_s,
-				ROUND(CASE WHEN AVG(update_interval_s) > 0.0 THEN 1.0 / AVG(update_interval_s) END, 6) AS update_frequency_hz
-			FROM vw_core_update_intervals
-			GROUP BY kpi_date_utc, exchange_id, symbol
-			/* vw_core_kpi_update_frequency_daily(kpi_date_utc,exchange_id,symbol,interval_count,avg_update_interval_s,min_update_interval_s,max_update_interval_s,update_frequency_hz) */;
-			CREATE VIEW vw_core_kpi_update_frequency_hourly AS
-			SELECT
-				strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc) AS kpi_hour_utc,
-				exchange_id,
-				symbol,
-				COUNT(*) AS interval_count,
-				ROUND(AVG(update_interval_s), 6) AS avg_update_interval_s,
-				ROUND(MIN(update_interval_s), 6) AS min_update_interval_s,
-				ROUND(MAX(update_interval_s), 6) AS max_update_interval_s,
-				ROUND(CASE WHEN AVG(update_interval_s) > 0.0 THEN 1.0 / AVG(update_interval_s) END, 6) AS update_frequency_hz
-			FROM vw_core_update_intervals
-			GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc), exchange_id, symbol
-			/* vw_core_kpi_update_frequency_hourly(kpi_hour_utc,exchange_id,symbol,interval_count,avg_update_interval_s,min_update_interval_s,max_update_interval_s,update_frequency_hz) */;
-			CREATE VIEW vw_core_kpi_connection_drops_daily AS
-			SELECT
-				date(ce.event_ts_utc) AS kpi_date_utc,
-				ce.exchange_id,
-				COUNT(*) AS disconnect_count
-			FROM connection_events AS ce
-			WHERE ce.event_type = 'disconnect'
-			  AND ce.event_ts_utc IS NOT NULL
-			  AND strftime('%s', ce.event_ts_utc) IS NOT NULL
-			GROUP BY date(ce.event_ts_utc), ce.exchange_id
-			/* vw_core_kpi_connection_drops_daily(kpi_date_utc,exchange_id,disconnect_count) */;
-			CREATE VIEW vw_core_kpi_connection_drops_hourly AS
-			SELECT
-				strftime('%Y-%m-%dT%H:00:00Z', ce.event_ts_utc) AS kpi_hour_utc,
-				ce.exchange_id,
-				COUNT(*) AS disconnect_count
-			FROM connection_events AS ce
-			WHERE ce.event_type = 'disconnect'
-			  AND ce.event_ts_utc IS NOT NULL
-			  AND strftime('%s', ce.event_ts_utc) IS NOT NULL
-			GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ce.event_ts_utc), ce.exchange_id
-			/* vw_core_kpi_connection_drops_hourly(kpi_hour_utc,exchange_id,disconnect_count) */;
-			CREATE VIEW vw_core_price_deviation_aligned AS
-			WITH filtered AS (
-				SELECT
-					date(cm.bucket_start_utc) AS kpi_date_utc,
-					cm.bucket_start_utc,
-					cm.bucket_epoch_s,
-					cm.exchange_id,
-					cm.symbol,
-					cm.price
-				FROM cleansed_market AS cm
-				WHERE cm.price IS NOT NULL
-				  AND cm.is_missing = 0
-				  AND cm.is_stale = 0
-				  AND cm.bucket_start_utc IS NOT NULL
-			),
-			ranked AS (
-				SELECT
-					f.symbol,
-					f.bucket_epoch_s,
-					f.exchange_id,
-					f.price,
-					ROW_NUMBER() OVER (
-						PARTITION BY f.symbol, f.bucket_epoch_s
-						ORDER BY f.price DESC, f.exchange_id ASC
-					) AS rn_max,
-					ROW_NUMBER() OVER (
-						PARTITION BY f.symbol, f.bucket_epoch_s
-						ORDER BY f.price ASC, f.exchange_id ASC
-					) AS rn_min
-				FROM filtered AS f
-			),
-			bucket_agg AS (
-				SELECT
-					f.kpi_date_utc,
-					f.bucket_start_utc,
-					f.bucket_epoch_s,
-					f.symbol,
-					COUNT(*) AS exchange_count,
-					MAX(f.price) AS max_price,
-					MIN(f.price) AS min_price,
-					MAX(f.price) - MIN(f.price) AS price_diff_abs,
-					CASE
-						WHEN MIN(f.price) > 0.0 THEN ((MAX(f.price) - MIN(f.price)) / MIN(f.price)) * 100.0
-						ELSE NULL
-					END AS price_diff_pct
-				FROM filtered AS f
-				GROUP BY f.kpi_date_utc, f.bucket_start_utc, f.bucket_epoch_s, f.symbol
-				HAVING COUNT(*) >= 2
-			),
-			max_exchange AS (
-				SELECT symbol, bucket_epoch_s, exchange_id AS max_price_exchange_id
-				FROM ranked
-				WHERE rn_max = 1
-			),
-			min_exchange AS (
-				SELECT symbol, bucket_epoch_s, exchange_id AS min_price_exchange_id
-				FROM ranked
-				WHERE rn_min = 1
-			)
-			SELECT
-				b.kpi_date_utc,
-				b.bucket_start_utc,
-				b.bucket_epoch_s,
-				b.symbol,
-				b.exchange_count,
-				ROUND(b.max_price, 12) AS max_price,
-				ROUND(b.min_price, 12) AS min_price,
-				ROUND(b.price_diff_abs, 12) AS price_diff_abs,
-				ROUND(b.price_diff_pct, 9) AS price_diff_pct,
-				mx.max_price_exchange_id,
-				mn.min_price_exchange_id,
-				mx.max_price_exchange_id || '|' || mn.min_price_exchange_id AS max_diff_exchange_pair
-			FROM bucket_agg AS b
-			INNER JOIN max_exchange AS mx
-				ON mx.symbol = b.symbol
-			   AND mx.bucket_epoch_s = b.bucket_epoch_s
-			INNER JOIN min_exchange AS mn
-				ON mn.symbol = b.symbol
-			   AND mn.bucket_epoch_s = b.bucket_epoch_s
-			/* vw_core_price_deviation_aligned(kpi_date_utc,bucket_start_utc,bucket_epoch_s,symbol,exchange_count,max_price,min_price,price_diff_abs,price_diff_pct,max_price_exchange_id,min_price_exchange_id,max_diff_exchange_pair) */;
-			CREATE VIEW vw_core_kpi_price_deviation_daily AS
-			WITH daily_agg AS (
-				SELECT
-					kpi_date_utc,
-					symbol,
-					COUNT(*) AS aligned_points_compared,
-					MAX(price_diff_abs) AS max_price_diff_abs,
-					MAX(price_diff_pct) AS max_price_diff_pct,
-					AVG(price_diff_abs) AS avg_price_diff_abs,
-					AVG(price_diff_pct) AS avg_price_diff_pct
-				FROM vw_core_price_deviation_aligned
-				GROUP BY kpi_date_utc, symbol
-			),
-			daily_peak AS (
-				SELECT
-					kpi_date_utc,
-					symbol,
-					bucket_start_utc,
-					max_diff_exchange_pair,
-					price_diff_abs,
-					ROW_NUMBER() OVER (
-						PARTITION BY kpi_date_utc, symbol
-						ORDER BY price_diff_abs DESC, bucket_epoch_s ASC
-					) AS rn
-				FROM vw_core_price_deviation_aligned
-			)
-			SELECT
-				a.kpi_date_utc,
-				a.symbol,
-				a.aligned_points_compared,
-				ROUND(a.max_price_diff_abs, 12) AS max_price_diff_abs,
-				ROUND(a.max_price_diff_pct, 9) AS max_price_diff_pct,
-				ROUND(a.avg_price_diff_abs, 12) AS avg_price_diff_abs,
-				ROUND(a.avg_price_diff_pct, 9) AS avg_price_diff_pct,
-				p.bucket_start_utc AS max_diff_bucket_start_utc,
-				p.max_diff_exchange_pair
-			FROM daily_agg AS a
-			LEFT JOIN daily_peak AS p
-				ON p.kpi_date_utc = a.kpi_date_utc
-			   AND p.symbol = a.symbol
-			   AND p.rn = 1
-			/* vw_core_kpi_price_deviation_daily(kpi_date_utc,symbol,aligned_points_compared,max_price_diff_abs,max_price_diff_pct,avg_price_diff_abs,avg_price_diff_pct,max_diff_bucket_start_utc,max_diff_exchange_pair) */;
-			CREATE VIEW vw_core_kpi_price_deviation_hourly AS
-			WITH hourly_agg AS (
-				SELECT
-					strftime('%Y-%m-%dT%H:00:00Z', bucket_start_utc) AS kpi_hour_utc,
-					symbol,
-					COUNT(*) AS aligned_points_compared,
-					MAX(price_diff_abs) AS max_price_diff_abs,
-					MAX(price_diff_pct) AS max_price_diff_pct,
-					AVG(price_diff_abs) AS avg_price_diff_abs,
-					AVG(price_diff_pct) AS avg_price_diff_pct
-				FROM vw_core_price_deviation_aligned
-				GROUP BY strftime('%Y-%m-%dT%H:00:00Z', bucket_start_utc), symbol
-			),
-			hourly_peak AS (
-				SELECT
-					strftime('%Y-%m-%dT%H:00:00Z', bucket_start_utc) AS kpi_hour_utc,
-					symbol,
-					bucket_start_utc,
-					max_diff_exchange_pair,
-					price_diff_abs,
-					bucket_epoch_s,
-					ROW_NUMBER() OVER (
-						PARTITION BY strftime('%Y-%m-%dT%H:00:00Z', bucket_start_utc), symbol
-						ORDER BY price_diff_abs DESC, bucket_epoch_s ASC
-					) AS rn
-				FROM vw_core_price_deviation_aligned
-			)
-			SELECT
-				a.kpi_hour_utc,
-				a.symbol,
-				a.aligned_points_compared,
-				ROUND(a.max_price_diff_abs, 12) AS max_price_diff_abs,
-				ROUND(a.max_price_diff_pct, 9) AS max_price_diff_pct,
-				ROUND(a.avg_price_diff_abs, 12) AS avg_price_diff_abs,
-				ROUND(a.avg_price_diff_pct, 9) AS avg_price_diff_pct,
-				p.bucket_start_utc AS max_diff_bucket_start_utc,
-				p.max_diff_exchange_pair
-			FROM hourly_agg AS a
-			LEFT JOIN hourly_peak AS p
-				ON p.kpi_hour_utc = a.kpi_hour_utc
-			   AND p.symbol = a.symbol
-			   AND p.rn = 1
-			/* vw_core_kpi_price_deviation_hourly(kpi_hour_utc,symbol,aligned_points_compared,max_price_diff_abs,max_price_diff_pct,avg_price_diff_abs,avg_price_diff_pct,max_diff_bucket_start_utc,max_diff_exchange_pair) */;
-			CREATE VIEW vw_core_kpi_daily_exchange_symbol AS
-			WITH keys AS (
-				SELECT kpi_date_utc, exchange_id, symbol FROM vw_core_kpi_latency_daily
-				UNION
-				SELECT kpi_date_utc, exchange_id, symbol FROM vw_core_kpi_update_frequency_daily
-			)
-			SELECT
-				k.kpi_date_utc,
-				k.exchange_id,
-				k.symbol,
-				l.latency_sample_count,
-				l.avg_latency_ms,
-				l.min_latency_ms,
-				l.max_latency_ms,
-				u.interval_count,
-				u.avg_update_interval_s,
-				u.min_update_interval_s,
-				u.max_update_interval_s,
-				u.update_frequency_hz,
-				d.disconnect_count
-			FROM keys AS k
-			LEFT JOIN vw_core_kpi_latency_daily AS l
-				ON l.kpi_date_utc = k.kpi_date_utc
-			   AND l.exchange_id = k.exchange_id
-			   AND l.symbol = k.symbol
-			LEFT JOIN vw_core_kpi_update_frequency_daily AS u
-				ON u.kpi_date_utc = k.kpi_date_utc
-			   AND u.exchange_id = k.exchange_id
-			   AND u.symbol = k.symbol
-			LEFT JOIN vw_core_kpi_connection_drops_daily AS d
-				ON d.kpi_date_utc = k.kpi_date_utc
-			   AND d.exchange_id = k.exchange_id
-			/* vw_core_kpi_daily_exchange_symbol(kpi_date_utc,exchange_id,symbol,latency_sample_count,avg_latency_ms,min_latency_ms,max_latency_ms,interval_count,avg_update_interval_s,min_update_interval_s,max_update_interval_s,update_frequency_hz,disconnect_count) */;
-			CREATE VIEW vw_core_kpi_hourly_exchange_symbol AS
-			WITH keys AS (
-				SELECT kpi_hour_utc, exchange_id, symbol FROM vw_core_kpi_latency_hourly
-				UNION
-				SELECT kpi_hour_utc, exchange_id, symbol FROM vw_core_kpi_update_frequency_hourly
-			)
-			SELECT
-				k.kpi_hour_utc,
-				k.exchange_id,
-				k.symbol,
-				l.latency_sample_count,
-				l.avg_latency_ms,
-				l.min_latency_ms,
-				l.max_latency_ms,
-				u.interval_count,
-				u.avg_update_interval_s,
-				u.min_update_interval_s,
-				u.max_update_interval_s,
-				u.update_frequency_hz,
-				d.disconnect_count
-			FROM keys AS k
-			LEFT JOIN vw_core_kpi_latency_hourly AS l
-				ON l.kpi_hour_utc = k.kpi_hour_utc
-			   AND l.exchange_id = k.exchange_id
-			   AND l.symbol = k.symbol
-			LEFT JOIN vw_core_kpi_update_frequency_hourly AS u
-				ON u.kpi_hour_utc = k.kpi_hour_utc
-			   AND u.exchange_id = k.exchange_id
-			   AND u.symbol = k.symbol
-			LEFT JOIN vw_core_kpi_connection_drops_hourly AS d
-				ON d.kpi_hour_utc = k.kpi_hour_utc
-			   AND d.exchange_id = k.exchange_id
-			/* vw_core_kpi_hourly_exchange_symbol(kpi_hour_utc,exchange_id,symbol,latency_sample_count,avg_latency_ms,min_latency_ms,max_latency_ms,interval_count,avg_update_interval_s,min_update_interval_s,max_update_interval_s,update_frequency_hz,disconnect_count) */;
-			CREATE VIEW vw_core_kpi_daily_exchange AS
-			WITH latency_exchange AS (
-				SELECT
-					kpi_date_utc,
-					exchange_id,
-					COUNT(*) AS latency_sample_count,
-					ROUND(AVG(latency_ms), 3) AS avg_latency_ms,
-					ROUND(MIN(latency_ms), 3) AS min_latency_ms,
-					ROUND(MAX(latency_ms), 3) AS max_latency_ms
-				FROM vw_core_latency_samples
-				GROUP BY kpi_date_utc, exchange_id
-			),
-			update_exchange AS (
-				SELECT
-					kpi_date_utc,
-					exchange_id,
-					COUNT(*) AS interval_count,
-					ROUND(AVG(update_interval_s), 6) AS avg_update_interval_s,
-					ROUND(MIN(update_interval_s), 6) AS min_update_interval_s,
-					ROUND(MAX(update_interval_s), 6) AS max_update_interval_s,
-					ROUND(CASE WHEN AVG(update_interval_s) > 0.0 THEN 1.0 / AVG(update_interval_s) END, 6) AS update_frequency_hz
-				FROM vw_core_update_intervals
-				GROUP BY kpi_date_utc, exchange_id
-			),
-			keys AS (
-				SELECT kpi_date_utc, exchange_id FROM latency_exchange
-				UNION
-				SELECT kpi_date_utc, exchange_id FROM update_exchange
-				UNION
-				SELECT kpi_date_utc, exchange_id FROM vw_core_kpi_connection_drops_daily
-			)
-			SELECT
-				k.kpi_date_utc,
-				k.exchange_id,
-				l.latency_sample_count,
-				l.avg_latency_ms,
-				l.min_latency_ms,
-				l.max_latency_ms,
-				u.interval_count,
-				u.avg_update_interval_s,
-				u.min_update_interval_s,
-				u.max_update_interval_s,
-				u.update_frequency_hz,
-				d.disconnect_count
-			FROM keys AS k
-			LEFT JOIN latency_exchange AS l
-				ON l.kpi_date_utc = k.kpi_date_utc
-			   AND l.exchange_id = k.exchange_id
-			LEFT JOIN update_exchange AS u
-				ON u.kpi_date_utc = k.kpi_date_utc
-			   AND u.exchange_id = k.exchange_id
-			LEFT JOIN vw_core_kpi_connection_drops_daily AS d
-				ON d.kpi_date_utc = k.kpi_date_utc
-			   AND d.exchange_id = k.exchange_id
-			/* vw_core_kpi_daily_exchange(kpi_date_utc,exchange_id,latency_sample_count,avg_latency_ms,min_latency_ms,max_latency_ms,interval_count,avg_update_interval_s,min_update_interval_s,max_update_interval_s,update_frequency_hz,disconnect_count) */;
-			CREATE VIEW vw_core_kpi_hourly_exchange AS
-			WITH latency_exchange AS (
-				SELECT
-					strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc) AS kpi_hour_utc,
-					exchange_id,
-					COUNT(*) AS latency_sample_count,
-					ROUND(AVG(latency_ms), 3) AS avg_latency_ms,
-					ROUND(MIN(latency_ms), 3) AS min_latency_ms,
-					ROUND(MAX(latency_ms), 3) AS max_latency_ms
-				FROM vw_core_latency_samples
-				GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc), exchange_id
-			),
-			update_exchange AS (
-				SELECT
-					strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc) AS kpi_hour_utc,
-					exchange_id,
-					COUNT(*) AS interval_count,
-					ROUND(AVG(update_interval_s), 6) AS avg_update_interval_s,
-					ROUND(MIN(update_interval_s), 6) AS min_update_interval_s,
-					ROUND(MAX(update_interval_s), 6) AS max_update_interval_s,
-					ROUND(CASE WHEN AVG(update_interval_s) > 0.0 THEN 1.0 / AVG(update_interval_s) END, 6) AS update_frequency_hz
-				FROM vw_core_update_intervals
-				GROUP BY strftime('%Y-%m-%dT%H:00:00Z', ingestion_ts_utc), exchange_id
-			),
-			keys AS (
-				SELECT kpi_hour_utc, exchange_id FROM latency_exchange
-				UNION
-				SELECT kpi_hour_utc, exchange_id FROM update_exchange
-				UNION
-				SELECT kpi_hour_utc, exchange_id FROM vw_core_kpi_connection_drops_hourly
-			)
-			SELECT
-				k.kpi_hour_utc,
-				k.exchange_id,
-				l.latency_sample_count,
-				l.avg_latency_ms,
-				l.min_latency_ms,
-				l.max_latency_ms,
-				u.interval_count,
-				u.avg_update_interval_s,
-				u.min_update_interval_s,
-				u.max_update_interval_s,
-				u.update_frequency_hz,
-				d.disconnect_count
-			FROM keys AS k
-			LEFT JOIN latency_exchange AS l
-				ON l.kpi_hour_utc = k.kpi_hour_utc
-			   AND l.exchange_id = k.exchange_id
-			LEFT JOIN update_exchange AS u
-				ON u.kpi_hour_utc = k.kpi_hour_utc
-			   AND u.exchange_id = k.exchange_id
-			LEFT JOIN vw_core_kpi_connection_drops_hourly AS d
-				ON d.kpi_hour_utc = k.kpi_hour_utc
-			   AND d.exchange_id = k.exchange_id
-			/* vw_core_kpi_hourly_exchange(kpi_hour_utc,exchange_id,latency_sample_count,avg_latency_ms,min_latency_ms,max_latency_ms,interval_count,avg_update_interval_s,min_update_interval_s,max_update_interval_s,update_frequency_hz,disconnect_count) */;
-			CREATE TABLE core_build_metadata (
-						build_id TEXT PRIMARY KEY,
-						created_utc TEXT NOT NULL,
-						input_mode TEXT NOT NULL,
-						staging_db_path TEXT NOT NULL,
-						cleansing_db_path TEXT NOT NULL,
-						output_db_path TEXT NOT NULL,
-						views_sql_path TEXT NOT NULL,
-						kpi_date_filter TEXT,
-						cleansing_run_id_filter TEXT,
-						row_count_market_ticks INTEGER NOT NULL,
-						row_count_connection_events INTEGER NOT NULL,
-						row_count_cleansed_market INTEGER NOT NULL,
-						created_core_views_count INTEGER NOT NULL,
-						runtime_seconds REAL NOT NULL
-					);
-			sqlite>
-			
-			
+			...			
 			
 			sqlite> select count(*) from market_ticks;
 			70304
 			
 			* ebensoviele market_ticks Einträge wie die Staged DB
 
+		
+		Core Validate quality gate with scripts/4_core/core_validation_runner.py.
+		
+			time \
+			for s in `ls data/staging/*.db` ; do 
+				stage="$(basename "$s" .db)" 
+				echo $stage
+				cleaned="data/cleansing/cleaned_${stage}_60s.db" 
+				core="data/core/core_kpi_${stage}.db"
+				
+				python scripts/4_core/core_validation_runner.py \
+					--staging-db $s \
+					--cleansing-db $cleaned \
+					--no-fail-on-error					
+
+			done
+
+
+				staging_export_20260310_083648_last_1h
+				JSON report: logs/core_validation/core_validation_20260310_113218Z.json
+				Markdown report: logs/core_validation/core_validation_20260310_113218Z.md
+				Summary: errors_failed=6 | warn_failed=0 | runtime_s=15.133
+				staging_export_20260310_083651_last_1h_from_1h
+				JSON report: logs/core_validation/core_validation_20260310_113231Z.json
+				Markdown report: logs/core_validation/core_validation_20260310_113231Z.md
+				Summary: errors_failed=4 | warn_failed=0 | runtime_s=13.754
+				staging_export_20260310_083654_last_1h_from_2h
+				JSON report: logs/core_validation/core_validation_20260310_113246Z.json
+				Markdown report: logs/core_validation/core_validation_20260310_113246Z.md
+				Summary: errors_failed=6 | warn_failed=0 | runtime_s=14.319
+
+
+			Analyse: 
+				Assertions gefunden in Prüfungen
+			  - latency_upper_bound
+			  - latency_upper_bound_hourly
+			  - price_diff_pct_bounds
+			  - price_diff_pct_bounds_hourly
+			  - update_frequency_bounds
+			  - update_frequency_bounds_hourly
+			
+			
+			• Ergebnisse
+
+			  1. latency_upper_bound
+
+			  - Fehlgeschlagen wegen extrem großer max_latency_ms-Werte.
+			  - Hauptursache: exchange_ts_utc ist bei manchen Exchanges kein frischer Event-Zeitpunkt.
+			  - Besonders auffällig: ndax.
+			  - Beispiel:
+				  - ndax APT/CAD: ca. 230,816,598 ms
+				  - ndax ASTER/CAD: ca. 83,650,420 ms
+			  - Bewertung:
+				  - eher KPI-/Semantikproblem als Ingestion-Fehler.
+
+			  2. latency_upper_bound_hourly
+
+			  - Gleiche Ursache wie oben.
+			  - Die stündliche Aggregation erbt dieselben Ausreißer aus den Latenz-Samples.
+			  - Bewertung:
+				  - ebenfalls methodisches Problem, nicht primär ein Pipeline-Defekt.
+
+			  3. price_diff_pct_bounds
+
+			  - Fehlgeschlagen wegen sehr hoher Preisabweichungen über Exchanges.
+			  - Betroffene Symbole:
+				  - AAVE3L/USDT bis 1492.8%
+				  - ADA3L/USDT bis 420.2%
+				  - AAVE3S/USDT bis 379.7%
+				  - ADA3S/USDT bis 284.8%
+			  - Ursache:
+				  - Leveraged Tokens (3L, 3S) sind fachlich kein sauberer Cross-Exchange-Preisvergleich.
+				  - Gleiches Symbol ist hier sehr wahrscheinlich kein wirklich identisches Instrument.
+			  - Bewertung:
+				  - Symbol-/Instrument-Mapping-Problem.
+
+			  4. price_diff_pct_bounds_hourly
+
+			  - Gleiche Ursache wie bei daily.
+			  - Die stündliche Sicht zeigt dieselben Ausreißer in kleinerem Aggregationsfenster.
+			  - Bewertung:
+				  - ebenfalls eher Modellierungsproblem als Datenbankfehler.
+
+			  5. update_frequency_bounds
+
+			  - Fehlgeschlagen durch mindestens einen sehr kleinen mittleren Update-Abstand.
+			  - Beispiel:
+				  - kraken ALCX/USD
+				  - avg_update_interval_s = 0.001971
+				  - update_frequency_hz = 507.247649
+			  - Ursache:
+				  - sehr kleine Intervallzahl, Burst-Verhalten im Websocket-Feed
+			  
+			  6. update_frequency_bounds_hourly
+
+			  - Gleiche Ursache wie daily.
+			  - Dieselbe Serie fällt auch auf Stundenebene aus dem Grenzbereich.
+			  - Bewertung:
+				  - ebenfalls ein Threshold-/Stichprobenproblem.
+
+			  Gesamtbewertung
+
+			  - Kein Hinweis auf einen Defekt im core_pipeline.py
+			  - Kein Hinweis auf kaputte SQL-View-Erzeugung
+			  - Die Fehlermuster sprechen überwiegend für:
+				  - zu strenge Assertions
+				  - unzureichende Instrument-Filterung
+				  - unklare Semantik von exchange_ts_utc bei einzelnen Exchanges
+
+			  Pragmatische Einordnung
+
+			  - latency_*: aktuell als globale harte KPI so nicht robust
+			  - price_diff_pct_*: braucht Symbol-/Instrument-Normalisierung oder Ausschluss von Leveraged Tokens
+			  - update_frequency_*: braucht Mindeststichprobe oder höhere/andere Schwelle
+
+					
+			
+			
+
 	- Marts: Erzeuge und fülle "dash_cache_*" Tabellen mit Daten der Viewsfür schnellen Zugriff aus dem Dashboard
 		time \
 		for c in `ls data/core/*.db`; do 
 			python scripts/5_marts/build_dashboard_cache.py \
-				--db-path "$core" \
+				--db-path $c \
 				--apply-mart-views \
 				--progress \
 				--progress-interval-seconds 30		
 		done
+		
+			Progress logging: enabled | interval_seconds=30.0 | planned_steps=9
+			[progress] steps 0/9 (0.0%) | elapsed=00:00:00 | eta=n/a | started: prepare connection
+			[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | finished: prepare connection | step_elapsed=00:00:00
+			[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | started: apply mart views sql
+			[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | finished: apply mart views sql | step_elapsed=00:00:00
+			[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | started: validate required views
+			[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | finished: validate required views | step_elapsed=00:00:00
+			[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | started: begin transaction
+			[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | finished: begin transaction | step_elapsed=00:00:00
+			[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | started: drop old cache tables
+			[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | finished: drop old cache tables | step_elapsed=00:00:00
+			[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | started: create cache tables
+			[progress] steps 6/9 (66.7%) | elapsed=00:00:09 | eta=00:00:04 | finished: create cache tables | step_elapsed=00:00:09
+			[progress] steps 6/9 (66.7%) | elapsed=00:00:09 | eta=00:00:04 | started: create cache indexes
+			[progress] steps 7/9 (77.8%) | elapsed=00:00:09 | eta=00:00:02 | finished: create cache indexes | step_elapsed=00:00:00
+			[progress] steps 7/9 (77.8%) | elapsed=00:00:09 | eta=00:00:02 | started: write refresh metadata
+			[progress] steps 8/9 (88.9%) | elapsed=00:00:09 | eta=00:00:01 | finished: write refresh metadata | step_elapsed=00:00:00
+			[progress] steps 8/9 (88.9%) | elapsed=00:00:09 | eta=00:00:01 | started: commit transaction
+			[progress] steps 9/9 (100.0%) | elapsed=00:00:09 | eta=00:00:00 | finished: commit transaction | step_elapsed=00:00:00
+			Dashboard cache build completed.
+			DB path: /home/wgo/dev/crypto_DWH/data/core/core_kpi_staging_export_20260310_083648_last_1h.db
+			Applied mart views: True
+			Mart views SQL path: /home/wgo/dev/crypto_DWH/scripts/5_marts/mart_dashboard_views.sql
+			Refresh timestamp (UTC): 2026-03-10T11:43:34Z
+			Platform latest day: 2026-03-10
+			Deviation latest day: 2026-03-10
+			Platform rows: 24
+			Deviation rows: 199
+			Curve rows: 699
+			Symbol deviation bucket rows: 5550
+			Symbol rows: 230
+			Progress logging: enabled | interval_seconds=30.0 | planned_steps=9
+			[progress] steps 0/9 (0.0%) | elapsed=00:00:00 | eta=n/a | started: prepare connection
+			[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | finished: prepare connection | step_elapsed=00:00:00
+			[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | started: apply mart views sql
+			[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | finished: apply mart views sql | step_elapsed=00:00:00
+			[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | started: validate required views
+			[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | finished: validate required views | step_elapsed=00:00:00
+			[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | started: begin transaction
+			[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | finished: begin transaction | step_elapsed=00:00:00
+			[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | started: drop old cache tables
+			[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | finished: drop old cache tables | step_elapsed=00:00:00
+			[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | started: create cache tables
+			[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | finished: create cache tables | step_elapsed=00:00:07
+			[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | started: create cache indexes
+			[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | finished: create cache indexes | step_elapsed=00:00:00
+			[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | started: write refresh metadata
+			[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | finished: write refresh metadata | step_elapsed=00:00:00
+			[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | started: commit transaction
+			[progress] steps 9/9 (100.0%) | elapsed=00:00:08 | eta=00:00:00 | finished: commit transaction | step_elapsed=00:00:00
+			Dashboard cache build completed.
+			DB path: /home/wgo/dev/crypto_DWH/data/core/core_kpi_staging_export_20260310_083651_last_1h_from_1h.db
+			Applied mart views: True
+			Mart views SQL path: /home/wgo/dev/crypto_DWH/scripts/5_marts/mart_dashboard_views.sql
+			Refresh timestamp (UTC): 2026-03-10T11:43:42Z
+			Platform latest day: 2026-03-10
+			Deviation latest day: 2026-03-10
+			Platform rows: 25
+			Deviation rows: 199
+			Curve rows: 493
+			Symbol deviation bucket rows: 5404
+			Symbol rows: 227
+			Progress logging: enabled | interval_seconds=30.0 | planned_steps=9
+			[progress] steps 0/9 (0.0%) | elapsed=00:00:00 | eta=n/a | started: prepare connection
+			[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | finished: prepare connection | step_elapsed=00:00:00
+			[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | started: apply mart views sql
+			[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | finished: apply mart views sql | step_elapsed=00:00:00
+			[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | started: validate required views
+			[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | finished: validate required views | step_elapsed=00:00:00
+			[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | started: begin transaction
+			[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | finished: begin transaction | step_elapsed=00:00:00
+			[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | started: drop old cache tables
+			[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | finished: drop old cache tables | step_elapsed=00:00:00
+			[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | started: create cache tables
+			[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | finished: create cache tables | step_elapsed=00:00:07
+			[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | started: create cache indexes
+			[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | finished: create cache indexes | step_elapsed=00:00:00
+			[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | started: write refresh metadata
+			[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | finished: write refresh metadata | step_elapsed=00:00:00
+			[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | started: commit transaction
+			[progress] steps 9/9 (100.0%) | elapsed=00:00:08 | eta=00:00:00 | finished: commit transaction | step_elapsed=00:00:00
+			Dashboard cache build completed.
+			DB path: /home/wgo/dev/crypto_DWH/data/core/core_kpi_staging_export_20260310_083654_last_1h_from_2h.db
+			Applied mart views: True
+			Mart views SQL path: /home/wgo/dev/crypto_DWH/scripts/5_marts/mart_dashboard_views.sql
+			Refresh timestamp (UTC): 2026-03-10T11:43:50Z
+			Platform latest day: 2026-03-10
+			Deviation latest day: 2026-03-10
+			Platform rows: 25
+			Deviation rows: 189
+			Curve rows: 560
+			Symbol deviation bucket rows: 5375
+			Symbol rows: 216
+
+			real    0m25.694s
+			user    0m21.515s
+			sys     0m4.055s
 
 		
-		Progress logging: enabled | interval_seconds=30.0 | planned_steps=9
-		[progress] steps 0/9 (0.0%) | elapsed=00:00:00 | eta=n/a | started: prepare connection
-		[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | finished: prepare connection | step_elapsed=00:00:00
-		[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | started: apply mart views sql
-		[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | finished: apply mart views sql | step_elapsed=00:00:00
-		[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | started: validate required views
-		[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | finished: validate required views | step_elapsed=00:00:00
-		[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | started: begin transaction
-		[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | finished: begin transaction | step_elapsed=00:00:00
-		[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | started: drop old cache tables
-		[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | finished: drop old cache tables | step_elapsed=00:00:00
-		[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | started: create cache tables
-		[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | finished: create cache tables | step_elapsed=00:00:08
-		[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | started: create cache indexes
-		[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | finished: create cache indexes | step_elapsed=00:00:00
-		[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | started: write refresh metadata
-		[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | finished: write refresh metadata | step_elapsed=00:00:00
-		[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | started: commit transaction
-		[progress] steps 9/9 (100.0%) | elapsed=00:00:08 | eta=00:00:00 | finished: commit transaction | step_elapsed=00:00:00
-		Dashboard cache build completed.
-		DB path: /home/wgo/dev/crypto_DWH/data/core/core_kpi_staging_export_20260310_083654_last_1h_from_2h.db
-		Applied mart views: True
-		Mart views SQL path: /home/wgo/dev/crypto_DWH/scripts/5_marts/mart_dashboard_views.sql
-		Refresh timestamp (UTC): 2026-03-10T09:50:49Z
-		Platform latest day: 2026-03-10
-		Deviation latest day: 2026-03-10
-		Platform rows: 25
-		Deviation rows: 189
-		Curve rows: 560
-		Symbol deviation bucket rows: 5375
-		Symbol rows: 216
-		Progress logging: enabled | interval_seconds=30.0 | planned_steps=9
-		[progress] steps 0/9 (0.0%) | elapsed=00:00:00 | eta=n/a | started: prepare connection
-		[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | finished: prepare connection | step_elapsed=00:00:00
-		[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | started: apply mart views sql
-		[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | finished: apply mart views sql | step_elapsed=00:00:00
-		[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | started: validate required views
-		[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | finished: validate required views | step_elapsed=00:00:00
-		[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | started: begin transaction
-		[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | finished: begin transaction | step_elapsed=00:00:00
-		[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | started: drop old cache tables
-		[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | finished: drop old cache tables | step_elapsed=00:00:00
-		[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | started: create cache tables
-		[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | finished: create cache tables | step_elapsed=00:00:07
-		[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | started: create cache indexes
-		[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | finished: create cache indexes | step_elapsed=00:00:00
-		[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | started: write refresh metadata
-		[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | finished: write refresh metadata | step_elapsed=00:00:00
-		[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | started: commit transaction
-		[progress] steps 9/9 (100.0%) | elapsed=00:00:08 | eta=00:00:00 | finished: commit transaction | step_elapsed=00:00:00
-		Dashboard cache build completed.
-		DB path: /home/wgo/dev/crypto_DWH/data/core/core_kpi_staging_export_20260310_083654_last_1h_from_2h.db
-		Applied mart views: True
-		Mart views SQL path: /home/wgo/dev/crypto_DWH/scripts/5_marts/mart_dashboard_views.sql
-		Refresh timestamp (UTC): 2026-03-10T09:50:57Z
-		Platform latest day: 2026-03-10
-		Deviation latest day: 2026-03-10
-		Platform rows: 25
-		Deviation rows: 189
-		Curve rows: 560
-		Symbol deviation bucket rows: 5375
-		Symbol rows: 216
-		Progress logging: enabled | interval_seconds=30.0 | planned_steps=9
-		[progress] steps 0/9 (0.0%) | elapsed=00:00:00 | eta=n/a | started: prepare connection
-		[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | finished: prepare connection | step_elapsed=00:00:00
-		[progress] steps 1/9 (11.1%) | elapsed=00:00:00 | eta=00:00:00 | started: apply mart views sql
-		[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | finished: apply mart views sql | step_elapsed=00:00:00
-		[progress] steps 2/9 (22.2%) | elapsed=00:00:00 | eta=00:00:00 | started: validate required views
-		[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | finished: validate required views | step_elapsed=00:00:00
-		[progress] steps 3/9 (33.3%) | elapsed=00:00:00 | eta=00:00:00 | started: begin transaction
-		[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | finished: begin transaction | step_elapsed=00:00:00
-		[progress] steps 4/9 (44.4%) | elapsed=00:00:00 | eta=00:00:00 | started: drop old cache tables
-		[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | finished: drop old cache tables | step_elapsed=00:00:00
-		[progress] steps 5/9 (55.6%) | elapsed=00:00:00 | eta=00:00:00 | started: create cache tables
-		[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | finished: create cache tables | step_elapsed=00:00:08
-		[progress] steps 6/9 (66.7%) | elapsed=00:00:08 | eta=00:00:04 | started: create cache indexes
-		[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | finished: create cache indexes | step_elapsed=00:00:00
-		[progress] steps 7/9 (77.8%) | elapsed=00:00:08 | eta=00:00:02 | started: write refresh metadata
-		[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | finished: write refresh metadata | step_elapsed=00:00:00
-		[progress] steps 8/9 (88.9%) | elapsed=00:00:08 | eta=00:00:01 | started: commit transaction
-		[progress] steps 9/9 (100.0%) | elapsed=00:00:08 | eta=00:00:00 | finished: commit transaction | step_elapsed=00:00:00
-		Dashboard cache build completed.
-		DB path: /home/wgo/dev/crypto_DWH/data/core/core_kpi_staging_export_20260310_083654_last_1h_from_2h.db
-		Applied mart views: True
-		Mart views SQL path: /home/wgo/dev/crypto_DWH/scripts/5_marts/mart_dashboard_views.sql
-		Refresh timestamp (UTC): 2026-03-10T09:51:06Z
-		Platform latest day: 2026-03-10
-		Deviation latest day: 2026-03-10
-		Platform rows: 25
-		Deviation rows: 189
-		Curve rows: 560
-		Symbol deviation bucket rows: 5375
-		Symbol rows: 216
-
-		real    0m25.480s
-		user    0m21.660s
-		sys     0m3.619s
-
 		* gut investierte 25Sek. die das Laden der Daten im Dashboard enorm beschleunigen.
-		
+		* die views liefern die Daten der OLAPs. Diese werden in Cache Tabellen gespeichert für den schnellen Zugriff zur Laufzeit des Dashboards.
+		** OLAPs:
+		** vw_mart_dashboard_platform_quality_daily und vw_mart_dashboard_platform_quality_hourly: Latenz & Disconnectcount pro Exchange 
+		** vw_mart_dashboard_price_deviation_daily und vw_mart_dashboard_price_deviation_hourly: Max/Min Preisabweichung pro Symbol-Exchange Paar
+		** vw_mart_dashboard_symbol_deviation_bucket: Liste der Symbole pro Exchange
+		** vw_mart_dashboard_symbol_observed_quality_base: Liste der Symbole pro Exchange mit Qualitätsangebe bzgl fehlender oder interpolierter Daten
+		** vw_mart_latest_cleansing_run: Info zu cleansing run
+		** vw_mart_dashboard_price_curve_24h_binance: Preisinfo von Symbolen aus Binance zum Vergleich mit anderen Plattformen
 		
 - Dashboard
+	Erweiterung des Dashboards um die Möglichkeit der Auswahl der core_kpi.db
+	Bevorzugt wird core_kpi.db geladen, aber man kann über eine drop-down box andere gefundene core_kpi*.dbs laden
+	
+	Umbau auf neue ingestion architektur um bei Bedarf die Rohdaten zu lesen
+	
+	
+	starten des Dashboards: streamlit run scripts/5_marts/dashboard_mvp_app.py
+		External URL: http://144.91.86.134:8501
+
+
+- Forecasting: aktuell nur 2 ML Modelle in Verwendung
+	Ridge und HistGradientBoostingRegressor
+	Beschränkung auf ausgewählte Symbole: "BTC/%, ETH/%, SOL/%, ADA/%"
+
+	time \
+	for s in `ls data/staging/*.db` ; do 
+		stage="$(basename "$s" .db)" 
+		cleaned="data/cleansing/cleaned_${stage}_60s.db" 
+		core="data/core/core_kpi_${stage}.db"
+		
+		python scripts/6_forecasting/train_staging_models_and_forecasts.py \
+		  --symbols "BTC/%, ETH/%, SOL/%, ADA/%" \
+		  --staging-db $s \
+		  --cleansing-db $cleaned \
+		  --forecast-db $core \
+		  --model-dir data/forecasting/models \
+		  --workers 4 \
+		  --progress \
+		  --progress-interval-seconds 30 \
+		  --secondary-horizon-multiple 30
+	done
+
