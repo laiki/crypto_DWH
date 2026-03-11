@@ -19,6 +19,9 @@ This decouples long training history from run-specific forecast generation.
 
 - `train_staging_models.py`: training-only batch for staging history
 - `forecast_with_trained_models.py`: inference-only batch for cleansing runs
+- `train_ai_models.py`: training/evaluation batch for AI backends such as Chronos2
+- `forecast_with_ai_models.py`: inference-only batch for trained AI backends
+- `ai_model_backends.py`: backend registry for extensible AI forecasting backends
 - `train_staging_models_and_forecasts.py`: legacy combined entrypoint; kept for compatibility, but the split workflow above is preferred
 
 ## Input requirements
@@ -96,6 +99,43 @@ python scripts/6_forecasting/forecast_with_trained_models.py \
 
 If `--training-run-id` is omitted, the latest completed training run is used.
 
+### 3. Train AI forecasting backends from staging history
+
+```bash
+python scripts/6_forecasting/train_ai_models.py \
+  --staging-db data/staging \
+  --staging-db-exclude "data/staging/*_last_1h.db" \
+  --forecast-db data/core/core_kpi.db \
+  --model-dir data/forecasting/models \
+  --model-backends chronos2 \
+  --chronos-model-id amazon/chronos-2 \
+  --bin-seconds 60 \
+  --workers 1 \
+  --progress \
+  --progress-interval-seconds 30
+```
+
+Optional:
+- `--device auto|cpu|cuda|mps`
+- `--min-context-points 120`
+- `--max-context-points 1024`
+- `--symbols "BTC/%,ETH/%"`
+
+### 4. Create AI forecasts for one cleansing run
+
+```bash
+python scripts/6_forecasting/forecast_with_ai_models.py \
+  --cleansing-db data/cleansing/latest_cleansing.db \
+  --forecast-db data/core/core_kpi.db \
+  --model-backends chronos2 \
+  --workers 1 \
+  --replace-existing \
+  --progress \
+  --progress-interval-seconds 30
+```
+
+If `--training-run-id` is omitted, the latest completed AI training run for the selected backend set is used.
+
 ## Staging history selection
 
 - `--staging-db` accepts:
@@ -129,6 +169,13 @@ If `--training-run-id` is omitted, the latest completed training run is used.
 
 - Reuses stored model feature configuration from the registry
 - Writes `actual_price` and `abs_error` when the forecast horizon overlaps existing cleansing rows
+
+### AI forecasting backends
+
+- AI backends reuse the same forecast registry and `forecast_predictions` table as the classical ML path.
+- Backend selection is explicit via `--model-backends`.
+- Chronos2 is the first implemented AI backend.
+- Additional deep-learning or foundation-model backends can be added in `ai_model_backends.py` without changing the DB contract.
 
 ## Feature logic
 

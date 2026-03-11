@@ -281,6 +281,8 @@ Recommended forecasting workflow is split into two phases:
 Scripts:
 - `scripts/6_forecasting/train_staging_models.py`
 - `scripts/6_forecasting/forecast_with_trained_models.py`
+- `scripts/6_forecasting/train_ai_models.py`
+- `scripts/6_forecasting/forecast_with_ai_models.py`
 - `scripts/6_forecasting/train_staging_models_and_forecasts.py` remains available as a legacy compatibility entrypoint, but the split workflow above is preferred.
 
 Training example:
@@ -304,6 +306,33 @@ python scripts/6_forecasting/forecast_with_trained_models.py \
   --cleansing-db data/cleansing/latest_cleansing.db \
   --forecast-db data/core/core_kpi.db \
   --workers 4 \
+  --replace-existing \
+  --progress \
+  --progress-interval-seconds 30
+```
+
+AI training example:
+
+```bash
+python scripts/6_forecasting/train_ai_models.py \
+  --staging-db data/staging \
+  --forecast-db data/core/core_kpi.db \
+  --model-dir data/forecasting/models \
+  --model-backends chronos2 \
+  --chronos-model-id amazon/chronos-2 \
+  --workers 1 \
+  --progress \
+  --progress-interval-seconds 30
+```
+
+AI forecast example:
+
+```bash
+python scripts/6_forecasting/forecast_with_ai_models.py \
+  --cleansing-db data/cleansing/latest_cleansing.db \
+  --forecast-db data/core/core_kpi.db \
+  --model-backends chronos2 \
+  --workers 1 \
   --replace-existing \
   --progress \
   --progress-interval-seconds 30

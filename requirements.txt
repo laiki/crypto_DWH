@@ -8,3 +8,4 @@ Pillow
 scikit-learn
 pandas-ta
 redis
+chronos-forecasting>=2.0
