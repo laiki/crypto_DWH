@@ -98,6 +98,9 @@ Detailed English documentation for all ingestion/orchestration scripts is availa
 Central end-to-end runbook (all phases):
 - `docs/0_overview/README.md`
 
+Forecasting script reference:
+- `scripts/6_forecasting/README.md`
+
 ## Runtime Data Note
 Runtime outputs under `data/` are local generated artifacts and are not intended to be versioned in GitHub.
 This includes VAULT partitions, staging/cleansing/core DBs, Redis-backed VAULT outputs, logs, and local model artifacts.
@@ -268,6 +271,49 @@ Validation runner:
 
 Script role separation:
 - `docs/4_core/core_scripts_responsibilities.md`
+
+## Forecasting
+Recommended forecasting workflow is split into two phases:
+
+1. Train models from one or more staging exports.
+2. Forecast one selected cleansing run with trained models.
+
+Scripts:
+- `scripts/6_forecasting/train_staging_models.py`
+- `scripts/6_forecasting/forecast_with_trained_models.py`
+- `scripts/6_forecasting/train_staging_models_and_forecasts.py` remains available as a legacy compatibility entrypoint, but the split workflow above is preferred.
+
+Training example:
+
+```bash
+python scripts/6_forecasting/train_staging_models.py \
+  --staging-db data/staging \
+  --staging-db-exclude "data/staging/*_last_1h.db" \
+  --forecast-db data/core/core_kpi.db \
+  --model-dir data/forecasting/models \
+  --bin-seconds 60 \
+  --workers 4 \
+  --progress \
+  --progress-interval-seconds 30
+```
+
+Forecast example:
+
+```bash
+python scripts/6_forecasting/forecast_with_trained_models.py \
+  --cleansing-db data/cleansing/latest_cleansing.db \
+  --forecast-db data/core/core_kpi.db \
+  --workers 4 \
+  --replace-existing \
+  --progress \
+  --progress-interval-seconds 30
+```
+
+Notes:
+- `--staging-db` accepts files, directories, glob patterns, or explicit file lists.
+- `--staging-db-exclude` uses the same input forms and is applied after include resolution.
+- If `--training-run-id` is omitted during forecasting, the latest completed training run is used automatically.
+- Detailed forecasting examples and options are documented in `scripts/6_forecasting/README.md`.
 
 ## Mart Dashboard Layer
 Mart-ready dashboard extracts:

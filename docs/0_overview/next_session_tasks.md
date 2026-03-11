@@ -76,6 +76,20 @@ Last updated: 2026-03-09
    - use `--symbols` when startup scope should be bounded for the first live run
    - start the writer before publishers so Redis stays only a short operational buffer and not an accumulating backlog store
 
+## Current Forecasting Workflow
+1. Train models from staging history:
+   - `python scripts/6_forecasting/train_staging_models.py --staging-db data/staging --forecast-db data/core/core_kpi.db --model-dir data/forecasting/models --workers 4 --progress --progress-interval-seconds 30`
+
+2. Optionally exclude selected staging exports from the training history:
+   - `python scripts/6_forecasting/train_staging_models.py --staging-db data/staging --staging-db-exclude "data/staging/*_last_1h.db" --forecast-db data/core/core_kpi.db --model-dir data/forecasting/models --workers 4`
+
+3. Create forecasts for one cleansing run:
+   - `python scripts/6_forecasting/forecast_with_trained_models.py --cleansing-db data/cleansing/latest_cleansing.db --forecast-db data/core/core_kpi.db --workers 4 --replace-existing --progress --progress-interval-seconds 30`
+
+4. Runtime note:
+   - `train_staging_models_and_forecasts.py` remains in the repository as a legacy compatibility entrypoint
+   - the current recommended production path is the split workflow above
+
 ## Completed in This Session (2026-03-05)
 1. Extended forecasting model registry with explicit test-score persistence for model artifacts.
    - Artifacts:

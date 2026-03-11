@@ -8,7 +8,7 @@ Pipeline order:
 3. Cleansing
 4. Core build
 5. Marts / dashboard cache
-6. Forecasting (directly from VAULT)
+6. Forecasting (train from staging history, infer on cleansing)
 7. Dashboard
 
 All commands below assume execution from repo root (`/home/wgo/dev/crypto_DWH`).
@@ -90,29 +90,45 @@ done
 
 ## 4) Forecasting (training from staging, inference on cleansing)
 
-Pick latest staging/cleansing/core DB first:
+Pick latest cleansing/core DB first:
 
 ```bash
-LATEST_SDB="$(ls -1t scripts/data/staging/staging_export_*_last_*.db | head -n1)"
-LATEST_CDB="$(ls -1t scripts/data/cleansing/cleaned_staging_export_*_60s.db | head -n1)"
+LATEST_CDB="$(ls -1t data/cleansing/cleaned_staging_export_*_60s.db | head -n1)"
 LATEST_BASE="$(basename "$LATEST_CDB" .db)"
 LATEST_STAGING_BASE="${LATEST_BASE#cleaned_}"
 LATEST_STAGING_BASE="${LATEST_STAGING_BASE%_60s}"
-LATEST_CORE="scripts/data/core/core_kpi_${LATEST_STAGING_BASE}.db"
+LATEST_CORE="data/core/core_kpi_${LATEST_STAGING_BASE}.db"
+TRAINING_STAGING_DIR="data/staging"
+MODEL_DIR="data/forecasting/models"
 ```
 
-Run forecasting:
+Train models from staging history:
 
 ```bash
-python scripts/6_forecasting/train_staging_models_and_forecasts.py \
-  --staging-db "$LATEST_SDB" \
-  --cleansing-db "$LATEST_CDB" \
+python scripts/6_forecasting/train_staging_models.py \
+  --staging-db "$TRAINING_STAGING_DIR" \
   --forecast-db "$LATEST_CORE" \
-  --model-dir "scripts/data/forecasting/models" \
+  --model-dir "$MODEL_DIR" \
   --workers 4 \
   --progress \
   --progress-interval-seconds 30
 ```
+
+Create forecasts for one cleansing run with trained models:
+
+```bash
+python scripts/6_forecasting/forecast_with_trained_models.py \
+  --cleansing-db "$LATEST_CDB" \
+  --forecast-db "$LATEST_CORE" \
+  --workers 4 \
+  --replace-existing \
+  --progress \
+  --progress-interval-seconds 30
+```
+
+Optional:
+- add `--staging-db-exclude ...` to remove selected staging exports from the training history after include resolution
+- add `--training-run-id ...` during forecasting to select a specific trained model set instead of the latest completed run
 
 ## 5) Start Dashboard
 
