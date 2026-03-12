@@ -15,11 +15,11 @@ node_modules/
 /scripts/data/**/*.db-shm
 /scripts/data/**/*.db-wal
 /scripts/data/**/*.log
-*.png
 scripts/**/__pycache__/
 scripts/**/logs/
 *.json
 *.png
+!docs/KW11/*.png
 
 *.joblib
 tmp/
