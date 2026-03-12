@@ -1,0 +1,62 @@
+flowchart TB
+    subgraph EX["Exchange APIs"]
+        BIN[[Binance WS]]
+        KRA[[Kraken WS]]
+        OTH[[Other CCXT Exchanges]]
+    end
+
+    subgraph HOST["Ingestion Host"]
+        OP[Operator / Scheduler]
+
+        subgraph PUB["Publisher Runtime"]
+            ORCH[orchestrator_redis_auto_shard.py]
+            W1[worker_0 ccxt_to_redis_stream.py]
+            W2[worker_1 ccxt_to_redis_stream.py]
+            WN[worker_n ccxt_to_redis_stream.py]
+        end
+
+        subgraph BUS["Redis Bus Layer"]
+            REDIS[(Redis 8 container)]
+            STREAM[[ingest:events:v1]]
+            DLQ[[ingest:events:dlq:v1]]
+            CG[[Consumer Group<br/>cg.vault_writer]]
+        end
+
+        subgraph CONS["Consumer Runtime"]
+            WRITER[redis_stream_to_vault_writer.py]
+            IMPL[poc_redis_stream_to_vault_writer.py]
+        end
+    end
+
+    subgraph VAULT["VAULT 2.0 Storage"]
+        MAN[(meta/vault_manifest.db)]
+        PART[(ingestion/exchange=.../date=.../hour=.../part_*.db)]
+    end
+
+    OP --> ORCH
+    OP --> WRITER
+
+    ORCH --> W1
+    ORCH --> W2
+    ORCH --> WN
+
+    BIN --> W1
+    KRA --> W2
+    OTH --> WN
+
+    W1 --> STREAM
+    W2 --> STREAM
+    WN --> STREAM
+    STREAM --> REDIS
+    DLQ --> REDIS
+    CG --> REDIS
+
+    WRITER --> IMPL
+    IMPL --> CG
+    CG --> STREAM
+
+    IMPL --> PART
+    IMPL --> MAN
+    IMPL --> DLQ
+
+    PART -. hourly partition files .-> MAN
