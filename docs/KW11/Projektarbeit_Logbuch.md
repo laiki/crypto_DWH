@@ -53,11 +53,12 @@ Der Plan sieht folgendermaßen aus:
 - [x] ML forecast Modelle trainieren
 - [x] forecasts durchführen und in DB speichern
 - [x] Dashboard um forecasts erweitern
-- [ ] Wenn möglich Deep Learning forecasts hinzufügen
-- [ ] Präsentation anpassen
+- [x] Wenn möglich Deep Learning forecasts hinzufügen
 
 - Tag 4:  
+- [ ] Präsentation anpassen
 
+- Tag 5:  
 - [ ] Präsentation
 
 ## Tag 2
@@ -775,3 +776,9 @@ python ./scripts/6_forecasting/forecast_with_ai_models.py \
     --model-backends chronos2
 ``` 
 Der Lauf war in weniger als einer Minute fertig.
+
+Das Ergebnis / die Visualisierung im Dashboard ist aber nicht wirklich vielversprechend.
+
+## Tag 4
+MOIRA2 DL Modell integrieren
+Präsentationsfolien schreiben
