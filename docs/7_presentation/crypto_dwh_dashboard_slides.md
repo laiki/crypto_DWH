@@ -178,7 +178,7 @@ Anstelle einer zentralen Datenquelle, welche die Rohdaten in eine zentrale Daten
 
 Das ermöglicht die Integration weiterer Datenquellen und -Senken durch zusätzliche Prozesse, die über Redis kommunizieren, sowie das Speichern der kompletten Redis-Daten durch den Redis-Prozess selbst.
 
-![](./../../diagrams/0_overview/uml_architecture_ingestion_redis_decoupling_architecture_beta.png "Systemarchitektur")
+![](./../../diagrams/0_overview/system_architecture_redis_vault_overview.png "Systemarchitektur")
 
 # Ingestion
 

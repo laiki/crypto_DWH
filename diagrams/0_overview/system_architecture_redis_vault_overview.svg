@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">System Architecture Redis VAULT Overview</title>
+  <desc id="desc">Custom overview of the crypto DWH ingestion architecture using CCXT publishers, Redis streams, a VAULT writer and downstream DWH layers.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f7efe1"/>
+      <stop offset="100%" stop-color="#dfe8f2"/>
+    </linearGradient>
+    <linearGradient id="redisGrad" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffe2b6"/>
+      <stop offset="100%" stop-color="#ffc878"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#35566e"/>
+    </marker>
+    <style>
+      .title { font: 700 34px 'Trebuchet MS', 'Segoe UI', sans-serif; fill: #17364a; }
+      .subtitle { font: 400 18px Georgia, serif; fill: #35566e; }
+      .lane-title { font: 700 20px 'Trebuchet MS', 'Segoe UI', sans-serif; fill: #17364a; }
+      .box-title { font: 700 18px 'Trebuchet MS', 'Segoe UI', sans-serif; fill: #17364a; }
+      .box-text { font: 400 15px Georgia, serif; fill: #243746; }
+      .small { font: 400 13px Georgia, serif; fill: #4a6477; }
+      .pill { font: 700 13px 'Trebuchet MS', 'Segoe UI', sans-serif; fill: #ffffff; }
+      .lane { fill: rgba(255,255,255,0.42); stroke: rgba(23,54,74,0.14); stroke-width: 2; }
+      .box { fill: rgba(255,255,255,0.9); stroke: #7da0b8; stroke-width: 2; rx: 22; ry: 22; }
+      .box-strong { fill: #ffffff; stroke: #35566e; stroke-width: 2.5; rx: 22; ry: 22; }
+      .redis { fill: url(#redisGrad); stroke: #d8891e; stroke-width: 2.5; rx: 26; ry: 26; }
+      .storage { fill: #e7f1e7; stroke: #5f8d63; stroke-width: 2.5; rx: 22; ry: 22; }
+      .downstream { fill: #edf2fb; stroke: #7695bd; stroke-width: 2; rx: 18; ry: 18; }
+      .arrow { fill: none; stroke: #35566e; stroke-width: 4; marker-end: url(#arrow); }
+      .arrow-soft { fill: none; stroke: #6d8798; stroke-width: 3; marker-end: url(#arrow); }
+      .divider { stroke: rgba(23,54,74,0.16); stroke-width: 2; stroke-dasharray: 8 8; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="900" fill="url(#bg)"/>
+
+  <text x="70" y="70" class="title">Crypto DWH System Architecture</text>
+  <text x="70" y="102" class="subtitle">Redis as operational bus, VAULT as raw system of record, downstream DWH layers as batch consumers</text>
+
+  <rect x="60" y="145" width="1480" height="180" class="lane"/>
+  <rect x="60" y="355" width="1480" height="250" class="lane"/>
+  <rect x="60" y="635" width="1480" height="205" class="lane"/>
+
+  <text x="90" y="180" class="lane-title">1. Sources and Publishers</text>
+  <text x="90" y="390" class="lane-title">2. Event Bus and Raw Persistence</text>
+  <text x="90" y="670" class="lane-title">3. Batch Analytics and Serving</text>
+
+  <rect x="90" y="210" width="250" height="85" class="box"/>
+  <text x="115" y="240" class="box-title">Exchange APIs</text>
+  <text x="115" y="266" class="box-text">Binance, Kraken, Backpack, ...</text>
+  <text x="115" y="286" class="small">CCXT / CCXT Pro websocket feeds</text>
+
+  <rect x="410" y="195" width="360" height="115" class="box-strong"/>
+  <text x="435" y="228" class="box-title">Publisher Runtime</text>
+  <text x="435" y="255" class="box-text">orchestrator_redis_auto_shard.py</text>
+  <text x="435" y="278" class="box-text">worker_n: ccxt_to_redis_stream.py</text>
+  <text x="435" y="299" class="small">exchange sharding, websocket reconnect, event normalization</text>
+
+  <rect x="840" y="190" width="320" height="125" class="redis"/>
+  <text x="870" y="225" class="box-title">Redis 8 Container</text>
+  <text x="870" y="252" class="box-text">Stream: ingest:events:v1</text>
+  <text x="870" y="274" class="box-text">DLQ: ingest:events:dlq:v1</text>
+  <text x="870" y="296" class="small">short-lived operational buffer and decoupling layer</text>
+
+  <rect x="1230" y="200" width="260" height="105" class="box"/>
+  <text x="1255" y="232" class="box-title">Runtime Properties</text>
+  <text x="1255" y="258" class="box-text">multiple publishers can publish</text>
+  <text x="1255" y="279" class="box-text">one writer group persists events</text>
+
+  <rect x="140" y="435" width="360" height="120" class="box-strong"/>
+  <text x="165" y="468" class="box-title">Writer Runtime</text>
+  <text x="165" y="495" class="box-text">redis_stream_to_vault_writer.py</text>
+  <text x="165" y="518" class="box-text">poc_redis_stream_to_vault_writer.py</text>
+  <text x="165" y="540" class="small">XREADGROUP, dedup_key check, partition routing, DLQ handoff</text>
+
+  <rect x="570" y="425" width="330" height="140" class="storage"/>
+  <text x="595" y="458" class="box-title">VAULT Raw Storage</text>
+  <text x="595" y="485" class="box-text">data/vault2_redis/ingestion/</text>
+  <text x="595" y="507" class="box-text">exchange=&lt;id&gt;/date=&lt;YYYY-MM-DD&gt;/hour=&lt;HH&gt;/part_*.db</text>
+  <text x="595" y="531" class="small">hourly partition files, immutable raw ticks and connection events</text>
+
+  <rect x="970" y="425" width="250" height="140" class="storage"/>
+  <text x="995" y="458" class="box-title">Manifest and Metadata</text>
+  <text x="995" y="485" class="box-text">meta/vault_manifest.db</text>
+  <text x="995" y="507" class="box-text">partition_registry</text>
+  <text x="995" y="528" class="box-text">partition_pairs</text>
+
+  <rect x="1290" y="435" width="170" height="120" class="box"/>
+  <text x="1318" y="468" class="box-title">DLQ</text>
+  <text x="1318" y="495" class="box-text">ingest:events:dlq:v1</text>
+  <text x="1318" y="519" class="small">unprocessable events</text>
+
+  <rect x="100" y="710" width="220" height="90" class="downstream"/>
+  <text x="125" y="742" class="box-title">Staging</text>
+  <text x="125" y="768" class="box-text">staging_exporter.py</text>
+
+  <rect x="365" y="710" width="220" height="90" class="downstream"/>
+  <text x="390" y="742" class="box-title">Cleansing</text>
+  <text x="390" y="768" class="box-text">cleansing_resample.py</text>
+
+  <rect x="630" y="710" width="220" height="90" class="downstream"/>
+  <text x="655" y="742" class="box-title">Core KPI</text>
+  <text x="655" y="768" class="box-text">build_core_db.py</text>
+
+  <rect x="895" y="710" width="220" height="90" class="downstream"/>
+  <text x="920" y="742" class="box-title">Marts / Dashboard</text>
+  <text x="920" y="768" class="box-text">mart views and Streamlit app</text>
+
+  <rect x="1160" y="710" width="250" height="90" class="downstream"/>
+  <text x="1185" y="742" class="box-title">Forecasting</text>
+  <text x="1185" y="768" class="box-text">ML and AI forecast pipelines</text>
+
+  <path d="M340 252 L410 252" class="arrow"/>
+  <path d="M770 252 L840 252" class="arrow"/>
+  <path d="M1000 315 L1000 375 L320 375 L320 435" class="arrow"/>
+  <path d="M500 495 L570 495" class="arrow"/>
+  <path d="M500 520 L970 520" class="arrow-soft"/>
+  <path d="M500 545 L1290 545" class="arrow-soft"/>
+
+  <path d="M735 565 L735 610 L210 610 L210 710" class="arrow"/>
+  <path d="M735 565 L735 610 L475 610 L475 710" class="arrow"/>
+  <path d="M735 565 L735 610 L740 610 L740 710" class="arrow"/>
+  <path d="M1095 565 L1095 610 L1005 610 L1005 710" class="arrow"/>
+  <path d="M1095 565 L1095 610 L1285 610 L1285 710" class="arrow"/>
+
+  <line x1="1225" y1="390" x2="1225" y2="575" class="divider"/>
+  <text x="1245" y="412" class="small">Redis is not the historical store</text>
+  <text x="1245" y="433" class="small">VAULT is the long-term raw archive</text>
+
+  <rect x="1180" y="105" width="260" height="34" rx="17" ry="17" fill="#35566e"/>
+  <text x="1220" y="127" class="pill">short buffer only</text>
+
+  <rect x="1220" y="580" width="270" height="34" rx="17" ry="17" fill="#5f8d63"/>
+  <text x="1245" y="602" class="pill">system of record</text>
+</svg>
