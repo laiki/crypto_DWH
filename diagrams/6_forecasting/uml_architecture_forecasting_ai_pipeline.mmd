@@ -1,0 +1,47 @@
+flowchart TD
+    subgraph TRAINING["AI Evaluation Pipeline"]
+        STG["Staging DB set<br/>multiple exports"]
+        CUT["Cutoff / scope resolution"]
+        LOAD["Historical series loader"]
+        RES["Resampling to bin_seconds"]
+        BACK["Backend dispatcher<br/>chronos2 | moirai2"]
+        HOLD["Holdout evaluation"]
+        CV["Rolling CV evaluation"]
+        ART["Artifact writer<br/>joblib metadata"]
+        REG["Registry writer<br/>forecast_training_runs + forecast_model_registry"]
+    end
+
+    subgraph INFERENCE["AI Forecast Pipeline"]
+        CLEAN["Cleansing DB<br/>selected run_id"]
+        SEL["Training run / model selection"]
+        ARTLOAD["Artifact loader"]
+        PRED["Backend inference<br/>per exchange/symbol/horizon"]
+        FPRED["forecast_predictions writer"]
+    end
+
+    subgraph SERVE["Serving"]
+        CORE["core_kpi_*.db"]
+        DASH["Dashboard forecast tab"]
+    end
+
+    STG --> CUT
+    CUT --> LOAD
+    LOAD --> RES
+    RES --> BACK
+    BACK --> HOLD
+    BACK --> CV
+    HOLD --> ART
+    CV --> REG
+    ART --> REG
+
+    REG --> CORE
+    ART --> CORE
+
+    CLEAN --> SEL
+    REG --> SEL
+    SEL --> ARTLOAD
+    ARTLOAD --> PRED
+    CLEAN --> PRED
+    PRED --> FPRED
+    FPRED --> CORE
+    CORE --> DASH

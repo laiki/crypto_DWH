@@ -1,0 +1,47 @@
+flowchart LR
+    subgraph HOST["Execution Host"]
+        OP["Operator / Scheduler"]
+
+        subgraph TRAIN["AI Evaluation Runtime"]
+            AITRAIN["train_ai_models.py"]
+            REG["ai_model_backends.py"]
+            B1["Chronos2 backend"]
+            B2["MOIRAI2 backend"]
+            TMP["Ephemeral per-pair memory<br/>resampled series + holdout windows"]
+        end
+
+        subgraph INFER["AI Forecast Runtime"]
+            AIINFER["forecast_with_ai_models.py"]
+        end
+    end
+
+    subgraph SRC["Training and Inference Sources"]
+        STG[(data/staging/staging_export_*.db)]
+        CLEAN[(data/cleansing/cleaned_*.db)]
+    end
+
+    subgraph OUT["Forecast Storage"]
+        COREDB[(data/core/core_kpi_*.db)]
+        MODELFS[(data/forecasting/models/...)]
+        REGTAB[[forecast_training_runs<br/>forecast_model_registry]]
+        PREDTAB[[forecast_predictions]]
+    end
+
+    OP --> AITRAIN
+    OP --> AIINFER
+
+    AITRAIN --> STG
+    AITRAIN --> REG
+    REG --> B1
+    REG --> B2
+    AITRAIN --> TMP
+    AITRAIN --> MODELFS
+    AITRAIN --> REGTAB
+    REGTAB --> COREDB
+
+    AIINFER --> CLEAN
+    AIINFER --> REG
+    AIINFER --> MODELFS
+    AIINFER --> REGTAB
+    AIINFER --> PREDTAB
+    PREDTAB --> COREDB

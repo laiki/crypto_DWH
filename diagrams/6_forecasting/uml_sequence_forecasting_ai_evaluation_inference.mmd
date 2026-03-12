@@ -1,0 +1,35 @@
+sequenceDiagram
+    autonumber
+    actor OP as Operator
+    participant TA as train_ai_models.py
+    participant STG as Staging DBs
+    participant REG as ai_model_backends.py
+    participant FM as Chronos2 / MOIRAI2 backend
+    participant FS as Model filesystem
+    participant CORE as Forecast DB
+    participant FA as forecast_with_ai_models.py
+    participant CLEAN as Cleansing DB
+
+    OP->>TA: start AI evaluation run
+    TA->>STG: resolve staging inputs and load history
+    STG-->>TA: market_ticks series
+    TA->>TA: resample, scope pairs, horizon setup
+    TA->>REG: get backend by name
+    REG->>FM: dispatch train_and_evaluate(...)
+    FM-->>TA: holdout metrics + CV metrics + artifact metadata
+    TA->>FS: write joblib artifact payload
+    TA->>CORE: insert forecast_training_runs
+    TA->>CORE: insert forecast_model_registry
+    TA-->>OP: completed AI evaluation run_id
+
+    OP->>FA: start AI forecast run
+    FA->>CORE: resolve latest / selected training_run_id
+    CORE-->>FA: registered trained models
+    FA->>FS: load artifact payload
+    FA->>CLEAN: load cleansing series for exchange/symbol
+    CLEAN-->>FA: cleansed_market rows
+    FA->>REG: get backend by artifact backend_name
+    REG->>FM: dispatch predict_points(...)
+    FM-->>FA: generated forecast points
+    FA->>CORE: insert forecast_predictions
+    FA-->>OP: completed prediction batch
