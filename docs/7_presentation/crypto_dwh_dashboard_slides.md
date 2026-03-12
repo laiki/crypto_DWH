@@ -46,7 +46,7 @@ Masterarbeit Projektstand
 
 # Zielarchitektur (Uebersicht)
 
-![width:1100](file:./../../diagrams/0_overview/uml_flow_end_to_end_pipeline_subgraphs.svg)
+![](./../../diagrams/0_overview/uml_flow_end_to_end_pipeline_subgraphs.png)
 
 ---
 
@@ -107,7 +107,7 @@ Verwendete Views:
 Prinzip:
 
 - KPI-Logik bleibt in SQL Views. 
-  Optional zwecks Performancegewinn werden chache Tabellen mit den Daten der Views gefüllt.
+  Optional zwecks Performancegewinn werden Cache-Tabellen mit den Daten der Views gefüllt.
 
 - Dashboard liest nur konsumfertige Daten.
 
@@ -133,7 +133,7 @@ Technik:
 
 # Dashboard Laufzeitfluss
 
-![width:1100](file:./../../diagrams/5_marts/uml_sequence_mart_dashboard_extracts.svg)
+![](./../../diagrams/5_marts/uml_sequence_mart_dashboard_extracts.png)
 
 ---
 
@@ -149,40 +149,20 @@ Technik:
   
   - In initialer Architektur in der alle eingehenden Daten in eine Datenbank geschrieben wurden hat der Stagingprozess für eine Stunde 15-20 Min. Zeit benötigt.
   
-  - In angepasster Architektur in der die Daten in VAULT Partitionen in separaten Datenbanken abgelegt wurden, ist die Verarbeitungsdauer unter 1 Minute für 9 einzellne Stunden. 
-    Die Umstellung auf VAULT Partitionen hat einen gigantischen Performancegewinn gebracht. Es wurden Datenbanken pro Exchange/Datum/Stunde erzeugt, anstelle alle Daten in einer DB in nur einer Rowhdatentabelle zu verwalten.
+  - In angepasster Architektur, in der die Daten in VAULT-Partitionen in separaten Datenbanken abgelegt wurden, liegt die Verarbeitungsdauer für 9 einzelne Stunden unter 1 Minute.
+    Die Umstellung auf VAULT-Partitionen hat einen deutlichen Performancegewinn gebracht. Es wurden Datenbanken pro Exchange/Datum/Stunde erzeugt, anstatt alle Daten in einer DB in nur einer Rohdatentabelle zu verwalten.
     Die Ersparnis der Laufzeit ist auf die nunmehr fehlenden SQL Joins zurückzuführen.
-    data/vault2_redis
-    ├── data/vault2_redis/ingestion
-    │   ├── data/vault2_redis/ingestion/exchange=aster
-    │   │   ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=15
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=16
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=17
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=18
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=19
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=20
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=21
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=22
-    │   │   │   └── data/vault2_redis/ingestion/exchange=aster/date=2026-03-09/hour=23
-    │   │   └── data/vault2_redis/ingestion/exchange=aster/date=2026-03-10
-    │   │       ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=00
-    │   │       ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=01
-    │   │       ├── data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=02
-    │   │       └── data/vault2_redis/ingestion/exchange=aster/date=2026-03-10/hour=03
-    │   ├── data/vault2_redis/ingestion/exchange=backpack
-    │   │   ├── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=15
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=16
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=17
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=18
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=19
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=20
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=21
-    │   │   │   ├── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=22
-    │   │   │   └── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-09/hour=23
-    │   │   └── data/vault2_redis/ingestion/exchange=backpack/date=2026-03-10
-    │....
+    Beispiel Layout:
+
+    ```text
+    data/vault2_redis/
+      ingestion/
+        exchange=aster/date=2026-03-09/hour=15/part_aster_20260309_15.db
+        exchange=aster/date=2026-03-09/hour=16/part_aster_20260309_16.db
+        exchange=backpack/date=2026-03-09/hour=15/part_backpack_20260309_15.db
+        exchange=backpack/date=2026-03-09/hour=16/part_backpack_20260309_16.db
+      meta/vault_manifest.db
+    ```
     
     
 
@@ -192,39 +172,39 @@ Technik:
 
 ## Systemarchitektur
 
-Anstelle einer zentralen Datenquelle, welche die Rohdaten in eine zentrale Datenbank schreibt, wie es anfans der Fall war, wurde die System-Architektur angepasst und verwendet eine Redis (Real-Time DB of key/value data) Instanz welche in einem Docker/Podman Container gestartet wird.
+Anstelle einer zentralen Datenquelle, welche die Rohdaten in eine zentrale Datenbank schreibt, wie es anfangs der Fall war, wurde die Systemarchitektur angepasst und verwendet nun eine Redis-Instanz (Real-Time DB of key/value data), die in einem Docker-/Podman-Container gestartet wird.
 
 
 
-Das Ermöglicht die Integration weiterer Datenquellen und -Senken durch zusätzliche Prozesse die über Redis kommunitzieren, sowie das Speichern der Kompletter Redis Daten durch den Redis Prozess selbst.
+Das ermöglicht die Integration weiterer Datenquellen und -Senken durch zusätzliche Prozesse, die über Redis kommunizieren, sowie das Speichern der kompletten Redis-Daten durch den Redis-Prozess selbst.
 
-![](file:./../../diagrams/0_overview/uml_architecture_ingestion_redis_decoupling_architecture_beta.svg "Systemarchitektur")
+![](./../../diagrams/0_overview/uml_architecture_ingestion_redis_decoupling_architecture_beta.png "Systemarchitektur")
 
 # Ingestion
 
-Datenquellen, in diesem Falle ein einzellnes Skript "ccxt_to_redis_stream.py", publishen ihre Daten in einen Redis Stream.
+Datenquellen, in diesem Fall ein einzelnes Skript `ccxt_to_redis_stream.py`, publizieren ihre Daten in einen Redis-Stream.
 
-Datensenken, in diesem Falle das Skript "[poc_]redis_stream_to_vault_writer.py", erhält Events des Streams und schreibt die Daten in die entsprechende VAULT Partition.
+Datensenken, in diesem Fall das Skript `redis_stream_to_vault_writer.py`, erhalten Events des Streams und schreiben die Daten in die entsprechende VAULT-Partition.
 
-Diese Prozesse laufen dauerhaft (sofern ausreichend Festplattenkapazität z.V. steht)
+Diese Prozesse laufen dauerhaft, sofern ausreichend Festplattenkapazität zur Verfügung steht.
 
-![](file:./../../diagrams/1_ingestion/uml_deployment_ingestion_redis_vault.svg)
+![](./../../diagrams/1_ingestion/uml_deployment_ingestion_redis_vault.png)
 
 # Staging
 
-Der Staging-Prozess exportiert durch das Script "staging_exporter.py" Daten auf Basis ihres Zeitstemples. Er unterstützt Paremeter die es ermöglichen Zeitfenster in Stundenrastern zu definieren die zu exportieren sind. Somit ist es mir möglich mehrere z.B. 2 Stundenintervalle zu exportieren.
+Der Staging-Prozess exportiert durch das Skript `staging_exporter.py` Daten auf Basis ihres Zeitstempels. Er unterstützt Parameter, die es ermöglichen, Zeitfenster in Stundenrastern zu definieren, die exportiert werden sollen. Somit ist es möglich, mehrere z. B. 2-Stunden-Intervalle zu exportieren.
 
-![](file:./../../diagrams/2_staging/uml_deployment_staging_export.svg)
+![](./../../diagrams/2_staging/uml_deployment_staging_export.png)
 
 # Cleansing
 
-Der Cleansing-Prozess ("cleansing_resample.py ") transformiert die Stagingdaten in definierte Intervalle (default: 60s).
+Der Cleansing-Prozess (`cleansing_resample.py`) transformiert die Staging-Daten in definierte Intervalle (default: 60s).
 
 Fehlende Daten werden je nach Konfiguration für einen maximalen Zeitraum linear interpoliert oder mit dem letzten Wert aufgefüllt.
 
 Ein Qualitätskriterium ist das Alter der Daten sofern die Rohdaten Lücken aufweisen.
 
-Ein stabieles Intervall ermöglicht das Vergleichen der Preisingformationen an Zeitpunkten.
+Ein stabiles Intervall ermöglicht das Vergleichen der Preisinformationen an identischen Zeitpunkten.
 
 Der Prozess schreibt die Daten in eine gemeinsame Datenbank. 
 
@@ -236,45 +216,45 @@ Die Cleansing-DB
 
 - entspricht dem aktuellen Ziel einer Tagesanalyse unter begrenzten Speicherbedingungen.
 
-![](file:./../../diagrams/3_cleansing/dfd_cleansing_pipeline.svg)
+![](./../../diagrams/3_cleansing/dfd_cleansing_pipeline.png)
 
 # Core & Marts
 
 ## Core KPIs
 
-Das Dashboard verwendet die Core_KPI Datenbank zur Anzeige der gewünschten Informationen.
+Das Dashboard verwendet die `core_kpi`-Datenbank zur Anzeige der gewünschten Informationen.
 
-Der Prozess "build_core_db.py" aggregiert Informationen aus den unterschiedlichen Quellen und schreibt sie in eine kpi Datenbank.
+Der Prozess `build_core_db.py` aggregiert Informationen aus den unterschiedlichen Quellen und schreibt sie in eine KPI-Datenbank.
 
-![](file:./../../diagrams/4_core/uml_deployment_core_build_db.svg)  
+![](./../../diagrams/4_core/uml_deployment_core_build_db.png)  
 
 Hier eine Darstellung nach Star-Schema eines Subsets der in der DB gespeicherten Daten.
 
-![](file:./../../diagrams/4_core/uml_er_core.svg)
+![](./../../diagrams/4_core/uml_er_core.png)
 
 ## Marts
 
-Marts sind die Datenquellen der Darszustellenden OLAPs.
+Marts sind die Datenquellen der darzustellenden OLAPs.
 
-OLAPs werden durch SQL Statements repräsentiert, die ja nach Datenbankschema mehr oder Weniger Zeit zur Ausführung benötigen.
+OLAPs werden durch SQL-Statements repräsentiert, die je nach Datenbankschema mehr oder weniger Zeit zur Ausführung benötigen.
 
-In der KPI Datenbank sind die OLAPs als Views definiert, welche aussehen wie Tabellen, aber in realität SQL Statements sind die zur Laufzeit ausgeführt werden und hre Daten auss unterschiedlichen Tabellen 'joinen'. Um den Prozess zu bescheunigen, wurden cache Tabellen erzeugt, welche das Ergebnis der Views speichern und somit keine joins zur Laufzeit mehr benötigen. 
+In der KPI-Datenbank sind die OLAPs als Views definiert, die wie Tabellen aussehen, aber in Realität SQL-Statements sind, die zur Laufzeit ausgeführt werden und ihre Daten aus unterschiedlichen Tabellen zusammenführen. Um den Prozess zu beschleunigen, wurden Cache-Tabellen erzeugt, die das Ergebnis der Views speichern und somit keine Joins zur Laufzeit mehr benötigen.
 
-Das Dashboard kommt auch ohne cache Tabellen aus, nutzt sie aber sofern sie vorhanden sind.
+Das Dashboard kommt auch ohne Cache-Tabellen aus, nutzt sie aber, sofern sie vorhanden sind.
 
-Hier ein Architekturschaubild der Cachetabellen für die Darstellung der Preisunterschiede im Dashboard.
+Hier ein Architekturschaubild der Cache-Tabellen für die Darstellung der Preisunterschiede im Dashboard.
 
-![](file:./../../diagrams/5_marts/uml_architecture_symbol_deviation_mart.svg) 
+![](./../../diagrams/5_marts/uml_architecture_symbol_deviation_mart.png) 
 
-# forecasting
+# Forecasting
 
-Ein während der Bearbeitung des Projektes hinzugefügtes Feature ist die Berechnung un Darstellung von Vorhersagen der Preisentwicklung der Symbole.
+Ein während der Bearbeitung des Projekts hinzugefügtes Feature ist die Berechnung und Darstellung von Vorhersagen der Preisentwicklung der Symbole.
 
-Es wurden 2 Ansätze für die Vorhersage der Zeitreihen verwendet
+Es wurden 2 Ansätze für die Vorhersage der Zeitreihen verwendet:
 
-1. Machine Learning -- der Klassische Ansatz auf Basis des scikit-learn Python Paketes
+1. Machine Learning -- der klassische Ansatz auf Basis des Python-Pakets `scikit-learn`
 
-2. Deep Learning -- der AI Ansatz unter verwendung vortrainierter Zeitreihenvorhersage-Modelle 
+2. Deep Learning -- der AI-Ansatz unter Verwendung vortrainierter Zeitreihenvorhersage-Modelle
    
    
 
@@ -286,7 +266,7 @@ Die trainierten Modelle werden im Dateisystem gespeichert (je Exchange und Symbo
 
 Das Modell wird vom forecaster "forecast_with_trained_models.py" verwendet um die Daten des letzten Staged Zeitfensters damit zu füttern und die Vorhersagen zu den zukünftigen Zeitpunkten in der corr KPI Datenbank zu speichern.
 
-![](file:./../../diagrams/6_forecasting/uml_sequence_forecasting_staging_cutoff_training.svg)
+![](./../../diagrams/6_forecasting/uml_sequence_forecasting_staging_cutoff_training.png)
 
 ## Deepl Learning
 
@@ -296,7 +276,7 @@ In dieser Projektarbeit aber wurde ein vortrainiertes Modell "Cronos2" verwendet
 
 
 
-![](file:./../../diagrams/6_forecasting/uml_sequence_forecasting_ai_evaluation_inference.svg)
+![](./../../diagrams/6_forecasting/uml_sequence_forecasting_ai_evaluation_inference.png)
 
 
 
@@ -312,9 +292,9 @@ Plattformqualität
 * Update Frequency (Hz): aus Tick-Intervall abgeleitet.
 * Disconnect Count: Anzahl `disconnect` Events pro Zeitraum.
 
-![a15bf94a-6a43-4542-86a8-4d7bbbbd547a](file:./../KW11/a15bf94a-6a43-4542-86a8-4d7bbbbd547a.png)
+![a15bf94a-6a43-4542-86a8-4d7bbbbd547a](./../KW11/a15bf94a-6a43-4542-86a8-4d7bbbbd547a.png)
 
-![22eeaacb-4975-4478-beb7-b45cd453469f](file:./../KW11/22eeaacb-4975-4478-beb7-b45cd453469f.png)
+![22eeaacb-4975-4478-beb7-b45cd453469f](./../KW11/22eeaacb-4975-4478-beb7-b45cd453469f.png)
 
 
 
@@ -324,7 +304,7 @@ Preisabweichung
 * `max_price_diff_pct`: maximale relative Differenz in Prozent.
 * Zeitlich ausgerichtet über Bucket-Timestamps.
 
-![323647b8-a881-4434-89cd-490f43e5b7ef](file:./../KW11/323647b8-a881-4434-89cd-490f43e5b7ef.png)
+![323647b8-a881-4434-89cd-490f43e5b7ef](./../KW11/323647b8-a881-4434-89cd-490f43e5b7ef.png)
 
 sind jedoch alle enthalten
 
@@ -332,7 +312,7 @@ sind jedoch alle enthalten
 
 Die Herausforderung liegt viel mehr darin, die richtige core_KPI Datenbank zu laden, die dazu psaende Cleansing-DB sofern man mehrere Läufe auf den gleichen Datensatz ausgeführt hat,  und die passende forecast Datensätze zu wählen.
 
-![b3b6d3a7-595b-4a2a-b70e-7d076024b216](file:./../KW11/b3b6d3a7-595b-4a2a-b70e-7d076024b216.png)
+![b3b6d3a7-595b-4a2a-b70e-7d076024b216](./../KW11/b3b6d3a7-595b-4a2a-b70e-7d076024b216.png)
 
 Man kann keine invalide Kompbination wählen, weil die metadaten der core KPI Datenbank nur gültige Kombinationen zulässt, trotzdem ist ein wenig Übung im Umgang mit dem Dashboard notwendig.
 

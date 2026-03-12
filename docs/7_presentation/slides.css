@@ -1,0 +1,148 @@
+html {
+  color: #182028;
+  background:
+    radial-gradient(circle at top left, #f3efe3 0%, #e7ecf2 40%, #d6dfe8 100%);
+}
+
+body {
+  margin: 0 auto;
+  max-width: 1120px;
+  padding: 40px 32px 72px;
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.55;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  line-height: 1.15;
+  color: #0f2f4a;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2.4rem;
+  letter-spacing: 0.02em;
+}
+
+h2 {
+  margin-top: 0.4rem;
+  font-size: 1.3rem;
+  color: #245170;
+}
+
+h3 {
+  margin-top: 1.2rem;
+  font-size: 1.05rem;
+}
+
+p,
+li {
+  font-size: 1.02rem;
+}
+
+ul,
+ol {
+  padding-left: 1.4rem;
+}
+
+code {
+  padding: 0.08rem 0.32rem;
+  border-radius: 0.3rem;
+  background: rgba(15, 47, 74, 0.08);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.9em;
+}
+
+pre {
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(15, 47, 74, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  overflow: auto;
+  box-shadow: 0 10px 28px rgba(15, 47, 74, 0.08);
+}
+
+pre code {
+  padding: 0;
+  background: transparent;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  max-height: 76vh;
+  margin: 1.2rem auto;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 16px 38px rgba(15, 47, 74, 0.14);
+}
+
+hr {
+  margin: 3rem 0 2.2rem;
+  border: 0;
+  border-top: 2px solid rgba(15, 47, 74, 0.18);
+}
+
+blockquote {
+  margin: 1rem 0;
+  padding: 0.8rem 1rem;
+  border-left: 4px solid #5a86a6;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+th,
+td {
+  padding: 0.65rem 0.8rem;
+  border: 1px solid rgba(15, 47, 74, 0.16);
+  text-align: left;
+}
+
+th {
+  background: rgba(36, 81, 112, 0.12);
+}
+
+@media (max-width: 900px) {
+  body {
+    padding: 24px 16px 48px;
+  }
+
+  h1 {
+    font-size: 1.9rem;
+  }
+
+  h2 {
+    font-size: 1.15rem;
+  }
+}
+
+@media print {
+  html {
+    background: #fff;
+  }
+
+  body {
+    max-width: none;
+    padding: 0;
+  }
+
+  img,
+  pre {
+    box-shadow: none;
+  }
+
+  hr {
+    page-break-after: always;
+    border-top-color: transparent;
+    margin: 0;
+  }
+}

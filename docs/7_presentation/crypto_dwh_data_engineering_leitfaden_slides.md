@@ -43,7 +43,7 @@ Nach dieser Session koennt ihr:
 ## Problem
 - Gleiche Coins haben je Exchange unterschiedliche Preise.
 - Plattformqualitaet (Latency, Update-Frequenz, Disconnects) schwankt.
-- Ohne saubere Zeitausrichtung sind Vergleiche nicht fair.
+- Ohne saubere Zeitausrichtung sind Vergleiche unfair.
 
 ## Zielbild
 - Nachvollziehbare DWH-Pipeline von Ingestion bis Mart.
@@ -54,7 +54,7 @@ Nach dieser Session koennt ihr:
 
 # End-to-End Datenfluss (Uebersicht)
 
-![width:1120](../../diagrams/0_overview/uml_architecture.svg)
+![](../../diagrams/0_overview/uml_architecture.png)
 
 ---
 
@@ -95,7 +95,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/1_ingestion/uml_deployment_ingestion_multiprocess.svg)
+![](../../diagrams/1_ingestion/uml_deployment_ingestion_multiprocess.png)
 
 
 ---
@@ -112,7 +112,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/2_staging/uml_deployment_staging_export.svg)
+![](../../diagrams/2_staging/uml_deployment_staging_export.png)
 
 ---
 
@@ -128,7 +128,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/3_cleansing/uml_deployment_cleansing.svg)
+![](../../diagrams/3_cleansing/uml_deployment_cleansing.png)
 
 ---
 
@@ -147,7 +147,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/4_core/uml_deployment_core_build_db.svg)
+![](../../diagrams/4_core/uml_deployment_core_build_db.png)
 
 ---
 
@@ -163,7 +163,7 @@ Nach dieser Session koennt ihr:
 
 ## Deployment
 
-![width:800](../../diagrams/5_marts/uml_deployment_mart_dashboard_extracts.svg)
+![](../../diagrams/5_marts/uml_deployment_mart_dashboard_extracts.png)
 
 ---
 
@@ -185,7 +185,7 @@ Nach dieser Session koennt ihr:
 Empfehlung:
 - fuer stabile Dashboard-KPI mit klaren Dimensionen.
 
-![width:930](../../diagrams/7_presentation/uml_star_schema_exchange_kpi.svg)
+![](../../diagrams/7_presentation/uml_star_schema_exchange_kpi.png)
 
 ---
 
@@ -197,7 +197,7 @@ Empfehlung:
 Trade-off:
 - weniger Duplikate, aber komplexere Joins.
 
-![width:930](../../diagrams/7_presentation/uml_snowflake_schema_exchange_kpi.svg)
+![](../../diagrams/7_presentation/uml_snowflake_schema_exchange_kpi.png)
 
 ---
 
@@ -207,7 +207,7 @@ Empfehlung:
 - wenn mehrere Analysebereiche parallel laufen.
 - hier: Plattformqualitaet und Preisabweichung als getrennte Facts.
 
-![width:930](../../diagrams/7_presentation/uml_galaxy_schema_exchange_kpi.svg)
+![](../../diagrams/7_presentation/uml_galaxy_schema_exchange_kpi.png)
 
 ---
 
