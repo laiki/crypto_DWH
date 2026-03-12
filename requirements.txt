@@ -9,3 +9,6 @@ scikit-learn
 pandas-ta
 redis
 chronos-forecasting>=2.0
+gluonts
+uni2ts
+torch

@@ -404,8 +404,7 @@ def main() -> None:
     args = parse_args()
     validate_args(args)
     backend_names = ai.parse_backend_names(args.model_backends)
-    if ai.MISSING_BACKEND_DEPENDENCY_MESSAGE is not None:
-        raise SystemExit(ai.MISSING_BACKEND_DEPENDENCY_MESSAGE)
+    ai.ensure_backends_available(backend_names)
 
     symbol_filters = common.parse_csv_values(args.symbols)
     cleansing_db_path = common.resolve_file(args.cleansing_db)

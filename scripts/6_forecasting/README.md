@@ -19,7 +19,7 @@ This decouples long training history from run-specific forecast generation.
 
 - `train_staging_models.py`: training-only batch for staging history
 - `forecast_with_trained_models.py`: inference-only batch for cleansing runs
-- `train_ai_models.py`: pretrained zero-shot evaluation/register batch for AI backends such as Chronos2
+- `train_ai_models.py`: pretrained zero-shot evaluation/register batch for AI backends such as Chronos2 and MOIRAI2
 - `forecast_with_ai_models.py`: inference-only batch for registered AI backends
 - `ai_model_backends.py`: backend registry for extensible AI forecasting backends
 - `fine_tune_ai_models.py`: reserved future entrypoint for true gradient-based AI fine-tuning
@@ -108,8 +108,9 @@ python scripts/6_forecasting/train_ai_models.py \
   --staging-db-exclude "data/staging/*_last_1h.db" \
   --forecast-db data/core/core_kpi.db \
   --model-dir data/forecasting/models \
-  --model-backends chronos2 \
+  --model-backends chronos2,moirai2 \
   --chronos-model-id amazon/chronos-2 \
+  --moirai2-model-id Salesforce/moirai-2.0-R-small \
   --bin-seconds 60 \
   --workers 1 \
   --progress \
@@ -123,8 +124,8 @@ Optional:
 - `--symbols "BTC/%,ETH/%"`
 
 Important:
-- Chronos2 is currently used in pretrained zero-shot mode.
-- The script evaluates historical windows, registers artifacts and metrics, and does not fine-tune Chronos2 weights.
+- Chronos2 and MOIRAI2 are currently used in pretrained zero-shot mode.
+- The script evaluates historical windows, registers artifacts and metrics, and does not fine-tune foundation-model weights.
 
 ### 4. Create AI forecasts for one cleansing run
 
@@ -132,7 +133,7 @@ Important:
 python scripts/6_forecasting/forecast_with_ai_models.py \
   --cleansing-db data/cleansing/latest_cleansing.db \
   --forecast-db data/core/core_kpi.db \
-  --model-backends chronos2 \
+  --model-backends chronos2,moirai2 \
   --workers 1 \
   --replace-existing \
   --progress \
@@ -143,7 +144,7 @@ If `--training-run-id` is omitted, the latest completed AI evaluation run for th
 
 ### 5. Future fine-tuning path
 
-`fine_tune_ai_models.py` is intentionally separate from the current zero-shot Chronos2 evaluation path.
+`fine_tune_ai_models.py` is intentionally separate from the current zero-shot AI evaluation path.
 It is reserved for future optimizer-based weight fine-tuning and currently exits with a clear not-implemented message.
 
 ## Staging history selection
@@ -184,7 +185,7 @@ It is reserved for future optimizer-based weight fine-tuning and currently exits
 
 - AI backends reuse the same forecast registry and `forecast_predictions` table as the classical ML path.
 - Backend selection is explicit via `--model-backends`.
-- Chronos2 is the first implemented AI backend and currently runs in pretrained zero-shot mode.
+- Chronos2 and MOIRAI2 are implemented AI backends and currently run in pretrained zero-shot mode.
 - Additional deep-learning or foundation-model backends can be added in `ai_model_backends.py` without changing the DB contract.
 
 ## Feature logic

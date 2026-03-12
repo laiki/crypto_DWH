@@ -319,8 +319,9 @@ python scripts/6_forecasting/train_ai_models.py \
   --staging-db data/staging \
   --forecast-db data/core/core_kpi.db \
   --model-dir data/forecasting/models \
-  --model-backends chronos2 \
+  --model-backends chronos2,moirai2 \
   --chronos-model-id amazon/chronos-2 \
+  --moirai2-model-id Salesforce/moirai-2.0-R-small \
   --workers 1 \
   --progress \
   --progress-interval-seconds 30
@@ -332,7 +333,7 @@ AI forecast example:
 python scripts/6_forecasting/forecast_with_ai_models.py \
   --cleansing-db data/cleansing/latest_cleansing.db \
   --forecast-db data/core/core_kpi.db \
-  --model-backends chronos2 \
+  --model-backends chronos2,moirai2 \
   --workers 1 \
   --replace-existing \
   --progress \
@@ -343,7 +344,7 @@ Notes:
 - `--staging-db` accepts files, directories, glob patterns, or explicit file lists.
 - `--staging-db-exclude` uses the same input forms and is applied after include resolution.
 - If `--training-run-id` is omitted during forecasting, the latest completed training run is used automatically.
-- `train_ai_models.py` currently evaluates pretrained AI backends such as Chronos2 in zero-shot mode; it does not fine-tune model weights.
+- `train_ai_models.py` currently evaluates pretrained AI backends such as Chronos2 and MOIRAI2 in zero-shot mode; it does not fine-tune model weights.
 - `fine_tune_ai_models.py` is intentionally reserved as a separate future path for true gradient-based AI fine-tuning.
 - Detailed forecasting examples and options are documented in `scripts/6_forecasting/README.md`.
 

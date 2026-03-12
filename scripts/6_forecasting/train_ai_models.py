@@ -3,9 +3,10 @@
 Evaluate pretrained AI forecasting backends on staging history and register
 artifacts plus metrics.
 
-The current Chronos2 path does not fine-tune model weights. It performs
-zero-shot / inference-time evaluation on historical windows, then registers
-artifacts and metrics in the forecast DB. The script is backend-extensible.
+The current Chronos2 and MOIRAI2 paths do not fine-tune model weights. They
+perform zero-shot / inference-time evaluation on historical windows, then
+register artifacts and metrics in the forecast DB. The script is
+backend-extensible.
 """
 
 from __future__ import annotations
@@ -36,7 +37,8 @@ class AIPairWorkerTask:
     horizons_steps: tuple[int, ...]
     horizons_seconds: tuple[int, ...]
     backend_names: tuple[str, ...]
-    pretrained_model_id: str
+    chronos_model_id: str
+    moirai2_model_id: str
     device: str
     min_context_points: int
     max_context_points: int
@@ -127,6 +129,11 @@ def parse_args() -> argparse.Namespace:
         help="Pretrained Chronos2 model identifier.",
     )
     parser.add_argument(
+        "--moirai2-model-id",
+        default="Salesforce/moirai-2.0-R-small",
+        help="Pretrained MOIRAI2 model identifier.",
+    )
+    parser.add_argument(
         "--device",
         default="auto",
         help="AI runtime device. Use auto, cpu, cuda, or mps.",
@@ -209,6 +216,14 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--progress-interval-seconds must be > 0.")
 
 
+def resolve_pretrained_model_id(*, backend_name: str, task: AIPairWorkerTask) -> str:
+    if backend_name == "chronos2":
+        return task.chronos_model_id
+    if backend_name == "moirai2":
+        return task.moirai2_model_id
+    raise KeyError(backend_name)
+
+
 def process_pair_task(task: AIPairWorkerTask) -> dict[str, Any]:
     models_per_pair = len(task.horizons_steps) * len(task.backend_names)
     result: dict[str, Any] = {
@@ -243,9 +258,13 @@ def process_pair_task(task: AIPairWorkerTask) -> dict[str, Any]:
     for horizon_step, horizon_seconds in zip(task.horizons_steps, task.horizons_seconds):
         for backend_name in task.backend_names:
             backend = ai.get_backend(backend_name)
+            pretrained_model_id = resolve_pretrained_model_id(
+                backend_name=backend_name,
+                task=task,
+            )
             config = ai.AITrainingConfig(
                 model_name=backend_name,
-                pretrained_model_id=task.pretrained_model_id,
+                pretrained_model_id=pretrained_model_id,
                 device=task.device,
                 min_context_points=int(task.min_context_points),
                 max_context_points=int(task.max_context_points),
@@ -338,8 +357,7 @@ def main() -> None:
     args = parse_args()
     validate_args(args)
     backend_names = ai.parse_backend_names(args.model_backends)
-    if ai.MISSING_BACKEND_DEPENDENCY_MESSAGE is not None:
-        raise SystemExit(ai.MISSING_BACKEND_DEPENDENCY_MESSAGE)
+    ai.ensure_backends_available(backend_names)
 
     symbol_filters = common.parse_csv_values(args.symbols)
     staging_db_paths = common.resolve_staging_db_paths(args.staging_db)
@@ -405,6 +423,8 @@ def main() -> None:
     log("INFO", f"Training cutoff UTC: {training_cutoff_utc}")
     log("INFO", f"Bin seconds: {bin_seconds}")
     log("INFO", f"AI backends: {backend_names}")
+    log("INFO", f"Chronos2 model id: {args.chronos_model_id}")
+    log("INFO", f"MOIRAI2 model id: {args.moirai2_model_id}")
     log("INFO", f"Scope pairs: {len(scope_pairs)}")
     log("INFO", f"Staging inputs: {', '.join(args.staging_db)}")
     log("INFO", f"Resolved staging DB count: {len(staging_db_paths)}")
@@ -479,7 +499,8 @@ def main() -> None:
                 horizons_steps=tuple(horizons_steps),
                 horizons_seconds=tuple(horizons_seconds),
                 backend_names=tuple(backend_names),
-                pretrained_model_id=args.chronos_model_id,
+                chronos_model_id=args.chronos_model_id,
+                moirai2_model_id=args.moirai2_model_id,
                 device=args.device,
                 min_context_points=int(args.min_context_points),
                 max_context_points=int(args.max_context_points),
@@ -565,6 +586,7 @@ def main() -> None:
                 "backend_names": backend_names,
                 "execution_mode": "pretrained_zero_shot_evaluation",
                 "chronos_model_id": args.chronos_model_id,
+                "moirai2_model_id": args.moirai2_model_id,
                 "device": ai.resolve_device(args.device),
                 "min_context_points": int(args.min_context_points),
                 "max_context_points": int(args.max_context_points),
