@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="description" content="DWH Pipeline und Dashboard MVP" />
+  <title>Crypto Data Engineering</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Crypto Data Engineering</h1>
+</header>
+<h1 id="crypto-data-engineering">Crypto Data Engineering</h1>
+<h2 id="dwh-pipeline-und-dashboard-mvp">DWH Pipeline und Dashboard
+MVP</h2>
+<p>Masterarbeit Projektstand</p>
+<ul>
+<li>Datum: 2026-03-13</li>
+<li>Fokus: Messwerte sichtbar machen, bevor Forecasting startet</li>
+</ul>
+<hr />
+<h1 id="agenda">Agenda</h1>
+<ol type="1">
+<li>Problem und Zielbild</li>
+<li>DWH Architektur und Datenfluss</li>
+<li>KPI Definitionen und Qualitaetssicherung</li>
+<li>Dashboard MVP und aktueller Stand</li>
+<li>Risiken, offene Punkte, naechste Schritte</li>
+</ol>
+<hr />
+<h1 id="problem-und-zielbild">Problem und Zielbild</h1>
+<h2 id="problem">Problem</h2>
+<ul>
+<li>Gleiche Kryptowaehrung wird auf verschiedenen Exchanges
+unterschiedlich gepreist.</li>
+<li>Datenqualitaet und Plattformstabilitaet unterscheiden sich
+stark.</li>
+<li>Ohne KPI-Layer ist ein fairer Exchange-Vergleich schwer.</li>
+</ul>
+<h2 id="zielbild">Zielbild</h2>
+<ul>
+<li>Reproduzierbare DWH-Pipeline fuer Markt- und Betriebsdaten.</li>
+<li>Vergleichbare KPIs pro Exchange und Symbol.</li>
+<li>Dashboard fuer schnelle Analyse von Preisabweichung und
+Plattformqualitaet.</li>
+</ul>
+<hr />
+<h1 id="zielarchitektur-uebersicht">Zielarchitektur (Uebersicht)</h1>
+<p><img
+src="./../../diagrams/0_overview/uml_flow_end_to_end_pipeline_subgraphs.png" /></p>
+<hr />
+<h1 id="pipeline-details-12">Pipeline Details (1/2)</h1>
+<h2 id="ingestion">Ingestion</h2>
+<ul>
+<li>CCXT Websocket / Marktstream pro Exchange.</li>
+<li>Speicherung in SQLite mit Ingestion-Timestamp pro Tick.</li>
+<li>Operational Supervision fuer Worker und Reconnect.</li>
+</ul>
+<h2 id="staging">Staging</h2>
+<ul>
+<li>Täglicher Export des letzten 24h Fensters.</li>
+<li>Entkopplung zwischen Online-Ingestion und
+Downstream-Transformation.</li>
+</ul>
+<hr />
+<h1 id="pipeline-details-22">Pipeline Details (2/2)</h1>
+<h2 id="cleansing">Cleansing</h2>
+<ul>
+<li>Resampling auf konsistentes Zeitraster.</li>
+<li>Fill-Strategien: observed, forward_fill, interpolation.</li>
+<li>Data-Quality Checks auf Nullwerte, Duplikate, Ausreisser.</li>
+</ul>
+<h2 id="core">Core</h2>
+<ul>
+<li>KPI Views fuer Latency, Update-Frequenz, Disconnects, Price
+Deviation.</li>
+<li>Validierungsregeln mit SQL Assertions und Report-Ausgabe.</li>
+</ul>
+<hr />
+<h1 id="kpi-definitionen-kernmetriken">KPI Definitionen
+(Kernmetriken)</h1>
+<h2 id="plattformqualität">Plattformqualität</h2>
+<ul>
+<li>Latency (ms): min / avg / max pro Exchange.</li>
+<li>Update Frequency (Hz): aus Tick-Intervall abgeleitet.</li>
+<li>Disconnect Count: Anzahl <code>disconnect</code> Events pro
+Zeitraum.</li>
+</ul>
+<h2 id="preisabweichung">Preisabweichung</h2>
+<ul>
+<li><code>max_price_diff_abs</code>: maximale absolute Differenz
+zwischen Exchanges.</li>
+<li><code>max_price_diff_pct</code>: maximale relative Differenz in
+Prozent.</li>
+<li>Zeitlich ausgerichtet über Bucket-Timestamps.</li>
+</ul>
+<hr />
+<h1 id="mart-layer-als-dashboard-contract">Mart Layer als Dashboard
+Contract</h1>
+<p>Verwendete Views:</p>
+<ul>
+<li><code>vw_mart_dashboard_platform_quality_daily</code></li>
+<li><code>vw_mart_dashboard_price_deviation_daily</code></li>
+<li><code>vw_mart_dashboard_price_curve_24h_binance</code></li>
+</ul>
+<p>Prinzip:</p>
+<ul>
+<li><p>KPI-Logik bleibt in SQL Views. Optional zwecks Performancegewinn
+werden Cache-Tabellen mit den Daten der Views gefüllt.</p></li>
+<li><p>Dashboard liest nur konsumfertige Daten.</p></li>
+<li><p>Keine ad-hoc KPI-Berechnung in der UI.</p></li>
+</ul>
+<hr />
+<h1 id="dashboard-mvp-implementiert">Dashboard MVP (Implementiert)</h1>
+<p>Bestandteile:</p>
+<ul>
+<li>Symbol-Selector</li>
+<li>24h Price Curve (Binance Baseline)</li>
+<li>Daily Price Deviation Snapshot</li>
+<li>Daily Platform Quality Snapshot</li>
+</ul>
+<p>Technik:</p>
+<ul>
+<li>Streamlit App:
+<code>scripts/5_marts/dashboard_mvp_app.py</code></li>
+<li>Datenquelle: <code>z.B. data/core/core_kpi.db</code> mit Mart
+Views</li>
+</ul>
+<hr />
+<h1 id="dashboard-laufzeitfluss">Dashboard Laufzeitfluss</h1>
+<p><img
+src="./../../diagrams/5_marts/uml_sequence_mart_dashboard_extracts.png" /></p>
+<hr />
+<h1 id="bisherige-beobachtungen-aus-messläufen">Bisherige Beobachtungen
+aus Messläufen</h1>
+<ul>
+<li><p>Erste Volumenschätzung: ca. <code>90 GB/Tag</code> (basierend auf
+12h Vorlaufmessung).</p></li>
+<li><p>Exchange Coverage: nur ein Teil der CCXT-Exchanges liefert stabil
+Daten.</p></li>
+<li><p>Home-Network Betrieb kann Disconnect-KPIs verfälschen.</p></li>
+<li><p>Staging Laufzeiten aktuell noch relativ hoch für schnelle
+Iterationen.</p>
+<ul>
+<li><p>In initialer Architektur in der alle eingehenden Daten in eine
+Datenbank geschrieben wurden hat der Stagingprozess für eine Stunde
+15-20 Min. Zeit benötigt.</p></li>
+<li><p>In angepasster Architektur, in der die Daten in VAULT-Partitionen
+in separaten Datenbanken abgelegt wurden, liegt die Verarbeitungsdauer
+für 9 einzelne Stunden unter 1 Minute. Die Umstellung auf
+VAULT-Partitionen hat einen deutlichen Performancegewinn gebracht. Es
+wurden Datenbanken pro Exchange/Datum/Stunde erzeugt, anstatt alle Daten
+in einer DB in nur einer Rohdatentabelle zu verwalten. Die Ersparnis der
+Laufzeit ist auf die nunmehr fehlenden SQL Joins zurückzuführen.
+Beispiel Layout:</p>
+<pre class="text"><code>data/vault2_redis/
+  ingestion/
+    exchange=aster/date=2026-03-09/hour=15/part_aster_20260309_15.db
+    exchange=aster/date=2026-03-09/hour=16/part_aster_20260309_16.db
+    exchange=backpack/date=2026-03-09/hour=15/part_backpack_20260309_15.db
+    exchange=backpack/date=2026-03-09/hour=16/part_backpack_20260309_16.db
+  meta/vault_manifest.db</code></pre></li>
+</ul></li>
+</ul>
+<hr />
+<h1 id="umsetzungsdetails">Umsetzungsdetails</h1>
+<h2 id="systemarchitektur">Systemarchitektur</h2>
+<p>Anstelle einer zentralen Datenquelle, welche die Rohdaten in eine
+zentrale Datenbank schreibt, wie es anfangs der Fall war, wurde die
+Systemarchitektur angepasst und verwendet nun eine Redis-Instanz
+(Real-Time DB of key/value data), die in einem Docker-/Podman-Container
+gestartet wird.</p>
+<p>Das ermöglicht die Integration weiterer Datenquellen und -Senken
+durch zusätzliche Prozesse, die über Redis kommunizieren, sowie das
+Speichern der kompletten Redis-Daten durch den Redis-Prozess selbst.</p>
+<p><img
+src="./../../diagrams/0_overview/system_architecture_redis_vault_overview.png"
+title="Systemarchitektur" /></p>
+<h1 id="ingestion-1">Ingestion</h1>
+<p>Datenquellen, in diesem Fall ein einzelnes Skript
+<code>ccxt_to_redis_stream.py</code>, publizieren ihre Daten in einen
+Redis-Stream.</p>
+<p>Datensenken, in diesem Fall das Skript
+<code>redis_stream_to_vault_writer.py</code>, erhalten Events des
+Streams und schreiben die Daten in die entsprechende
+VAULT-Partition.</p>
+<p>Diese Prozesse laufen dauerhaft, sofern ausreichend
+Festplattenkapazität zur Verfügung steht.</p>
+<p><img
+src="./../../diagrams/1_ingestion/uml_deployment_ingestion_redis_vault.png" /></p>
+<h1 id="staging-1">Staging</h1>
+<p>Der Staging-Prozess exportiert durch das Skript
+<code>staging_exporter.py</code> Daten auf Basis ihres Zeitstempels. Er
+unterstützt Parameter, die es ermöglichen, Zeitfenster in Stundenrastern
+zu definieren, die exportiert werden sollen. Somit ist es möglich,
+mehrere z. B. 2-Stunden-Intervalle zu exportieren.</p>
+<p><img
+src="./../../diagrams/2_staging/uml_deployment_staging_export.png" /></p>
+<h1 id="cleansing-1">Cleansing</h1>
+<p>Der Cleansing-Prozess (<code>cleansing_resample.py</code>)
+transformiert die Staging-Daten in definierte Intervalle (default:
+60s).</p>
+<p>Fehlende Daten werden je nach Konfiguration für einen maximalen
+Zeitraum linear interpoliert oder mit dem letzten Wert aufgefüllt.</p>
+<p>Ein Qualitätskriterium ist das Alter der Daten sofern die Rohdaten
+Lücken aufweisen.</p>
+<p>Ein stabiles Intervall ermöglicht das Vergleichen der
+Preisinformationen an identischen Zeitpunkten.</p>
+<p>Der Prozess schreibt die Daten in eine gemeinsame Datenbank.</p>
+<p>Die Cleansing-DB</p>
+<ul>
+<li><p>bietet eine stabile Grundlage für den Vergleich zwischen
+verschiedenen Börsen.</p></li>
+<li><p>reduziert Rauschen und Volumen im Vergleich zu Subsekunden- oder
+5-Sekunden-Bins.</p></li>
+<li><p>entspricht dem aktuellen Ziel einer Tagesanalyse unter begrenzten
+Speicherbedingungen.</p></li>
+</ul>
+<p><img
+src="./../../diagrams/3_cleansing/dfd_cleansing_pipeline.png" /></p>
+<h1 id="core-marts">Core &amp; Marts</h1>
+<h2 id="core-kpis">Core KPIs</h2>
+<p>Das Dashboard verwendet die <code>core_kpi</code>-Datenbank zur
+Anzeige der gewünschten Informationen.</p>
+<p>Der Prozess <code>build_core_db.py</code> aggregiert Informationen
+aus den unterschiedlichen Quellen und schreibt sie in eine
+KPI-Datenbank.</p>
+<p><img
+src="./../../diagrams/4_core/uml_deployment_core_build_db.png" /></p>
+<p>Hier eine Darstellung nach Star-Schema eines Subsets der in der DB
+gespeicherten Daten.</p>
+<p><img src="./../../diagrams/4_core/uml_er_core.png" /></p>
+<h2 id="marts">Marts</h2>
+<p>Marts sind die Datenquellen der darzustellenden OLAPs.</p>
+<p>OLAPs werden durch SQL-Statements repräsentiert, die je nach
+Datenbankschema mehr oder weniger Zeit zur Ausführung benötigen.</p>
+<p>In der KPI-Datenbank sind die OLAPs als Views definiert, die wie
+Tabellen aussehen, aber in Realität SQL-Statements sind, die zur
+Laufzeit ausgeführt werden und ihre Daten aus unterschiedlichen Tabellen
+zusammenführen. Um den Prozess zu beschleunigen, wurden Cache-Tabellen
+erzeugt, die das Ergebnis der Views speichern und somit keine Joins zur
+Laufzeit mehr benötigen.</p>
+<p>Das Dashboard kommt auch ohne Cache-Tabellen aus, nutzt sie aber,
+sofern sie vorhanden sind.</p>
+<p>Hier ein Architekturschaubild der Cache-Tabellen für die Darstellung
+der Preisunterschiede im Dashboard.</p>
+<p><img
+src="./../../diagrams/5_marts/uml_architecture_symbol_deviation_mart.png" /></p>
+<h1 id="forecasting">Forecasting</h1>
+<p>Ein während der Bearbeitung des Projekts hinzugefügtes Feature ist
+die Berechnung und Darstellung von Vorhersagen der Preisentwicklung der
+Symbole.</p>
+<p>Es wurden 2 Ansätze für die Vorhersage der Zeitreihen verwendet:</p>
+<ol type="1">
+<li><p>Machine Learning – der klassische Ansatz auf Basis des
+Python-Pakets <code>scikit-learn</code></p></li>
+<li><p>Deep Learning – der AI-Ansatz unter Verwendung vortrainierter
+Zeitreihenvorhersage-Modelle</p></li>
+</ol>
+<h2 id="machine-learning">Machine Learning</h2>
+<p>Die Regressions-Modelle “Ridge”” und “Histogram Gradient Boosting”
+wurden durch das Skript “train_staging_models.py” auf Basis der Staging
+Exporte Trainiert. Zu beachten ist, daass der Staging Export der letzten
+2 Stunden nicht zu Trainingszwecken verwendet wird, denn der soll im
+Dashboard vorhergesagt werden und dazu ist es besser die
+vorherzusagenden Daten dem Modell vorher nicht ‘gezeigt’ zu haben.</p>
+<p>Die trainierten Modelle werden im Dateisystem gespeichert (je
+Exchange und Symbol ein Modell), so dass sie bei Bedarf an anderer
+Stelle wiederverwendung finden können.</p>
+<p>Das Modell wird vom forecaster “forecast_with_trained_models.py”
+verwendet um die Daten des letzten Staged Zeitfensters damit zu füttern
+und die Vorhersagen zu den zukünftigen Zeitpunkten in der corr KPI
+Datenbank zu speichern.</p>
+<p><img
+src="./../../diagrams/6_forecasting/uml_sequence_forecasting_staging_cutoff_training.png" /></p>
+<h2 id="deepl-learning">Deepl Learning</h2>
+<p>Normalerweise bedeutet DL Modelle zu trainineren viel Zeit dafür
+einzuplanen. Abhägig von der DL Architektur des KModellls und der damit
+verbundenen Trainigsparameter, sowie der Menge von Trainingsdaten und
+vorhandener Hardware ist die Berechnung um einiges langwieriger als ML
+Modelle zu trainieren.</p>
+<p>In dieser Projektarbeit aber wurde ein vortrainiertes Modell
+“Cronos2” verwendet, dass keine zusätzliche Trainigsphase benötigen soll
+um gut zu performen. Zusätzlich wurde ein ebenfalls vortrainiertes
+Modell (“MOIRA2”) in die Pipeline mit aufgenommen jedoch wurde der
+Prozess des ‘trainierens’ und der forecaster nach integration des neuen
+Modells nicht erneut aufgerufen, daher sind Vorhersagen damit in der
+aktuellen Version (12.03.2026) nicht in einer der core_KPI Datenbanken
+enthalten.</p>
+<p><img
+src="./../../diagrams/6_forecasting/uml_sequence_forecasting_ai_evaluation_inference.png" /></p>
+<h1 id="dashboard">Dashboard</h1>
+<p>Das Dashboard erscheint ein wenig unübersichtlich und es bedarf ein
+Wenig Übung um zu verstehen was darin alles enthalten ist.</p>
+<p>Die OLPAs aus der Initialen Zielsetzung</p>
+<p>Plattformqualität</p>
+<ul>
+<li>Latency (ms): min / avg / max pro Exchange.</li>
+<li>Update Frequency (Hz): aus Tick-Intervall abgeleitet.</li>
+<li>Disconnect Count: Anzahl <code>disconnect</code> Events pro
+Zeitraum.</li>
+</ul>
+<figure>
+<img src="./../KW11/a15bf94a-6a43-4542-86a8-4d7bbbbd547a.png"
+alt="a15bf94a-6a43-4542-86a8-4d7bbbbd547a" />
+<figcaption
+aria-hidden="true">a15bf94a-6a43-4542-86a8-4d7bbbbd547a</figcaption>
+</figure>
+<figure>
+<img src="./../KW11/22eeaacb-4975-4478-beb7-b45cd453469f.png"
+alt="22eeaacb-4975-4478-beb7-b45cd453469f" />
+<figcaption
+aria-hidden="true">22eeaacb-4975-4478-beb7-b45cd453469f</figcaption>
+</figure>
+<p>Preisabweichung</p>
+<ul>
+<li><code>max_price_diff_abs</code>: maximale absolute Differenz
+zwischen Exchanges.</li>
+<li><code>max_price_diff_pct</code>: maximale relative Differenz in
+Prozent.</li>
+<li>Zeitlich ausgerichtet über Bucket-Timestamps.</li>
+</ul>
+<figure>
+<img src="./../KW11/323647b8-a881-4434-89cd-490f43e5b7ef.png"
+alt="323647b8-a881-4434-89cd-490f43e5b7ef" />
+<figcaption
+aria-hidden="true">323647b8-a881-4434-89cd-490f43e5b7ef</figcaption>
+</figure>
+<p>sind jedoch alle enthalten</p>
+<p>Die Herausforderung liegt viel mehr darin, die richtige core_KPI
+Datenbank zu laden, die dazu psaende Cleansing-DB sofern man mehrere
+Läufe auf den gleichen Datensatz ausgeführt hat, und die passende
+forecast Datensätze zu wählen.</p>
+<figure>
+<img src="./../KW11/b3b6d3a7-595b-4a2a-b70e-7d076024b216.png"
+alt="b3b6d3a7-595b-4a2a-b70e-7d076024b216" />
+<figcaption
+aria-hidden="true">b3b6d3a7-595b-4a2a-b70e-7d076024b216</figcaption>
+</figure>
+<p>Man kann keine invalide Kompbination wählen, weil die metadaten der
+core KPI Datenbank nur gültige Kombinationen zulässt, trotzdem ist ein
+wenig Übung im Umgang mit dem Dashboard notwendig.</p>
+<p>Da es aaber nur darstellen soll, was alles in kurzer Zeit innerhalb
+eines Weiterbildungsprojektes möglich ist, genügt mir die aktuelle
+Verion.</p>
+<h1 id="nutzung-von-ai">Nutzung von AI</h1>
+<p>Das komplette Projekt habe ich mit Hilfe von ‘codex’ umgesetzt.</p>
+<p>Ich habe nicht eine Zeile der über 20.000 Zeilen Code selbst
+geschrieben.</p>
+<p><code>find . -name *.py -print0 | wc -l --files0-from=- 502 ./docs/KW11/moirai_2_0_fulltutorial_substack.py 1240 ./docs/KW11/chronos2_retail_substack.py 493 ./scripts/4_core/core_validation_runner.py 570 ./scripts/4_core/smoke_test_core_kpi_views.py 341 ./scripts/4_core/core_pipeline.py 634 ./scripts/4_core/build_core_db.py 446 ./scripts/4_core/smoke_test_core_pipeline.py 591 ./scripts/5_marts/build_dashboard_cache.py 2805 ./scripts/5_marts/dashboard_mvp_app.py 559 ./scripts/2_staging/staging_exporter.py 1666 ./scripts/3_cleansing/cleansing_resample.py 230 ./scripts/1_ingestion/ingestion_common.py 936 ./scripts/1_ingestion/orchestrator_auto_shard.py 1365 ./scripts/1_ingestion/ingest_all_exchanges_ws.py 10 ./scripts/1_ingestion/redis_stream_to_vault_writer.py 304 ./scripts/1_ingestion/orchestrator_redis_auto_shard.py 10 ./scripts/1_ingestion/poc_ccxt_to_redis_stream.py 686 ./scripts/1_ingestion/poc_redis_stream_to_vault_writer.py 927 ./scripts/1_ingestion/ccxt_to_redis_stream.py 621 ./scripts/6_forecasting/train_ai_models.py 572 ./scripts/6_forecasting/forecast_with_ai_models.py 604 ./scripts/6_forecasting/forecast_with_trained_models.py 703 ./scripts/6_forecasting/ai_model_backends.py 61 ./scripts/6_forecasting/fine_tune_ai_models.py 1949 ./scripts/6_forecasting/train_staging_models.py 1936 ./scripts/6_forecasting/train_staging_models_and_forecasts.py 20761 total (crypto) wgo@vmd191183:~/dev/crypto_DWH$</code></p>
+<p>Meine Aufgabe habe ich eher darin gesehen meine Projektidee in Worte
+zu fassen, und die AI schrittweise anzuleiten was zu tun ist.</p>
+<h1 id="danke.">Danke.</h1>
+</body>
+</html>

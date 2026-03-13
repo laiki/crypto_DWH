@@ -13,7 +13,7 @@ description: DWH Pipeline und Dashboard MVP
 
 Masterarbeit Projektstand
 
-- Datum: 2026-02-23
+- Datum: 2026-03-13
 - Fokus: Messwerte sichtbar machen, bevor Forecasting startet
 
 ---
