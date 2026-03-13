@@ -19,6 +19,7 @@ scripts/**/__pycache__/
 scripts/**/logs/
 *.json
 *.png
+!diagrams/**/*.png
 !docs/KW11/*.png
 
 *.joblib
